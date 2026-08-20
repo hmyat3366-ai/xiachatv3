@@ -53,7 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string) => {
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/auth/login', {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         credentials: 'include', // CRITICAL: receive and store auth_token cookie
         headers: { 'Content-Type': 'application/json' },
@@ -80,7 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = async (name: string, email: string, password: string, confirmPassword: string) => {
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/auth/signup', {
+      const res = await fetch(`${API_BASE}/api/auth/signup`, {
         method: 'POST',
         credentials: 'include', // CRITICAL: receive and store auth_token cookie
         headers: { 'Content-Type': 'application/json' },
@@ -106,7 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      await fetch(`${API_BASE}/api/auth/logout', {
+      await fetch(`${API_BASE}/api/auth/logout`, {
         method: 'POST',
         credentials: 'include', // CRITICAL: send cookie so server can clear it
       });
@@ -119,7 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const forgotPassword = async (email: string) => {
     try {
-      const res = await fetch(`${API_BASE}/api/auth/forgot-password', {
+      const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -139,7 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resetPassword = async (token: string, newPassword: string, confirmPassword: string) => {
     try {
-      const res = await fetch(`${API_BASE}/api/auth/reset-password', {
+      const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -159,7 +159,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resendVerification = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/auth/resend-verification', {
+      const res = await fetch(`${API_BASE}/api/auth/resend-verification`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -178,7 +178,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const saveOnboardingStep1 = async (workspaceName: string, workspaceSlug?: string) => {
     try {
-      const res = await fetch(`${API_BASE}/api/onboarding/step-1', {
+      const res = await fetch(`${API_BASE}/api/onboarding/step-1`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -199,7 +199,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const saveOnboardingStep2 = async (businessType?: string, customerChannels?: string[]) => {
     try {
-      const res = await fetch(`${API_BASE}/api/onboarding/step-2', {
+      const res = await fetch(`${API_BASE}/api/onboarding/step-2`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -220,7 +220,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const completeOnboarding = async (assistantName?: string, assistantInstructions?: string) => {
     try {
-      const res = await fetch(`${API_BASE}/api/onboarding/complete', {
+      const res = await fetch(`${API_BASE}/api/onboarding/complete`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -241,7 +241,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchOnboardingData = async (): Promise<OnboardingData | null> => {
     try {
-      const res = await fetch(`${API_BASE}/api/onboarding/data', {
+      const res = await fetch(`${API_BASE}/api/onboarding/data`, {
         method: 'GET',
         credentials: 'include',
       });
