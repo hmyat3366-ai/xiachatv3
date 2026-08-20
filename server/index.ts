@@ -3,9 +3,13 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import { connectMongoDB } from './models.js';
 
 // Load environment variables
 dotenv.config();
+
+// Attempt MongoDB connection if MONGODB_URI is provided
+connectMongoDB();
 
 import {
   signup,

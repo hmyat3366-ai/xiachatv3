@@ -25,6 +25,7 @@
     "framer-motion": "^13.1.0",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.31.0",
+    "mongoose": "^9.9.3",
     "nodemailer": "^9.0.5",
     "pdfkit": "^0.19.1",
     "react": "^19.2.8",
