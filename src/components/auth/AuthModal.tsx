@@ -57,7 +57,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleGoogleAuth = () => {
     setIsGoogleLoading(true);
-    window.location.href = '/api/auth/google';
+    const apiBase = import.meta.env.VITE_API_URL || '';
+    window.location.href = `${apiBase}/api/auth/google`;
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
