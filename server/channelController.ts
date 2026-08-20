@@ -198,9 +198,11 @@ export const updateWebsiteChannelConfig = async (req: AuthRequest, res: Response
     const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
     if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
 
+    ensureSeedChannels(workspace.id);
+
     const { widgetName, welcomeMessage, primaryColor, position, defaultAgentId, enableAI, enableHandoff, showAgentAvailability } = req.body;
 
-    const channel = db.prepare('SELECT * FROM channels WHERE workspace_id = ? AND type = "website"').get(workspace.id) as DbChannel | undefined;
+    const channel = db.prepare("SELECT * FROM channels WHERE workspace_id = ? AND type = 'website'").get(workspace.id) as DbChannel | undefined;
     if (!channel) return res.status(404).json({ error: 'Website Chat channel not found.' });
 
     const now = new Date().toISOString();
@@ -231,7 +233,7 @@ export const updateWebsiteChannelConfig = async (req: AuthRequest, res: Response
 export const getPublicWidgetConfig = async (req: Request, res: Response) => {
   try {
     const siteKey = req.params.siteKey;
-    const channel = db.prepare('SELECT c.*, w.name as workspace_name FROM channels c JOIN workspaces w ON c.workspace_id = w.id WHERE c.id = ? AND c.type = "website"').get(siteKey) as (DbChannel & { workspace_name: string }) | undefined;
+    const channel = db.prepare("SELECT c.*, w.name as workspace_name FROM channels c JOIN workspaces w ON c.workspace_id = w.id WHERE c.id = ? AND c.type = 'website'").get(siteKey) as (DbChannel & { workspace_name: string }) | undefined;
 
     if (!channel || channel.status === 'disconnected') {
       return res.status(404).json({ error: 'Widget configuration unavailable or channel disconnected.' });

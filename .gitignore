@@ -26,6 +26,9 @@ dist-ssr
 # SQLite Databases & Env
 *.db
 *.sqlite
+*.db-shm
+*.db-wal
+data/
 .env
 .env.*
 
