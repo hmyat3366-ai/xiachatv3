@@ -19,18 +19,47 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
+// Helper: get stored auth token
+function getStoredToken(): string | null {
+  return localStorage.getItem('xia_auth_token');
+}
+
+// Helper: build auth headers
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...extra };
+  const token = getStoredToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // On mount: check for OAuth token in URL query param and store it
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get('token');
+    if (urlToken) {
+      localStorage.setItem('xia_auth_token', urlToken);
+      // Clean token from URL without reload
+      params.delete('token');
+      const cleanSearch = params.toString();
+      const newUrl = window.location.pathname + (cleanSearch ? `?${cleanSearch}` : '');
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, []);
 
   const checkSession = useCallback(async () => {
     try {
       setIsLoading(true);
       const res = await fetch(`${API_BASE}/api/auth/me`, {
         method: 'GET',
-        credentials: 'include', // CRITICAL: send auth_token cookie with every request
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: authHeaders(),
       });
 
       if (res.ok) {
@@ -38,6 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(data.user);
       } else {
         setUser(null);
+        localStorage.removeItem('xia_auth_token');
       }
     } catch {
       setUser(null);
@@ -55,12 +85,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
-        credentials: 'include', // CRITICAL: receive and store auth_token cookie
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: authHeaders(),
         body: JSON.stringify({ email, password }),
       });
 
+      // Store token from response if provided
       const data = await res.json();
+      if (data.token) localStorage.setItem('xia_auth_token', data.token);
+
+
 
       if (!res.ok) {
         const errMessage = data.error || 'Email or password is incorrect.';
@@ -82,12 +116,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await fetch(`${API_BASE}/api/auth/signup`, {
         method: 'POST',
-        credentials: 'include', // CRITICAL: receive and store auth_token cookie
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: authHeaders(),
         body: JSON.stringify({ name, email, password, confirmPassword }),
       });
 
       const data = await res.json();
+      if (data.token) localStorage.setItem('xia_auth_token', data.token);
+
+
 
       if (!res.ok) {
         const errMessage = data.error || 'Failed to create account.';
@@ -108,8 +145,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await fetch(`${API_BASE}/api/auth/logout`, {
         method: 'POST',
-        credentials: 'include', // CRITICAL: send cookie so server can clear it
+        credentials: 'include',
+        headers: authHeaders(),
       });
+      localStorage.removeItem('xia_auth_token');
     } catch (err) {
       console.error('Logout error:', err);
     } finally {

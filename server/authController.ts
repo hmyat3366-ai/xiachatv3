@@ -114,11 +114,12 @@ export const signup = async (req: Request, res: Response) => {
       // Email failure is non-fatal; token is stored and can be resent
     });
 
-    generateTokenCookie(res, newUser.id);
+    const token = generateTokenCookie(res, newUser.id);
 
     return res.status(201).json({
       message: 'Account created successfully.',
       user: sanitizeUser(newUser),
+      token,
     });
   } catch {
     return res.status(500).json({ error: 'An unexpected server error occurred during signup.' });
@@ -154,11 +155,12 @@ export const login = async (req: Request, res: Response) => {
     db.prepare('UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?').run(now, now, user.id);
 
     user.last_login_at = now;
-    generateTokenCookie(res, user.id);
+    const token = generateTokenCookie(res, user.id);
 
     return res.status(200).json({
       message: 'Logged in successfully.',
       user: sanitizeUser(user),
+      token,
     });
   } catch {
     return res.status(500).json({ error: 'An unexpected server error occurred during login.' });
@@ -458,12 +460,13 @@ export const googleCallback = async (req: Request, res: Response) => {
       user.last_login_at = now;
     }
 
-    generateTokenCookie(res, user.id);
+    const token = generateTokenCookie(res, user.id);
 
     // Source of truth: backend user account state determines destination
     const isCompleted = Boolean(user.onboarding_completed);
     const redirectTarget = isCompleted ? '/dashboard' : '/onboarding';
-    return res.redirect(`${FRONTEND_URL}${redirectTarget}?auth=google_success`);
+    // Pass token via URL for cross-domain (Vercel<->Railway) where cookies may not transfer
+    return res.redirect(`${FRONTEND_URL}${redirectTarget}?auth=google_success&token=${token}`);
   } catch {
     return res.redirect(`${FRONTEND_URL}?auth_error=server_error`);
   }
