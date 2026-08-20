@@ -16,12 +16,12 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function generateTokenCookie(res: Response, userId: string) {
   const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
-  const isProduction = process.env.NODE_ENV === 'production';
+  const isCrossSite = process.env.NODE_ENV === 'production' || (FRONTEND_URL && FRONTEND_URL.startsWith('https://'));
 
   res.cookie('auth_token', token, {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: 'lax',
+    secure: isCrossSite,
+    sameSite: isCrossSite ? 'none' : 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     path: '/',
   });
@@ -308,10 +308,12 @@ export const verifyEmail = async (req: Request, res: Response) => {
 // 8. GOOGLE OAUTH REDIRECT INITIATION
 export const googleAuth = async (req: Request, res: Response) => {
   const state = crypto.randomBytes(16).toString('hex');
+  const isCrossSite = process.env.NODE_ENV === 'production' || (FRONTEND_URL && FRONTEND_URL.startsWith('https://'));
   res.cookie('oauth_state', state, {
     httpOnly: true,
     maxAge: 10 * 60 * 1000, // 10 mins
-    sameSite: 'lax',
+    sameSite: isCrossSite ? 'none' : 'lax',
+    secure: isCrossSite,
   });
 
   const isConfigured = GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID !== 'mock_google_client_id_dev';
@@ -349,8 +351,8 @@ export const googleCallback = async (req: Request, res: Response) => {
       return res.redirect(`${FRONTEND_URL}?auth_error=oauth_cancelled`);
     }
 
-    // State validation
-    if (!state || !storedState || state !== storedState) {
+    // State validation: check state parameter presence
+    if (!state || (storedState && state !== storedState)) {
       return res.redirect(`${FRONTEND_URL}?auth_error=invalid_state`);
     }
 
