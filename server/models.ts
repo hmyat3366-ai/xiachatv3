@@ -160,6 +160,9 @@ const ConversationSchema = new Schema<IConversation>(
   { timestamps: true }
 );
 
+ConversationSchema.index({ workspace_id: 1, created_at: -1 });
+ConversationSchema.index({ workspace_id: 1, status: 1 });
+
 // ─── 6. Message Model ─────────────────────────────────────────────────────────
 export interface IMessage extends Document {
   conversation_id: string;

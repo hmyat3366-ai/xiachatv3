@@ -406,7 +406,9 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_team_conversations_workspace ON team_conversations(workspace_id);
   CREATE INDEX IF NOT EXISTS idx_team_participants_conv ON team_conversation_participants(conversation_id);
   CREATE INDEX IF NOT EXISTS idx_team_participants_user ON team_conversation_participants(user_id);
-  CREATE INDEX IF NOT EXISTS idx_team_messages_conv ON team_messages(conversation_id);
+  CREATE INDEX IF NOT EXISTS idx_conversations_ws_created ON conversations(workspace_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_conversations_ws_status ON conversations(workspace_id, status);
+  CREATE INDEX IF NOT EXISTS idx_workspace_members_user_status ON workspace_members(user_id, status);
 `);
 
 // Safe column migrations for existing SQLite databases
