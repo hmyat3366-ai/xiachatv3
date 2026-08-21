@@ -365,28 +365,19 @@ export const verifyEmail = async (req: Request, res: Response) => {
 };
 
 // 8. GOOGLE OAUTH REDIRECT INITIATION
+// NOTE: We embed both the nonce and intent inside a short-lived signed JWT passed as the OAuth
+// `state` parameter. This avoids all cross-domain cookie issues that arise when the frontend is
+// hosted on a different domain (e.g. Vercel) from the backend (e.g. Railway) and the Vercel proxy
+// forwards the request — meaning any state cookies would be scoped to the wrong domain.
 export const googleAuth = async (req: Request, res: Response) => {
-  const state = crypto.randomBytes(16).toString('hex');
+  const nonce = crypto.randomBytes(16).toString('hex');
   const intent = (req.query.intent as string) || (req.query.prompt === 'signup' ? 'signup' : 'login');
-  const isCrossSite = process.env.NODE_ENV === 'production' || (FRONTEND_URL && FRONTEND_URL.startsWith('https://'));
+  const isMockNew = req.query.mock_new === 'true';
 
-  res.cookie('oauth_state', state, {
-    httpOnly: true,
-    maxAge: 10 * 60 * 1000, // 10 mins
-    sameSite: isCrossSite ? 'none' : 'lax',
-    secure: isCrossSite,
-  });
-
-  res.cookie('oauth_intent', intent, {
-    httpOnly: true,
-    maxAge: 10 * 60 * 1000,
-    sameSite: isCrossSite ? 'none' : 'lax',
-    secure: isCrossSite,
-  });
+  // Sign a short-lived JWT that encodes both nonce and intent — no cookies needed
+  const signedState = jwt.sign({ nonce, intent, mockNew: isMockNew }, JWT_SECRET, { expiresIn: '10m' });
 
   const isConfigured = GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID !== 'mock_google_client_id_dev';
-  const referer = req.headers.referer || '';
-  const isSignupPrompt = intent === 'signup' || req.query.prompt === 'signup' || req.query.mock_new === 'true' || referer.includes('signup');
 
   if (isConfigured) {
     const params = new URLSearchParams({
@@ -394,15 +385,17 @@ export const googleAuth = async (req: Request, res: Response) => {
       redirect_uri: GOOGLE_CALLBACK_URL,
       response_type: 'code',
       scope: 'openid email profile',
-      state: state,
+      state: signedState,
       prompt: 'select_account',
     });
     return res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
   }
 
   // Developer / Local testing mock flow if real Google credentials are not yet configured in .env
-  const mockFlag = (isSignupPrompt || intent === 'signup') ? '&mock_new=true' : '';
-  const mockRedirectUrl = `${GOOGLE_CALLBACK_URL}?code=mock_oauth_code_12345&state=${state}&intent=${intent}${mockFlag}`;
+  const referer = req.headers.referer || '';
+  const isSignupPrompt = intent === 'signup' || req.query.prompt === 'signup' || isMockNew || referer.includes('signup');
+  const mockFlag = isSignupPrompt ? '&mock_new=true' : '';
+  const mockRedirectUrl = `${GOOGLE_CALLBACK_URL}?code=mock_oauth_code_12345&state=${encodeURIComponent(signedState)}&intent=${intent}${mockFlag}`;
   return res.redirect(mockRedirectUrl);
 };
 
@@ -410,30 +403,35 @@ export const googleAuth = async (req: Request, res: Response) => {
 export const googleCallback = async (req: Request, res: Response) => {
   try {
     const { code, state, error } = req.query;
-    const storedState = req.cookies?.oauth_state;
-    const intent = (req.query.intent as string) || req.cookies?.oauth_intent || 'login';
-
-    res.clearCookie('oauth_state');
-    res.clearCookie('oauth_intent');
 
     // Handle user cancellation or provider failure
     if (error) {
-      return res.redirect(`${FRONTEND_URL}?auth_error=oauth_cancelled`);
+      return res.redirect(`${FRONTEND_URL}/login?auth_error=oauth_cancelled`);
     }
 
-    // State validation: check state parameter presence and cookie match
-    if (!state || !storedState || state !== storedState) {
-      return res.redirect(`${FRONTEND_URL}?auth_error=invalid_state`);
+    // State validation: verify the signed JWT state parameter (no cookies required)
+    if (!state || typeof state !== 'string') {
+      return res.redirect(`${FRONTEND_URL}/login?auth_error=invalid_state`);
     }
+
+    let statePayload: { nonce: string; intent: string; mockNew?: boolean };
+    try {
+      statePayload = jwt.verify(state, JWT_SECRET) as { nonce: string; intent: string; mockNew?: boolean };
+    } catch {
+      return res.redirect(`${FRONTEND_URL}/login?auth_error=invalid_state`);
+    }
+
+    const intent = (req.query.intent as string) || statePayload.intent || 'login';
 
     if (!code || typeof code !== 'string') {
-      return res.redirect(`${FRONTEND_URL}?auth_error=invalid_code`);
+      return res.redirect(`${FRONTEND_URL}/login?auth_error=invalid_code`);
     }
 
     let googleProfile: { id: string; email: string; name: string; email_verified: boolean };
 
     const isConfigured = GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID !== 'mock_google_client_id_dev';
-    const isMockNew = String(req.query.mock_new || '') === 'true';
+    // Prefer isMockNew from signed state payload; fall back to query param for direct test calls
+    const isMockNew = Boolean(statePayload.mockNew) || String(req.query.mock_new || '') === 'true';
 
     if (isConfigured) {
       const tokenRes = await fetch('https://oauth2.googleapis.com/token', {

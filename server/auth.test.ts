@@ -446,18 +446,19 @@ describe('GOOGLE OAUTH', () => {
   });
 
   it('✓ Flow 3: Google login from Login page with new user redirects with google_signup_pending', async () => {
+    // Initiate OAuth to get signed state JWT
     const initRes = await fetch(`${BASE_URL}/api/auth/google?intent=login&mock_new=true`, { redirect: 'manual' });
-    const setCookie = initRes.headers.get('set-cookie');
     const location = initRes.headers.get('location') || '';
 
-    if (setCookie && location) {
+    if (location) {
       const stateMatch = location.match(/state=([^&]+)/);
       const codeMatch = location.match(/code=([^&]+)/);
       if (stateMatch && codeMatch) {
-        const cbRes = await fetch(`${BASE_URL}/api/auth/google/callback?code=${codeMatch[1]}&state=${stateMatch[1]}&intent=login&mock_new=true`, {
-          headers: { Cookie: setCookie },
-          redirect: 'manual',
-        });
+        // No cookies needed — state is a self-contained signed JWT
+        const cbRes = await fetch(
+          `${BASE_URL}/api/auth/google/callback?code=${codeMatch[1]}&state=${stateMatch[1]}&intent=login&mock_new=true`,
+          { redirect: 'manual' }
+        );
         assert.ok([301, 302, 303, 307, 308].includes(cbRes.status));
         const redirectUrl = cbRes.headers.get('location') || '';
         assert.ok(
@@ -470,18 +471,19 @@ describe('GOOGLE OAUTH', () => {
   });
 
   it('✓ Flow 5: Google signup from Signup page with existing user redirects with google_account_exists', async () => {
+    // Initiate OAuth to get signed state JWT
     const initRes = await fetch(`${BASE_URL}/api/auth/google?intent=signup`, { redirect: 'manual' });
-    const setCookie = initRes.headers.get('set-cookie');
     const location = initRes.headers.get('location') || '';
 
-    if (setCookie && location) {
+    if (location) {
       const stateMatch = location.match(/state=([^&]+)/);
       const codeMatch = location.match(/code=([^&]+)/);
       if (stateMatch && codeMatch) {
-        const cbRes = await fetch(`${BASE_URL}/api/auth/google/callback?code=${codeMatch[1]}&state=${stateMatch[1]}&intent=signup`, {
-          headers: { Cookie: setCookie },
-          redirect: 'manual',
-        });
+        // No cookies needed — state is a self-contained signed JWT
+        const cbRes = await fetch(
+          `${BASE_URL}/api/auth/google/callback?code=${codeMatch[1]}&state=${stateMatch[1]}&intent=signup`,
+          { redirect: 'manual' }
+        );
         assert.ok([301, 302, 303, 307, 308].includes(cbRes.status));
         const redirectUrl = cbRes.headers.get('location') || '';
         assert.ok(

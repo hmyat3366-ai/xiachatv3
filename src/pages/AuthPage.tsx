@@ -56,6 +56,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     const gEmail = params.get('email');
     const gName = params.get('name');
     const accountExists = params.get('google_account_exists') === 'true';
+    const authError = params.get('auth_error');
 
     if (googlePending && tempToken) {
       setPendingTempToken(tempToken);
@@ -65,6 +66,25 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
     if (accountExists && gEmail) {
       setExistingGoogleEmail(gEmail);
+    }
+
+    // Display user-friendly error messages for OAuth failures
+    if (authError) {
+      const errorMessages: Record<string, string> = {
+        oauth_cancelled: 'Google sign-in was cancelled. Please try again.',
+        invalid_state: 'Authentication session expired. Please try again.',
+        invalid_code: 'Authentication failed. Please try signing in again.',
+        token_exchange_failed: 'Could not verify your Google account. Please try again.',
+        token_missing: 'Google authentication failed. Please try again.',
+        userinfo_failed: 'Could not retrieve your Google profile. Please try again.',
+        server_error: 'A server error occurred. Please try again.',
+      };
+      setFormError(errorMessages[authError] || 'Google sign-in failed. Please try again.');
+      // Clean the auth_error param from URL
+      params.delete('auth_error');
+      const cleanSearch = params.toString();
+      const newUrl = window.location.pathname + (cleanSearch ? `?${cleanSearch}` : '');
+      window.history.replaceState({}, '', newUrl);
     }
   }, []);
 
