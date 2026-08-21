@@ -8,6 +8,7 @@ export interface AuthenticatedUserPayload {
   id: string;
   name: string;
   email: string;
+  username: string | null;
   authProvider: 'local' | 'google' | 'both';
   hasPassword: boolean;
   emailVerified: boolean;
@@ -26,6 +27,7 @@ export function sanitizeUser(user: DbUser): AuthenticatedUserPayload {
     id: user.id,
     name: user.name,
     email: user.email,
+    username: user.username || null,
     authProvider: user.auth_provider,
     hasPassword: Boolean(user.password_hash),
     emailVerified: Boolean(user.email_verified),

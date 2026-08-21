@@ -19,6 +19,7 @@ db.exec(`
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
+    username TEXT UNIQUE,
     password_hash TEXT,
     auth_provider TEXT NOT NULL DEFAULT 'local',
     google_id TEXT UNIQUE,
@@ -28,6 +29,16 @@ db.exec(`
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     last_login_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS pending_google_signups (
+    id TEXT PRIMARY KEY,
+    token TEXT UNIQUE NOT NULL,
+    google_id TEXT NOT NULL,
+    email TEXT NOT NULL,
+    name TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS workspaces (
@@ -56,6 +67,7 @@ db.exec(`
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     token_hash TEXT NOT NULL,
+    code_hash TEXT,
     expires_at TEXT NOT NULL,
     used_at TEXT,
     created_at TEXT NOT NULL,
@@ -477,11 +489,17 @@ const inboxMigrations = [
   `ALTER TABLE ai_assistants ADD COLUMN resolution_rate INTEGER NOT NULL DEFAULT 78;`,
 ];
 
-for (const sql of inboxMigrations) {
+const authMigrations = [
+  'ALTER TABLE users ADD COLUMN username TEXT;',
+  'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);',
+  'ALTER TABLE password_resets ADD COLUMN code_hash TEXT;',
+];
+
+for (const sql of [...inboxMigrations, ...authMigrations]) {
   try {
     db.exec(sql);
   } catch {
-    // Column already exists
+    // Column already exists or index exists
   }
 }
 
@@ -489,6 +507,7 @@ export interface DbUser {
   id: string;
   name: string;
   email: string;
+  username: string | null;
   password_hash: string | null;
   auth_provider: 'local' | 'google' | 'both';
   google_id: string | null;

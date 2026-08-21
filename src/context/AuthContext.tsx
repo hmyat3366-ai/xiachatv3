@@ -2,10 +2,12 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { User, AuthState, OnboardingData } from '../types/auth';
 
 interface AuthContextType extends AuthState {
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signup: (name: string, email: string, password: string, confirmPassword: string) => Promise<{ success: boolean; error?: string }>;
+  login: (identifier: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signup: (name: string, username: string, email: string, password: string, confirmPassword: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
-  forgotPassword: (email: string) => Promise<{ success: boolean; message?: string; error?: string }>;
+  confirmGoogleSignup: (tempToken: string) => Promise<{ success: boolean; user?: User; error?: string }>;
+  forgotPassword: (email: string) => Promise<{ success: boolean; message?: string; codeDev?: string; error?: string }>;
+  verifyResetCode: (email: string, code: string) => Promise<{ success: boolean; resetToken?: string; error?: string }>;
   resetPassword: (token: string, newPassword: string, confirmPassword: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   setupPassword: (password: string, confirmPassword: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   resendVerification: () => Promise<{ success: boolean; message?: string; error?: string }>;
@@ -81,24 +83,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkSession();
   }, [checkSession]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (identifier: string, password: string) => {
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         credentials: 'include',
         headers: authHeaders(),
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ identifier, password }),
       });
 
-      // Store token from response if provided
       const data = await res.json();
       if (data.token) localStorage.setItem('xia_auth_token', data.token);
 
-
-
       if (!res.ok) {
-        const errMessage = data.error || 'Email or password is incorrect.';
+        const errMessage = data.error || 'Email/username or password is incorrect.';
         setError(errMessage);
         return { success: false, error: errMessage };
       }
@@ -112,20 +111,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signup = async (name: string, email: string, password: string, confirmPassword: string) => {
+  const signup = async (name: string, username: string, email: string, password: string, confirmPassword: string) => {
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/api/auth/signup`, {
         method: 'POST',
         credentials: 'include',
         headers: authHeaders(),
-        body: JSON.stringify({ name, email, password, confirmPassword }),
+        body: JSON.stringify({ name, username, email, password, confirmPassword }),
       });
 
       const data = await res.json();
       if (data.token) localStorage.setItem('xia_auth_token', data.token);
-
-
 
       if (!res.ok) {
         const errMessage = data.error || 'Failed to create account.';
@@ -137,6 +134,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: true };
     } catch {
       const errMessage = 'Network connection error. Please try again.';
+      setError(errMessage);
+      return { success: false, error: errMessage };
+    }
+  };
+
+  const confirmGoogleSignup = async (tempToken: string) => {
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/google/confirm-signup`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: authHeaders(),
+        body: JSON.stringify({ tempToken }),
+      });
+
+      const data = await res.json();
+      if (data.token) localStorage.setItem('xia_auth_token', data.token);
+
+      if (!res.ok) {
+        const errMessage = data.error || 'Failed to confirm Google signup.';
+        setError(errMessage);
+        return { success: false, error: errMessage };
+      }
+
+      setUser(data.user);
+      return { success: true, user: data.user, redirectTo: data.redirectTo };
+    } catch {
+      const errMessage = 'Network error during Google signup confirmation.';
       setError(errMessage);
       return { success: false, error: errMessage };
     }
@@ -168,9 +193,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const data = await res.json();
       if (res.ok) {
-        return { success: true, message: data.message };
+        return { success: true, message: data.message, codeDev: data.codeDev };
       } else {
         return { success: false, error: data.error || 'Failed to request password reset.' };
+      }
+    } catch {
+      return { success: false, error: 'Network error. Please try again.' };
+    }
+  };
+
+  const verifyResetCode = async (email: string, code: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/verify-reset-code`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        return { success: true, resetToken: data.resetToken };
+      } else {
+        return { success: false, error: data.error || 'Invalid or expired verification code.' };
       }
     } catch {
       return { success: false, error: 'Network error. Please try again.' };
@@ -334,7 +379,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         signup,
         logout,
+        confirmGoogleSignup,
         forgotPassword,
+        verifyResetCode,
         resetPassword,
         setupPassword,
         resendVerification,

@@ -2,6 +2,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  username?: string | null;
   authProvider: 'local' | 'google' | 'both';
   hasPassword: boolean;
   emailVerified: boolean;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Lock, User as UserIcon, ArrowRight, AlertCircle, CheckCircle2, Loader2, KeyRound, Eye, EyeOff, Sparkles, MessageSquare, Bot, UserCheck, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, User as UserIcon, ArrowRight, AlertCircle, CheckCircle2, Loader2, KeyRound, Eye, EyeOff, Sparkles, MessageSquare, Bot, UserCheck, ShieldCheck, AtSign, UserPlus, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Logo, LogoIcon } from '../components/Logo';
 
@@ -16,16 +16,30 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   resetToken = '',
   onNavigate,
 }) => {
-  const { user, login, signup, forgotPassword, resetPassword, setupPassword, isAuthenticated } = useAuth();
+  const { user, login, signup, confirmGoogleSignup, forgotPassword, verifyResetCode, resetPassword, setupPassword, isAuthenticated } = useAuth();
   const [mode, setMode] = useState<AuthPageMode>(initialMode);
 
   // Form Fields
+  const [identifier, setIdentifier] = useState(''); // Email or Username for Login
   const [name, setName] = useState('');
+  const [username, setUsername] = useState(''); // Username for Signup
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [token, setToken] = useState(resetToken);
   const [showPassword, setShowPassword] = useState(false);
+
+  // 3-Step Forgot Password States
+  const [forgotStep, setForgotStep] = useState<1 | 2 | 3>(1);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verifiedResetToken, setVerifiedResetToken] = useState('');
+  const [codeDevHint, setCodeDevHint] = useState<string | null>(null);
+
+  // Pending Google Signup & Existing Account Modals
+  const [pendingTempToken, setPendingTempToken] = useState<string | null>(null);
+  const [pendingGoogleName, setPendingGoogleName] = useState<string>('');
+  const [pendingGoogleEmail, setPendingGoogleEmail] = useState<string>('');
+  const [existingGoogleEmail, setExistingGoogleEmail] = useState<string | null>(null);
 
   // Field Errors & UI States
   const [formError, setFormError] = useState<string | null>(null);
@@ -34,17 +48,40 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
+  // Parse URL Parameters for Google Pending Signup & Existing Account Notice & Reset Token
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const googlePending = params.get('google_signup_pending') === 'true';
+    const tempToken = params.get('temp_token');
+    const gEmail = params.get('email');
+    const gName = params.get('name');
+    const accountExists = params.get('google_account_exists') === 'true';
+
+    if (googlePending && tempToken) {
+      setPendingTempToken(tempToken);
+      if (gEmail) setPendingGoogleEmail(gEmail);
+      if (gName) setPendingGoogleName(gName);
+    }
+
+    if (accountExists && gEmail) {
+      setExistingGoogleEmail(gEmail);
+    }
+  }, []);
+
   useEffect(() => {
     setMode(initialMode);
     setFormError(null);
     setFormSuccess(null);
     setFieldErrors({});
+    setForgotStep(1);
   }, [initialMode]);
 
   useEffect(() => {
     if (resetToken) {
       setToken(resetToken);
-      setMode('reset_password');
+      setVerifiedResetToken(resetToken);
+      setForgotStep(3);
+      setMode('forgot_password');
     }
   }, [resetToken]);
 
@@ -67,9 +104,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
   const validateEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());
 
-  const handleGoogleAuth = () => {
+  const handleGoogleAuth = (intent: 'login' | 'signup' = 'login') => {
     setIsGoogleLoading(true);
-    window.location.href = '/api/auth/google';
+    window.location.href = `/api/auth/google?intent=${intent}`;
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -78,10 +115,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setFormSuccess(null);
     const errors: { [key: string]: string } = {};
 
-    if (!email.trim()) {
-      errors.email = 'Email is required.';
-    } else if (!validateEmail(email)) {
-      errors.email = 'Please enter a valid email address.';
+    const loginIdentifier = (identifier || email).trim();
+
+    if (!loginIdentifier) {
+      errors.identifier = 'Email or Username is required.';
     }
 
     if (!password) {
@@ -96,17 +133,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setFieldErrors({});
     setIsSubmitting(true);
 
-    const result = await login(email, password);
+    const result = await login(loginIdentifier, password);
     setIsSubmitting(false);
 
     if (result.success) {
       setFormSuccess('Signed in successfully! Redirecting...');
       setTimeout(() => {
-        // Will be handled by useEffect or navigate
         onNavigate(user?.onboardingCompleted ? '/dashboard' : '/onboarding');
       }, 400);
     } else {
-      setFormError(result.error || 'Email or password is incorrect.');
+      setFormError(result.error || 'Email/username or password is incorrect.');
     }
   };
 
@@ -118,6 +154,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
     if (!name.trim()) {
       errors.name = 'Full name is required.';
+    }
+
+    if (!username.trim()) {
+      errors.username = 'Username is required.';
+    } else if (username.trim().length < 3) {
+      errors.username = 'Username must be at least 3 characters.';
     }
 
     if (!email.trim()) {
@@ -144,7 +186,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setFieldErrors({});
     setIsSubmitting(true);
 
-    const result = await signup(name, email, password, confirmPassword);
+    const result = await signup(name, username, email, password, confirmPassword);
     setIsSubmitting(false);
 
     if (result.success) {
@@ -157,7 +199,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     }
   };
 
-  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+  // Step 1: Send verification code to email
+  const handleSendResetCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
     setFormSuccess(null);
@@ -174,19 +217,52 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setIsSubmitting(false);
 
     if (result.success) {
-      setFormSuccess(result.message || 'If an account matches that email address, password reset instructions have been sent.');
+      if (result.codeDev) {
+        setCodeDevHint(result.codeDev);
+      }
+      setFormSuccess(result.message || 'Verification code sent to your email.');
+      setForgotStep(2);
     } else {
-      setFormError(result.error || 'Failed to process request.');
+      setFormError(result.error || 'Failed to send verification code.');
     }
   };
 
+  // Step 2: Verify 6-digit code
+  const handleVerifyCodeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+    setFormSuccess(null);
+
+    if (!verificationCode.trim() || verificationCode.trim().length !== 6) {
+      setFieldErrors({ code: 'Please enter the 6-digit verification code.' });
+      return;
+    }
+
+    setFieldErrors({});
+    setIsSubmitting(true);
+
+    const result = await verifyResetCode(email, verificationCode);
+    setIsSubmitting(false);
+
+    if (result.success && result.resetToken) {
+      setVerifiedResetToken(result.resetToken);
+      setFormSuccess('Verification code confirmed! Enter your new password below.');
+      setForgotStep(3);
+    } else {
+      setFormError(result.error || 'Invalid or expired verification code.');
+    }
+  };
+
+  // Step 3: Reset Password with Verified Token
   const handleResetPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
     setFormSuccess(null);
     const errors: { [key: string]: string } = {};
 
-    if (!token.trim()) {
+    const activeToken = verifiedResetToken || token;
+
+    if (!activeToken.trim()) {
       errors.token = 'Password reset token is missing or invalid.';
     }
 
@@ -208,14 +284,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setFieldErrors({});
     setIsSubmitting(true);
 
-    const result = await resetPassword(token, password, confirmPassword);
+    const result = await resetPassword(activeToken, password, confirmPassword);
     setIsSubmitting(false);
 
     if (result.success) {
-      setFormSuccess(result.message || 'Password reset successfully! You can now sign in.');
+      setFormSuccess(result.message || 'Password reset successfully! Redirecting to sign in...');
       setTimeout(() => {
         setMode('login');
-      }, 1800);
+        setForgotStep(1);
+      }, 1500);
     } else {
       setFormError(result.error || 'Failed to reset password.');
     }
@@ -403,14 +480,24 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">
                 {mode === 'login' && 'Welcome Back'}
                 {mode === 'signup' && 'Create Your Account'}
-                {mode === 'forgot_password' && 'Reset Password'}
+                {mode === 'forgot_password' && (
+                  forgotStep === 1 ? 'Reset Password' : forgotStep === 2 ? 'Verification Code' : 'Make New Password'
+                )}
                 {mode === 'reset_password' && 'Set New Password'}
+                {mode === 'set_password' && 'Set New Password'}
               </h2>
               <p className="text-xs text-[#6B6B6B] mt-1.5">
                 {mode === 'login' && 'Sign in to manage your Xia Chat inbox & AI agents.'}
                 {mode === 'signup' && 'Join thousands of teams handling customer chat seamlessly.'}
-                {mode === 'forgot_password' && 'Enter your work email to receive reset instructions.'}
+                {mode === 'forgot_password' && (
+                  forgotStep === 1
+                    ? 'Enter your account email to receive a verification code.'
+                    : forgotStep === 2
+                    ? `Enter the 6-digit verification code sent to ${email || 'your email'}.`
+                    : 'Create a new password for your account.'
+                )}
                 {mode === 'reset_password' && 'Enter your new password below.'}
+                {mode === 'set_password' && 'Enter your new password below.'}
               </p>
             </div>
 
@@ -435,27 +522,30 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               <form onSubmit={handleLoginSubmit} className="space-y-4" noValidate>
                 <div>
                   <label className="block text-[11px] font-bold text-[#171717] uppercase tracking-wider mb-1.5">
-                    Email Address
+                    Email or Username
                   </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 absolute left-3.5 top-3.5 text-gray-400" />
                     <input
-                      type="email"
-                      value={email}
+                      type="text"
+                      value={identifier || email}
                       onChange={(e) => {
+                        setIdentifier(e.target.value);
                         setEmail(e.target.value);
-                        setFieldErrors((prev) => ({ ...prev, email: '' }));
+                        setFieldErrors((prev) => ({ ...prev, identifier: '', email: '' }));
                       }}
-                      placeholder="name@company.com"
+                      placeholder="name@company.com or username"
                       className={`w-full pl-10 pr-4 py-2.5 rounded-xl border text-xs font-medium bg-[#FAF9F6] focus:bg-white transition-all outline-none ${
-                        fieldErrors.email
+                        fieldErrors.identifier || fieldErrors.email
                           ? 'border-red-400 focus:ring-2 focus:ring-red-200'
                           : 'border-[#E8E8E5] focus:border-[#FF8A2A] focus:ring-2 focus:ring-[#FF8A2A]/20'
                       }`}
                       disabled={isSubmitting}
                     />
                   </div>
-                  {fieldErrors.email && <p className="mt-1 text-[11px] text-red-600">{fieldErrors.email}</p>}
+                  {(fieldErrors.identifier || fieldErrors.email) && (
+                    <p className="mt-1 text-[11px] text-red-600">{fieldErrors.identifier || fieldErrors.email}</p>
+                  )}
                 </div>
 
                 <div>
@@ -467,6 +557,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       type="button"
                       onClick={() => {
                         setMode('forgot_password');
+                        setForgotStep(1);
                         setFormError(null);
                         setFormSuccess(null);
                       }}
@@ -536,7 +627,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 {/* Secondary CTA: Google Auth */}
                 <button
                   type="button"
-                  onClick={handleGoogleAuth}
+                  onClick={() => handleGoogleAuth('login')}
                   disabled={isGoogleLoading || isSubmitting}
                   className="w-full py-2.5 rounded-full border border-[#E8E8E5] bg-white hover:bg-[#F7F7F5] text-[#171717] font-semibold text-xs transition-all duration-200 flex items-center justify-center gap-2.5 shadow-2xs disabled:opacity-60 cursor-pointer"
                 >
@@ -597,6 +688,31 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     />
                   </div>
                   {fieldErrors.name && <p className="mt-1 text-[11px] text-red-600">{fieldErrors.name}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-[#171717] uppercase tracking-wider mb-1">
+                    Username
+                  </label>
+                  <div className="relative">
+                    <AtSign className="w-4 h-4 absolute left-3.5 top-3 text-gray-400" />
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => {
+                        setUsername(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, username: '' }));
+                      }}
+                      placeholder="sarah_jenkins"
+                      className={`w-full pl-10 pr-4 py-2 rounded-xl border text-xs font-medium bg-[#FAF9F6] focus:bg-white transition-all outline-none ${
+                        fieldErrors.username
+                          ? 'border-red-400 focus:ring-2 focus:ring-red-200'
+                          : 'border-[#E8E8E5] focus:border-[#FF8A2A] focus:ring-2 focus:ring-[#FF8A2A]/20'
+                      }`}
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                  {fieldErrors.username && <p className="mt-1 text-[11px] text-red-600">{fieldErrors.username}</p>}
                 </div>
 
                 <div>
@@ -713,7 +829,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 {/* Secondary CTA: Google Auth */}
                 <button
                   type="button"
-                  onClick={handleGoogleAuth}
+                  onClick={() => handleGoogleAuth('signup')}
                   disabled={isGoogleLoading || isSubmitting}
                   className="w-full py-2.5 rounded-full border border-[#E8E8E5] bg-white hover:bg-[#F7F7F5] text-[#171717] font-semibold text-xs transition-all duration-200 flex items-center justify-center gap-2.5 shadow-2xs disabled:opacity-60 cursor-pointer"
                 >
@@ -748,153 +864,196 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               </form>
             )}
 
-            {/* ─── 3. FORGOT PASSWORD MODE ─── */}
+            {/* ─── 3. FORGOT PASSWORD MODE (3-STEP FLOW) ─── */}
             {mode === 'forgot_password' && (
-              <form onSubmit={handleForgotPasswordSubmit} className="space-y-4" noValidate>
-                <div>
-                  <label className="block text-[11px] font-bold text-[#171717] uppercase tracking-wider mb-1.5">
-                    Your Account Email
-                  </label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 absolute left-3.5 top-3.5 text-gray-400" />
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        setFieldErrors((prev) => ({ ...prev, email: '' }));
-                      }}
-                      placeholder="name@company.com"
-                      className={`w-full pl-10 pr-4 py-2.5 rounded-xl border text-xs font-medium bg-[#FAF9F6] focus:bg-white transition-all outline-none ${
-                        fieldErrors.email
-                          ? 'border-red-400 focus:ring-2 focus:ring-red-200'
-                          : 'border-[#E8E8E5] focus:border-[#FF8A2A] focus:ring-2 focus:ring-[#FF8A2A]/20'
-                      }`}
+              <div>
+                {/* STEP 1: Send Verification Code */}
+                {forgotStep === 1 && (
+                  <form onSubmit={handleSendResetCodeSubmit} className="space-y-4" noValidate>
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#171717] uppercase tracking-wider mb-1.5">
+                        Your Account Email
+                      </label>
+                      <div className="relative">
+                        <Mail className="w-4 h-4 absolute left-3.5 top-3.5 text-gray-400" />
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(e) => {
+                            setEmail(e.target.value);
+                            setFieldErrors((prev) => ({ ...prev, email: '' }));
+                          }}
+                          placeholder="name@company.com"
+                          className={`w-full pl-10 pr-4 py-2.5 rounded-xl border text-xs font-medium bg-[#FAF9F6] focus:bg-white transition-all outline-none ${
+                            fieldErrors.email
+                              ? 'border-red-400 focus:ring-2 focus:ring-red-200'
+                              : 'border-[#E8E8E5] focus:border-[#FF8A2A] focus:ring-2 focus:ring-[#FF8A2A]/20'
+                          }`}
+                          disabled={isSubmitting}
+                        />
+                      </div>
+                      {fieldErrors.email && <p className="mt-1 text-[11px] text-red-600">{fieldErrors.email}</p>}
+                    </div>
+
+                    <button
+                      type="submit"
                       disabled={isSubmitting}
-                    />
-                  </div>
-                  {fieldErrors.email && <p className="mt-1 text-[11px] text-red-600">{fieldErrors.email}</p>}
-                </div>
+                      className="w-full py-3 rounded-full bg-[#FF8A2A] hover:bg-[#D96512] text-white font-bold text-xs shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Sending Code...</span>
+                        </>
+                      ) : (
+                        <span>Send Code →</span>
+                      )}
+                    </button>
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full py-3 rounded-full bg-[#FF8A2A] hover:bg-[#D96512] text-white font-bold text-xs shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Sending Email...</span>
-                    </>
-                  ) : (
-                    <span>Send Reset Email →</span>
-                  )}
-                </button>
-
-                <div className="text-center pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode('login');
-                      setFormError(null);
-                      setFormSuccess(null);
-                    }}
-                    className="text-xs font-bold text-[#6B6B6B] hover:text-[#171717] cursor-pointer"
-                  >
-                    ← Back to Sign In
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* ─── 4. RESET PASSWORD MODE ─── */}
-            {mode === 'reset_password' && (
-              <form onSubmit={handleResetPasswordSubmit} className="space-y-3.5" noValidate>
-                {!resetToken && (
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#171717] uppercase tracking-wider mb-1">
-                      Reset Token
-                    </label>
-                    <input
-                      type="text"
-                      value={token}
-                      onChange={(e) => setToken(e.target.value)}
-                      placeholder="Paste token received in reset email"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8E8E5] text-xs font-medium bg-[#FAF9F6] outline-none"
-                      disabled={isSubmitting}
-                    />
-                    {fieldErrors.token && <p className="mt-1 text-[11px] text-red-600">{fieldErrors.token}</p>}
-                  </div>
+                    <div className="text-center pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode('login');
+                          setFormError(null);
+                          setFormSuccess(null);
+                        }}
+                        className="text-xs font-bold text-[#6B6B6B] hover:text-[#171717] cursor-pointer"
+                      >
+                        ← Back to Sign In
+                      </button>
+                    </div>
+                  </form>
                 )}
 
-                <div>
-                  <label className="block text-[11px] font-bold text-[#171717] uppercase tracking-wider mb-1.5">
-                    New Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-gray-400" />
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Min. 8 characters"
-                      className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-[#E8E8E5] text-xs font-medium bg-[#FAF9F6] outline-none"
-                      disabled={isSubmitting}
-                    />
+                {/* STEP 2: Enter Verification Code */}
+                {forgotStep === 2 && (
+                  <form onSubmit={handleVerifyCodeSubmit} className="space-y-4" noValidate>
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#171717] uppercase tracking-wider mb-1.5">
+                        6-Digit Verification Code
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={verificationCode}
+                        onChange={(e) => {
+                          setVerificationCode(e.target.value.replace(/[^0-9]/g, ''));
+                          setFieldErrors((prev) => ({ ...prev, code: '' }));
+                        }}
+                        placeholder="123456"
+                        className={`w-full text-center tracking-[0.4em] font-mono text-lg py-3 rounded-xl border font-bold bg-[#FAF9F6] focus:bg-white transition-all outline-none ${
+                          fieldErrors.code
+                            ? 'border-red-400 focus:ring-2 focus:ring-red-200'
+                            : 'border-[#E8E8E5] focus:border-[#FF8A2A] focus:ring-2 focus:ring-[#FF8A2A]/20'
+                        }`}
+                        disabled={isSubmitting}
+                      />
+                      {fieldErrors.code && <p className="mt-1 text-[11px] text-red-600">{fieldErrors.code}</p>}
+                      {codeDevHint && (
+                        <p className="mt-2 text-[10px] font-mono bg-amber-50 text-amber-800 p-2 rounded-lg border border-amber-200 text-center">
+                          Dev Hint Code: <strong>{codeDevHint}</strong>
+                        </p>
+                      )}
+                    </div>
+
                     <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3.5 top-3.5 text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  {fieldErrors.password && <p className="mt-1 text-[11px] text-red-600">{fieldErrors.password}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-[#171717] uppercase tracking-wider mb-1.5">
-                    Confirm New Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-gray-400" />
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Re-enter new password"
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#E8E8E5] text-xs font-medium bg-[#FAF9F6] outline-none"
+                      type="submit"
                       disabled={isSubmitting}
-                    />
-                  </div>
-                  {fieldErrors.confirmPassword && <p className="mt-1 text-[11px] text-red-600">{fieldErrors.confirmPassword}</p>}
-                </div>
+                      className="w-full py-3 rounded-full bg-[#FF8A2A] hover:bg-[#D96512] text-white font-bold text-xs shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Verifying Code...</span>
+                        </>
+                      ) : (
+                        <span>Continue →</span>
+                      )}
+                    </button>
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full py-3 rounded-full bg-[#FF8A2A] hover:bg-[#D96512] text-white font-bold text-xs shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Resetting Password...</span>
-                    </>
-                  ) : (
-                    <span>Reset Password →</span>
-                  )}
-                </button>
+                    <div className="flex items-center justify-between text-xs pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setForgotStep(1)}
+                        className="font-semibold text-[#6B6B6B] hover:text-[#171717] cursor-pointer"
+                      >
+                        ← Resend Code
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMode('login')}
+                        className="font-semibold text-[#FF8A2A] hover:underline cursor-pointer"
+                      >
+                        Back to Login
+                      </button>
+                    </div>
+                  </form>
+                )}
 
-                <div className="text-center pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setMode('login')}
-                    className="text-xs font-bold text-[#6B6B6B] hover:text-[#171717] cursor-pointer"
-                  >
-                    ← Back to Sign In
-                  </button>
-                </div>
-              </form>
+                {/* STEP 3: Enter New Password */}
+                {forgotStep === 3 && (
+                  <form onSubmit={handleResetPasswordSubmit} className="space-y-3.5" noValidate>
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#171717] uppercase tracking-wider mb-1.5">
+                        New Password
+                      </label>
+                      <div className="relative">
+                        <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-gray-400" />
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="Min. 8 characters"
+                          className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-[#E8E8E5] text-xs font-medium bg-[#FAF9F6] outline-none"
+                          disabled={isSubmitting}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3.5 top-3.5 text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      {fieldErrors.password && <p className="mt-1 text-[11px] text-red-600">{fieldErrors.password}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#171717] uppercase tracking-wider mb-1.5">
+                        Confirm New Password
+                      </label>
+                      <div className="relative">
+                        <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-gray-400" />
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Re-enter new password"
+                          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#E8E8E5] text-xs font-medium bg-[#FAF9F6] outline-none"
+                          disabled={isSubmitting}
+                        />
+                      </div>
+                      {fieldErrors.confirmPassword && <p className="mt-1 text-[11px] text-red-600">{fieldErrors.confirmPassword}</p>}
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full py-3 rounded-full bg-[#FF8A2A] hover:bg-[#D96512] text-white font-bold text-xs shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Resetting Password...</span>
+                        </>
+                      ) : (
+                        <span>Reset Password →</span>
+                      )}
+                    </button>
+                  </form>
+                )}
+              </div>
             )}
 
             {/* ─── 5. SET PASSWORD MODE (AUTHENTICATED GOOGLE USER FIRST-TIME PASSWORD) ─── */}
@@ -967,7 +1126,127 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       </main>
 
       {/* ─────────────────────────────────────────────────────────────
-          4. FOOTER: MINIMALIST PRODUCT PRIVACY / COPYRIGHT
+          4. SIGNUP CONFIRMATION MODAL (FOR NEW GOOGLE USERS FROM LOGIN)
+         ───────────────────────────────────────────────────────────── */}
+      {pendingTempToken && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-[#E8E8E5] relative text-center">
+            <button
+              onClick={() => {
+                setPendingTempToken(null);
+                onNavigate('/login');
+              }}
+              className="absolute right-4 top-4 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-12 h-12 rounded-2xl bg-[#FFF0E5] text-[#FF8A2A] flex items-center justify-center mx-auto mb-4 shadow-xs">
+              <UserPlus className="w-6 h-6 text-[#FF8A2A]" />
+            </div>
+
+            <h3 className="text-xl font-extrabold text-[#171717] tracking-tight">Looks like you're new to XiaChat</h3>
+            
+            <p className="text-xs text-[#6B6B6B] mt-2 leading-relaxed">
+              You don't have an account yet. Create your XiaChat account with this Google account to get started.
+            </p>
+
+            {pendingGoogleEmail && (
+              <div className="my-4 p-3 bg-[#FAF9F6] border border-[#E8E8E5] rounded-2xl text-left text-xs">
+                <p className="font-bold text-[#171717]">{pendingGoogleName || 'Google Account'}</p>
+                <p className="text-[#6B6B6B]">{pendingGoogleEmail}</p>
+              </div>
+            )}
+
+            <div className="mt-6 flex flex-col gap-2.5">
+              <button
+                onClick={async () => {
+                  setIsSubmitting(true);
+                  const res = await confirmGoogleSignup(pendingTempToken);
+                  setIsSubmitting(false);
+                  if (res.success) {
+                    setPendingTempToken(null);
+                    onNavigate('/set-password');
+                  } else {
+                    setFormError(res.error || 'Failed to confirm Google signup.');
+                  }
+                }}
+                disabled={isSubmitting}
+                className="w-full py-3 rounded-full bg-[#FF8A2A] hover:bg-[#D96512] text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Creating Account...</span>
+                  </>
+                ) : (
+                  <span>Continue Sign Up</span>
+                )}
+              </button>
+
+              <button
+                onClick={() => {
+                  setPendingTempToken(null);
+                  onNavigate('/login');
+                }}
+                className="w-full py-2.5 rounded-full border border-[#E8E8E5] text-[#6B6B6B] hover:text-[#171717] font-semibold text-xs transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────
+          5. EXISTING GOOGLE ACCOUNT NOTICE (FOR GOOGLE SIGNUP ON SIGNUP PAGE)
+         ───────────────────────────────────────────────────────────── */}
+      {existingGoogleEmail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-[#E8E8E5] relative text-center">
+            <button
+              onClick={() => {
+                setExistingGoogleEmail(null);
+                setMode('login');
+                onNavigate('/login');
+              }}
+              className="absolute right-4 top-4 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-12 h-12 rounded-2xl bg-[#FFF0E5] text-[#FF8A2A] flex items-center justify-center mx-auto mb-4 shadow-xs">
+              <ShieldCheck className="w-6 h-6 text-[#FF8A2A]" />
+            </div>
+
+            <h3 className="text-xl font-extrabold text-[#171717] tracking-tight">Account Already Connected</h3>
+            
+            <p className="text-xs text-[#6B6B6B] mt-2 leading-relaxed">
+              This Google account (<span className="font-semibold text-[#171717]">{existingGoogleEmail}</span>) is already connected to XiaChat.
+            </p>
+
+            <p className="text-xs text-[#6B6B6B] mt-1.5">
+              Please sign in using Google from the Login page.
+            </p>
+
+            <div className="mt-6 flex flex-col gap-2.5">
+              <button
+                onClick={() => {
+                  setExistingGoogleEmail(null);
+                  setMode('login');
+                  onNavigate('/login');
+                }}
+                className="w-full py-3 rounded-full bg-[#FF8A2A] hover:bg-[#D96512] text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>Continue to Login</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────
+          6. FOOTER: MINIMALIST PRODUCT PRIVACY / COPYRIGHT
          ───────────────────────────────────────────────────────────── */}
       <footer className="relative z-10 px-6 sm:px-12 py-4 flex flex-col sm:flex-row items-center justify-between text-xs text-[#8E8E93] border-t border-[#E8E8E5]/60 bg-white/40 backdrop-blur-xs">
         <p>© {new Date().getFullYear()} Xia Chat Inc. All rights reserved.</p>

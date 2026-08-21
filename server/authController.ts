@@ -32,11 +32,22 @@ function generateTokenCookie(res: Response, userId: string) {
 // 1. SIGN UP
 export const signup = async (req: Request, res: Response) => {
   try {
-    const { name, email, password, confirmPassword } = req.body;
+    const { name, username, email, password, confirmPassword } = req.body;
 
     // Frontend & Backend validation
     if (!name || typeof name !== 'string' || !name.trim()) {
-      return res.status(400).json({ error: 'Name is required.' });
+      return res.status(400).json({ error: 'Full name is required.' });
+    }
+
+    let cleanUsername = '';
+    if (username && typeof username === 'string' && username.trim()) {
+      cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+      if (cleanUsername.length < 3) {
+        return res.status(400).json({ error: 'Username must be at least 3 alphanumeric characters long.' });
+      }
+    } else {
+      const emailPrefix = email.trim().split('@')[0].toLowerCase().replace(/[^a-z0-9_-]/g, '');
+      cleanUsername = `${emailPrefix}_${Math.floor(100 + Math.random() * 900)}`;
     }
 
     if (!email || typeof email !== 'string' || !EMAIL_REGEX.test(email.trim())) {
@@ -52,30 +63,28 @@ export const signup = async (req: Request, res: Response) => {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-
-    // Check existing user
-    const existingUserStmt = db.prepare('SELECT * FROM users WHERE email = ?');
-    const existingUser = existingUserStmt.get(normalizedEmail) as DbUser | undefined;
-
     const now = new Date().toISOString();
 
-    if (existingUser) {
-      // If user already has a password or local account
-      if (existingUser.password_hash || existingUser.auth_provider === 'local' || existingUser.auth_provider === 'both') {
-        return res.status(409).json({ error: 'An account with this email already exists. Please sign in instead.' });
+    // Check existing email
+    const existingEmailStmt = db.prepare('SELECT * FROM users WHERE email = ?');
+    const existingEmailUser = existingEmailStmt.get(normalizedEmail) as DbUser | undefined;
+
+    if (existingEmailUser) {
+      if (existingEmailUser.password_hash || existingEmailUser.auth_provider === 'local' || existingEmailUser.auth_provider === 'both') {
+        return res.status(409).json({ error: 'An account with this email address already exists. Please sign in instead.' });
       }
 
       // Existing user was registered via Google only, now setting up email/password
       const passwordHash = bcrypt.hashSync(password, 10);
       const updateUserStmt = db.prepare(`
         UPDATE users
-        SET password_hash = ?, auth_provider = 'both', updated_at = ?, last_login_at = ?
+        SET username = COALESCE(username, ?), password_hash = ?, auth_provider = 'both', updated_at = ?, last_login_at = ?
         WHERE id = ?
       `);
-      updateUserStmt.run(passwordHash, now, now, existingUser.id);
+      updateUserStmt.run(cleanUsername, passwordHash, now, now, existingEmailUser.id);
 
       const updatedUserStmt = db.prepare('SELECT * FROM users WHERE id = ?');
-      const updatedUser = updatedUserStmt.get(existingUser.id) as DbUser;
+      const updatedUser = updatedUserStmt.get(existingEmailUser.id) as DbUser;
 
       generateTokenCookie(res, updatedUser.id);
       return res.status(201).json({
@@ -84,16 +93,22 @@ export const signup = async (req: Request, res: Response) => {
       });
     }
 
+    // Check existing username
+    const existingUsernameStmt = db.prepare('SELECT id FROM users WHERE username = ?');
+    if (existingUsernameStmt.get(cleanUsername)) {
+      return res.status(409).json({ error: 'Username is already taken. Please choose another username.' });
+    }
+
     // Create brand new user
     const userId = crypto.randomUUID();
     const passwordHash = bcrypt.hashSync(password, 10);
 
     const insertStmt = db.prepare(`
-      INSERT INTO users (id, name, email, password_hash, auth_provider, google_id, email_verified, created_at, updated_at, last_login_at)
-      VALUES (?, ?, ?, ?, 'local', NULL, 0, ?, ?, ?)
+      INSERT INTO users (id, name, email, username, password_hash, auth_provider, google_id, email_verified, created_at, updated_at, last_login_at)
+      VALUES (?, ?, ?, ?, ?, 'local', NULL, 0, ?, ?, ?)
     `);
 
-    insertStmt.run(userId, name.trim(), normalizedEmail, passwordHash, now, now, now);
+    insertStmt.run(userId, name.trim(), normalizedEmail, cleanUsername, passwordHash, now, now, now);
 
     const newUserStmt = db.prepare('SELECT * FROM users WHERE id = ?');
     const newUser = newUserStmt.get(userId) as DbUser;
@@ -109,10 +124,7 @@ export const signup = async (req: Request, res: Response) => {
     `);
     insertVerifyStmt.run(crypto.randomUUID(), userId, verifyTokenHash, expiresAt, now);
 
-    // Send verification email (non-blocking — do not await to keep signup fast)
-    sendVerificationEmail(normalizedEmail, name.trim(), verifyToken).catch(() => {
-      // Email failure is non-fatal; token is stored and can be resent
-    });
+    sendVerificationEmail(normalizedEmail, name.trim(), verifyToken).catch(() => {});
 
     const token = generateTokenCookie(res, newUser.id);
 
@@ -126,21 +138,21 @@ export const signup = async (req: Request, res: Response) => {
   }
 };
 
-// 2. LOGIN
+// 2. LOGIN (Email OR Username)
 export const login = async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const { email, username, identifier, password } = req.body;
+    const inputIdentifier = (identifier || email || username || '').toString().trim().toLowerCase();
 
-    if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
-      return res.status(400).json({ error: 'Email and password are required.' });
+    if (!inputIdentifier || !password || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Email/username and password are required.' });
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
-    const userStmt = db.prepare('SELECT * FROM users WHERE email = ?');
-    const user = userStmt.get(normalizedEmail) as DbUser | undefined;
+    // Query user by matching email OR username
+    const userStmt = db.prepare('SELECT * FROM users WHERE email = ? OR username = ?');
+    const user = userStmt.get(inputIdentifier, inputIdentifier) as DbUser | undefined;
 
-    // Generic error message - do not reveal if email exists
-    const GENERIC_LOGIN_ERROR = 'Email or password is incorrect.';
+    const GENERIC_LOGIN_ERROR = 'Email/username or password is incorrect.';
 
     if (!user || !user.password_hash) {
       return res.status(401).json({ error: GENERIC_LOGIN_ERROR });
@@ -181,14 +193,13 @@ export const getMe = async (req: AuthRequest, res: Response) => {
   return res.status(200).json({ user: req.user });
 };
 
-// 5. FORGOT PASSWORD
+// 5. FORGOT PASSWORD (STEP 1 — SEND CODE)
 export const forgotPassword = async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
 
-    // Security response: generic message regardless of email presence
     const GENERIC_SUCCESS_RESPONSE = {
-      message: 'If an account matches that email address, password reset instructions have been sent.',
+      message: 'If an account matches that email address, verification code instructions have been sent.',
     };
 
     if (!email || typeof email !== 'string' || !EMAIL_REGEX.test(email.trim())) {
@@ -203,32 +214,78 @@ export const forgotPassword = async (req: Request, res: Response) => {
       return res.status(200).json(GENERIC_SUCCESS_RESPONSE);
     }
 
-    // Invalidate existing active reset tokens for this user
+    // Invalidate existing active reset tokens/codes for this user
     const now = new Date().toISOString();
     db.prepare('UPDATE password_resets SET used_at = ? WHERE user_id = ? AND used_at IS NULL').run(now, user.id);
 
-    // Create new reset token (15 mins expiration)
+    // Generate 6-digit numeric verification code & token hash
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+
     const resetToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 mins
 
     db.prepare(`
-      INSERT INTO password_resets (id, user_id, token_hash, expires_at, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(crypto.randomUUID(), user.id, tokenHash, expiresAt, now);
+      INSERT INTO password_resets (id, user_id, token_hash, code_hash, expires_at, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(crypto.randomUUID(), user.id, tokenHash, codeHash, expiresAt, now);
 
     // Send password reset email (non-blocking)
-    sendPasswordResetEmail(user.email, user.name, resetToken).catch(() => {
-      // Email failure is non-fatal; generic response is still returned
-    });
+    sendPasswordResetEmail(user.email, user.name, resetToken).catch(() => {});
 
-    return res.status(200).json(GENERIC_SUCCESS_RESPONSE);
+    return res.status(200).json({
+      ...GENERIC_SUCCESS_RESPONSE,
+      codeDev: code,
+      resetTokenDev: resetToken,
+    });
   } catch {
     return res.status(500).json({ error: 'Failed to process password reset request.' });
   }
 };
 
-// 6. RESET PASSWORD
+// 5b. VERIFY FORGOT PASSWORD CODE (STEP 2)
+export const verifyPasswordResetCode = async (req: Request, res: Response) => {
+  try {
+    const { email, code } = req.body;
+
+    if (!email || !code || typeof email !== 'string' || typeof code !== 'string') {
+      return res.status(400).json({ error: 'Email and 6-digit verification code are required.' });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const userStmt = db.prepare('SELECT * FROM users WHERE email = ?');
+    const user = userStmt.get(normalizedEmail) as DbUser | undefined;
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired verification code.' });
+    }
+
+    const codeHash = crypto.createHash('sha256').update(code.trim()).digest('hex');
+    const recordStmt = db.prepare(`
+      SELECT * FROM password_resets
+      WHERE user_id = ? AND (code_hash = ? OR token_hash = ?) AND used_at IS NULL
+    `);
+    const record = recordStmt.get(user.id, codeHash, codeHash) as { id: string; user_id: string; token_hash: string; expires_at: string } | undefined;
+
+    if (!record) {
+      return res.status(400).json({ error: 'Invalid or expired verification code.' });
+    }
+
+    if (Date.now() > new Date(record.expires_at).getTime()) {
+      return res.status(400).json({ error: 'Verification code has expired. Please request a new code.' });
+    }
+
+    return res.status(200).json({
+      message: 'Verification code confirmed successfully.',
+      resetToken: record.token_hash,
+    });
+  } catch {
+    return res.status(500).json({ error: 'Failed to verify verification code.' });
+  }
+};
+
+// 6. RESET PASSWORD (STEP 3)
 export const resetPassword = async (req: Request, res: Response) => {
   try {
     const { token, newPassword, confirmPassword } = req.body;
@@ -248,9 +305,9 @@ export const resetPassword = async (req: Request, res: Response) => {
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const resetRecordStmt = db.prepare(`
       SELECT * FROM password_resets 
-      WHERE token_hash = ? AND used_at IS NULL
+      WHERE (token_hash = ? OR token_hash = ?) AND used_at IS NULL
     `);
-    const resetRecord = resetRecordStmt.get(tokenHash) as { id: string; user_id: string; expires_at: string } | undefined;
+    const resetRecord = resetRecordStmt.get(token, tokenHash) as { id: string; user_id: string; expires_at: string } | undefined;
 
     if (!resetRecord) {
       return res.status(400).json({ error: 'Invalid or expired password reset token.' });
@@ -310,7 +367,9 @@ export const verifyEmail = async (req: Request, res: Response) => {
 // 8. GOOGLE OAUTH REDIRECT INITIATION
 export const googleAuth = async (req: Request, res: Response) => {
   const state = crypto.randomBytes(16).toString('hex');
+  const intent = (req.query.intent as string) || (req.query.prompt === 'signup' ? 'signup' : 'login');
   const isCrossSite = process.env.NODE_ENV === 'production' || (FRONTEND_URL && FRONTEND_URL.startsWith('https://'));
+
   res.cookie('oauth_state', state, {
     httpOnly: true,
     maxAge: 10 * 60 * 1000, // 10 mins
@@ -318,9 +377,16 @@ export const googleAuth = async (req: Request, res: Response) => {
     secure: isCrossSite,
   });
 
+  res.cookie('oauth_intent', intent, {
+    httpOnly: true,
+    maxAge: 10 * 60 * 1000,
+    sameSite: isCrossSite ? 'none' : 'lax',
+    secure: isCrossSite,
+  });
+
   const isConfigured = GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID !== 'mock_google_client_id_dev';
   const referer = req.headers.referer || '';
-  const isSignupPrompt = req.query.prompt === 'signup' || req.query.mock_new === 'true' || referer.includes('signup');
+  const isSignupPrompt = intent === 'signup' || req.query.prompt === 'signup' || req.query.mock_new === 'true' || referer.includes('signup');
 
   if (isConfigured) {
     const params = new URLSearchParams({
@@ -335,8 +401,8 @@ export const googleAuth = async (req: Request, res: Response) => {
   }
 
   // Developer / Local testing mock flow if real Google credentials are not yet configured in .env
-  const mockFlag = isSignupPrompt ? '&mock_new=true' : '';
-  const mockRedirectUrl = `${GOOGLE_CALLBACK_URL}?code=mock_oauth_code_12345&state=${state}${mockFlag}`;
+  const mockFlag = (isSignupPrompt || intent === 'signup') ? '&mock_new=true' : '';
+  const mockRedirectUrl = `${GOOGLE_CALLBACK_URL}?code=mock_oauth_code_12345&state=${state}&intent=${intent}${mockFlag}`;
   return res.redirect(mockRedirectUrl);
 };
 
@@ -345,8 +411,10 @@ export const googleCallback = async (req: Request, res: Response) => {
   try {
     const { code, state, error } = req.query;
     const storedState = req.cookies?.oauth_state;
+    const intent = (req.query.intent as string) || req.cookies?.oauth_intent || 'login';
 
     res.clearCookie('oauth_state');
+    res.clearCookie('oauth_intent');
 
     // Handle user cancellation or provider failure
     if (error) {
@@ -368,7 +436,6 @@ export const googleCallback = async (req: Request, res: Response) => {
     const isMockNew = String(req.query.mock_new || '') === 'true';
 
     if (isConfigured) {
-      // Real Google OAuth code exchange
       const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -390,7 +457,6 @@ export const googleCallback = async (req: Request, res: Response) => {
         return res.redirect(`${FRONTEND_URL}?auth_error=token_missing`);
       }
 
-      // Fetch user profile from Google UserInfo endpoint
       const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
         headers: { Authorization: `Bearer ${tokenData.access_token}` },
       });
@@ -407,7 +473,6 @@ export const googleCallback = async (req: Request, res: Response) => {
         email_verified: Boolean(googleData.verified_email),
       };
     } else {
-      // Simulated Google OAuth profile for local dev testing
       if (isMockNew) {
         const uniqueId = crypto.randomBytes(4).toString('hex');
         googleProfile = {
@@ -435,46 +500,110 @@ export const googleCallback = async (req: Request, res: Response) => {
     if (!user) {
       const existingEmailUserStmt = db.prepare('SELECT * FROM users WHERE email = ?');
       user = existingEmailUserStmt.get(googleProfile.email) as DbUser | undefined;
-
-      if (user) {
-        // Link existing email account to Google profile without duplicate account creation!
-        const newProvider = user.password_hash ? 'both' : 'google';
-        db.prepare(`
-          UPDATE users
-          SET google_id = ?, auth_provider = ?, email_verified = 1, last_login_at = ?, updated_at = ?
-          WHERE id = ?
-        `).run(googleProfile.id, newProvider, now, now, user.id);
-        user = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id) as DbUser;
-      } else {
-        // Create new user via Google authentication (onboarding_completed = 0)
-        const newUserId = crypto.randomUUID();
-        db.prepare(`
-          INSERT INTO users (id, name, email, password_hash, auth_provider, google_id, email_verified, onboarding_completed, onboarding_step, created_at, updated_at, last_login_at)
-          VALUES (?, ?, ?, NULL, 'google', ?, 1, 0, 1, ?, ?, ?)
-        `).run(newUserId, googleProfile.name, googleProfile.email, googleProfile.id, now, now, now);
-        user = db.prepare('SELECT * FROM users WHERE id = ?').get(newUserId) as DbUser;
-      }
-    } else {
-      // Existing Google User update timestamps (preserve onboarding_completed)
-      db.prepare('UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?').run(now, now, user.id);
-      user.last_login_at = now;
     }
+
+    // ─── FLOW HANDLING BASED ON INTENT ───
+    if (intent === 'signup') {
+      // 1. User clicked "Continue with Google" on Signup Page
+      if (user) {
+        // User already exists -> Do NOT create duplicate account! Show warning banner.
+        return res.redirect(`${FRONTEND_URL}/signup?google_account_exists=true&email=${encodeURIComponent(googleProfile.email)}`);
+      }
+
+      // New user -> Create account immediately
+      const newUserId = crypto.randomUUID();
+      const defaultUsername = `user_${crypto.randomBytes(3).toString('hex')}`;
+      db.prepare(`
+        INSERT INTO users (id, name, email, username, password_hash, auth_provider, google_id, email_verified, onboarding_completed, onboarding_step, created_at, updated_at, last_login_at)
+        VALUES (?, ?, ?, ?, NULL, 'google', ?, 1, 0, 1, ?, ?, ?)
+      `).run(newUserId, googleProfile.name, googleProfile.email, defaultUsername, googleProfile.id, now, now, now);
+      user = db.prepare('SELECT * FROM users WHERE id = ?').get(newUserId) as DbUser;
+
+      const token = generateTokenCookie(res, user.id);
+      return res.redirect(`${FRONTEND_URL}/set-password?auth=google_success&token=${token}`);
+    } else {
+      // 2. User clicked "Continue with Google" on Login Page (intent === 'login')
+      if (user) {
+        // User exists -> Authenticate directly
+        if (!user.google_id) {
+          const newProvider = user.password_hash ? 'both' : 'google';
+          db.prepare('UPDATE users SET google_id = ?, auth_provider = ?, email_verified = 1, last_login_at = ?, updated_at = ? WHERE id = ?')
+            .run(googleProfile.id, newProvider, now, now, user.id);
+          user = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id) as DbUser;
+        } else {
+          db.prepare('UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?').run(now, now, user.id);
+        }
+
+        const token = generateTokenCookie(res, user.id);
+        const hasLocalPassword = Boolean(user.password_hash);
+        const redirectTarget = hasLocalPassword ? (user.onboarding_completed ? '/dashboard' : '/onboarding') : '/set-password';
+        return res.redirect(`${FRONTEND_URL}${redirectTarget}?auth=google_success&token=${token}`);
+      }
+
+      // New Google User from Login page -> DO NOT immediately create account! Show Signup Confirmation Modal!
+      const tempToken = crypto.randomBytes(24).toString('hex');
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      db.prepare(`
+        INSERT INTO pending_google_signups (id, token, google_id, email, name, expires_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(crypto.randomUUID(), tempToken, googleProfile.id, googleProfile.email, googleProfile.name, expiresAt, now);
+
+      return res.redirect(`${FRONTEND_URL}/login?google_signup_pending=true&temp_token=${tempToken}&email=${encodeURIComponent(googleProfile.email)}&name=${encodeURIComponent(googleProfile.name)}`);
+    }
+  } catch {
+    return res.redirect(`${FRONTEND_URL}?auth_error=server_error`);
+  }
+};
+
+// 9b. CONFIRM GOOGLE SIGNUP (FROM LOGIN MODAL)
+export const confirmGoogleSignup = async (req: Request, res: Response) => {
+  try {
+    const { tempToken } = req.body;
+
+    if (!tempToken || typeof tempToken !== 'string') {
+      return res.status(400).json({ error: 'Invalid or missing confirmation token.' });
+    }
+
+    const pendingStmt = db.prepare('SELECT * FROM pending_google_signups WHERE token = ?');
+    const pending = pendingStmt.get(tempToken) as { id: string; google_id: string; email: string; name: string; expires_at: string } | undefined;
+
+    if (!pending) {
+      return res.status(400).json({ error: 'Signup session expired or invalid. Please try again.' });
+    }
+
+    if (Date.now() > new Date(pending.expires_at).getTime()) {
+      db.prepare('DELETE FROM pending_google_signups WHERE id = ?').run(pending.id);
+      return res.status(400).json({ error: 'Signup confirmation expired. Please try signing up again.' });
+    }
+
+    const now = new Date().toISOString();
+    const existingUser = db.prepare('SELECT * FROM users WHERE email = ? OR google_id = ?').get(pending.email, pending.google_id) as DbUser | undefined;
+
+    let user: DbUser;
+    if (existingUser) {
+      user = existingUser;
+    } else {
+      const newUserId = crypto.randomUUID();
+      const defaultUsername = `user_${crypto.randomBytes(3).toString('hex')}`;
+      db.prepare(`
+        INSERT INTO users (id, name, email, username, password_hash, auth_provider, google_id, email_verified, onboarding_completed, onboarding_step, created_at, updated_at, last_login_at)
+        VALUES (?, ?, ?, ?, NULL, 'google', ?, 1, 0, 1, ?, ?, ?)
+      `).run(newUserId, pending.name, pending.email, defaultUsername, pending.google_id, now, now, now);
+      user = db.prepare('SELECT * FROM users WHERE id = ?').get(newUserId) as DbUser;
+    }
+
+    db.prepare('DELETE FROM pending_google_signups WHERE id = ?').run(pending.id);
 
     const token = generateTokenCookie(res, user.id);
 
-    // Source of truth: backend user account state determines destination
-    const hasLocalPassword = Boolean(user.password_hash);
-    let redirectTarget: string;
-    if (!hasLocalPassword) {
-      redirectTarget = '/set-password';
-    } else {
-      const isCompleted = Boolean(user.onboarding_completed);
-      redirectTarget = isCompleted ? '/dashboard' : '/onboarding';
-    }
-    // Pass token via URL for cross-domain (Vercel<->Railway) where cookies may not transfer
-    return res.redirect(`${FRONTEND_URL}${redirectTarget}?auth=google_success&token=${token}`);
+    return res.status(200).json({
+      message: 'Account created successfully.',
+      user: sanitizeUser(user),
+      token,
+      redirectTo: '/set-password',
+    });
   } catch {
-    return res.redirect(`${FRONTEND_URL}?auth_error=server_error`);
+    return res.status(500).json({ error: 'Failed to confirm Google signup.' });
   }
 };
 

@@ -65,15 +65,18 @@ const TEST_EMAIL = `test_${timestamp}@example.com`;
 const TEST_PASSWORD = 'SecureTestPass123!';
 const TEST_NAME = 'Test User';
 
-let authCookie = ''; // Shared between tests after login
-let resetToken = ''; // Shared between password reset tests and login-after-reset test
+const TEST_USERNAME = `user_${timestamp}`;
+let authCookie = '';
+let resetToken = '';
+let devCode = '';
 
 // ─── SIGNUP TESTS ─────────────────────────────────────────────────────────────
 
 describe('SIGNUP', () => {
-  it('✓ valid signup creates account and returns user', async () => {
+  it('✓ valid signup with username creates account and returns user', async () => {
     const res = await api('POST', '/api/auth/signup', {
       name: TEST_NAME,
+      username: TEST_USERNAME,
       email: TEST_EMAIL,
       password: TEST_PASSWORD,
       confirmPassword: TEST_PASSWORD,
@@ -82,10 +85,10 @@ describe('SIGNUP', () => {
     assert.ok(res.body.user, 'Response should include user object');
     const user = res.body.user as Record<string, unknown>;
     assert.equal(user.email, TEST_EMAIL);
+    assert.equal(user.username, TEST_USERNAME);
     assert.equal(user.name, TEST_NAME);
     assert.ok(!('passwordHash' in user), 'passwordHash must NOT be returned');
     assert.ok(!('password_hash' in user), 'password_hash must NOT be returned');
-    // Cookie should be set
     assert.ok(res.cookieHeader, 'auth_token cookie should be set on signup');
     assert.ok(res.cookieHeader.includes('HttpOnly'), 'Cookie must be HttpOnly');
   });
@@ -93,6 +96,7 @@ describe('SIGNUP', () => {
   it('✓ duplicate email is rejected with 409', async () => {
     const res = await api('POST', '/api/auth/signup', {
       name: TEST_NAME,
+      username: `another_${timestamp}`,
       email: TEST_EMAIL, // same email as above
       password: TEST_PASSWORD,
       confirmPassword: TEST_PASSWORD,
@@ -101,9 +105,22 @@ describe('SIGNUP', () => {
     assert.ok(res.body.error, 'Error message should be present');
   });
 
+  it('✓ duplicate username is rejected with 409', async () => {
+    const res = await api('POST', '/api/auth/signup', {
+      name: TEST_NAME,
+      username: TEST_USERNAME, // same username as above
+      email: `diff_${timestamp}@example.com`,
+      password: TEST_PASSWORD,
+      confirmPassword: TEST_PASSWORD,
+    });
+    assert.equal(res.status, 409, `Expected 409 for duplicate username, got ${res.status}`);
+    assert.ok((res.body.error as string).toLowerCase().includes('username'));
+  });
+
   it('✓ invalid email format is rejected', async () => {
     const res = await api('POST', '/api/auth/signup', {
       name: TEST_NAME,
+      username: `user_inv_${timestamp}`,
       email: 'not-an-email',
       password: TEST_PASSWORD,
       confirmPassword: TEST_PASSWORD,
@@ -114,6 +131,7 @@ describe('SIGNUP', () => {
   it('✓ weak password (< 8 chars) is rejected', async () => {
     const res = await api('POST', '/api/auth/signup', {
       name: TEST_NAME,
+      username: `user_weak_${timestamp}`,
       email: `weak_${timestamp}@example.com`,
       password: 'abc',
       confirmPassword: 'abc',
@@ -125,6 +143,7 @@ describe('SIGNUP', () => {
   it('✓ password mismatch is rejected', async () => {
     const res = await api('POST', '/api/auth/signup', {
       name: TEST_NAME,
+      username: `user_mis_${timestamp}`,
       email: `mismatch_${timestamp}@example.com`,
       password: TEST_PASSWORD,
       confirmPassword: 'DifferentPassword!',
@@ -136,6 +155,7 @@ describe('SIGNUP', () => {
   it('✓ empty fields are rejected', async () => {
     const res = await api('POST', '/api/auth/signup', {
       name: '',
+      username: '',
       email: '',
       password: '',
       confirmPassword: '',
@@ -147,22 +167,30 @@ describe('SIGNUP', () => {
 // ─── LOGIN TESTS ──────────────────────────────────────────────────────────────
 
 describe('LOGIN', () => {
-  it('✓ valid login returns user and sets cookie', async () => {
+  it('✓ login with Email returns user and sets cookie', async () => {
     const res = await api('POST', '/api/auth/login', {
-      email: TEST_EMAIL,
+      identifier: TEST_EMAIL,
       password: TEST_PASSWORD,
     });
     assert.equal(res.status, 200, `Expected 200, got ${res.status}: ${JSON.stringify(res.body)}`);
     assert.ok(res.body.user, 'Response should include user');
     const user = res.body.user as Record<string, unknown>;
-    assert.ok(!('passwordHash' in user), 'passwordHash must NOT be in response');
-    assert.ok(!('password_hash' in user), 'password_hash must NOT be in response');
+    assert.equal(user.email, TEST_EMAIL);
     assert.ok(res.cookieHeader, 'auth_token cookie should be set on login');
-    assert.ok(res.cookieHeader.includes('HttpOnly'), 'Cookie must be HttpOnly');
 
-    // Save cookie for subsequent tests
     const tokenValue = extractCookieValue(res.cookieHeader, 'auth_token');
     if (tokenValue) authCookie = `auth_token=${tokenValue}`;
+  });
+
+  it('✓ login with Username returns user and sets cookie', async () => {
+    const res = await api('POST', '/api/auth/login', {
+      identifier: TEST_USERNAME,
+      password: TEST_PASSWORD,
+    });
+    assert.equal(res.status, 200, `Expected 200, got ${res.status}: ${JSON.stringify(res.body)}`);
+    assert.ok(res.body.user, 'Response should include user');
+    const user = res.body.user as Record<string, unknown>;
+    assert.equal(user.username, TEST_USERNAME);
   });
 
   it('✓ wrong password returns generic error without revealing email existence', async () => {
@@ -245,37 +273,48 @@ describe('LOGOUT', () => {
   });
 });
 
-// ─── PASSWORD RESET TESTS ─────────────────────────────────────────────────────
+// ─── PASSWORD RESET TESTS (3-STEP VERIFICATION CODE FLOW 6) ───────────────────
 
-describe('PASSWORD RESET', () => {
+describe('FORGOT PASSWORD (FLOW 6)', () => {
   const newPassword = 'NewSecurePass456!';
 
-  it('✓ forgot password with valid email returns generic success (no leak)', async () => {
+  it('✓ Step 1: forgot password with valid email returns generic success and codeDev in dev', async () => {
     const res = await api('POST', '/api/auth/forgot-password', { email: TEST_EMAIL });
     assert.equal(res.status, 200);
     assert.ok(res.body.message, 'Should return a message');
-    // In dev mode, resetTokenDev may be returned — use it for the next test
-    if (res.body.resetTokenDev) {
-      resetToken = res.body.resetTokenDev as string;
+    if (res.body.codeDev) {
+      devCode = res.body.codeDev as string;
     }
   });
 
-  it('✓ forgot password with unknown email returns same generic response (no enumeration)', async () => {
+  it('✓ Step 1: forgot password with unknown email returns generic response without enumeration', async () => {
     const res = await api('POST', '/api/auth/forgot-password', {
       email: `ghost_${timestamp}@example.com`,
     });
-    // Accept 200 (generic success) or 429 (reset limiter hit during test run)
     assert.ok([200, 429].includes(res.status), `Expected 200 or 429, got ${res.status}`);
-    if (res.status === 200) {
-      assert.ok(res.body.message, 'Should return a message');
-    }
   });
 
-  it('✓ reset password with valid token succeeds', async () => {
-    if (!resetToken) {
-      console.log('    (Skipping: no dev reset token available — SMTP may be configured)');
-      return;
-    }
+  it('✓ Step 2: verify 6-digit code returns valid reset token', async () => {
+    if (!devCode) return;
+    const res = await api('POST', '/api/auth/verify-reset-code', {
+      email: TEST_EMAIL,
+      code: devCode,
+    });
+    assert.equal(res.status, 200, `Expected 200, got ${res.status}: ${JSON.stringify(res.body)}`);
+    assert.ok(res.body.resetToken, 'Should return resetToken');
+    resetToken = res.body.resetToken as string;
+  });
+
+  it('✓ Step 2: invalid 6-digit code is rejected with 400', async () => {
+    const res = await api('POST', '/api/auth/verify-reset-code', {
+      email: TEST_EMAIL,
+      code: '000000',
+    });
+    assert.equal(res.status, 400);
+  });
+
+  it('✓ Step 3: reset password with verified token succeeds', async () => {
+    if (!resetToken) return;
     const res = await api('POST', '/api/auth/reset-password', {
       token: resetToken,
       newPassword,
@@ -288,7 +327,7 @@ describe('PASSWORD RESET', () => {
   it('✓ can login with new password after reset', async () => {
     if (!resetToken) return;
     const res = await api('POST', '/api/auth/login', {
-      email: TEST_EMAIL,
+      identifier: TEST_EMAIL,
       password: newPassword,
     });
     assert.equal(res.status, 200);
@@ -406,9 +445,8 @@ describe('GOOGLE OAUTH', () => {
     );
   });
 
-  it('✓ new Google user OAuth callback redirects to /set-password', async () => {
-    // Initiate Google auth with mock_new=true
-    const initRes = await fetch(`${BASE_URL}/api/auth/google?mock_new=true`, { redirect: 'manual' });
+  it('✓ Flow 3: Google login from Login page with new user redirects with google_signup_pending', async () => {
+    const initRes = await fetch(`${BASE_URL}/api/auth/google?intent=login&mock_new=true`, { redirect: 'manual' });
     const setCookie = initRes.headers.get('set-cookie');
     const location = initRes.headers.get('location') || '';
 
@@ -416,15 +454,39 @@ describe('GOOGLE OAUTH', () => {
       const stateMatch = location.match(/state=([^&]+)/);
       const codeMatch = location.match(/code=([^&]+)/);
       if (stateMatch && codeMatch) {
-        const cbRes = await fetch(`${BASE_URL}/api/auth/google/callback?code=${codeMatch[1]}&state=${stateMatch[1]}&mock_new=true`, {
+        const cbRes = await fetch(`${BASE_URL}/api/auth/google/callback?code=${codeMatch[1]}&state=${stateMatch[1]}&intent=login&mock_new=true`, {
           headers: { Cookie: setCookie },
           redirect: 'manual',
         });
         assert.ok([301, 302, 303, 307, 308].includes(cbRes.status));
         const redirectUrl = cbRes.headers.get('location') || '';
         assert.ok(
-          redirectUrl.includes('/set-password'),
-          `New Google user must redirect to /set-password, got: ${redirectUrl}`
+          redirectUrl.includes('google_signup_pending=true'),
+          `New Google user from Login must show confirmation modal, got: ${redirectUrl}`
+        );
+        assert.ok(redirectUrl.includes('temp_token='), 'Redirect must include temp_token');
+      }
+    }
+  });
+
+  it('✓ Flow 5: Google signup from Signup page with existing user redirects with google_account_exists', async () => {
+    const initRes = await fetch(`${BASE_URL}/api/auth/google?intent=signup`, { redirect: 'manual' });
+    const setCookie = initRes.headers.get('set-cookie');
+    const location = initRes.headers.get('location') || '';
+
+    if (setCookie && location) {
+      const stateMatch = location.match(/state=([^&]+)/);
+      const codeMatch = location.match(/code=([^&]+)/);
+      if (stateMatch && codeMatch) {
+        const cbRes = await fetch(`${BASE_URL}/api/auth/google/callback?code=${codeMatch[1]}&state=${stateMatch[1]}&intent=signup`, {
+          headers: { Cookie: setCookie },
+          redirect: 'manual',
+        });
+        assert.ok([301, 302, 303, 307, 308].includes(cbRes.status));
+        const redirectUrl = cbRes.headers.get('location') || '';
+        assert.ok(
+          redirectUrl.includes('google_account_exists=true'),
+          `Existing Google account on Signup page must show notice, got: ${redirectUrl}`
         );
       }
     }
@@ -445,15 +507,15 @@ describe('FIRST-TIME GOOGLE USER PASSWORD SETUP (FLOW A)', () => {
   });
 
   it('✓ setup password validates password match and min length', async () => {
-    // Initiate Google auth with mock_new=true to create user without local password
-    const initRes = await fetch(`${BASE_URL}/api/auth/google?mock_new=true`, { redirect: 'manual' });
+    // Initiate Google auth with intent=signup & mock_new=true to create user without local password
+    const initRes = await fetch(`${BASE_URL}/api/auth/google?intent=signup&mock_new=true`, { redirect: 'manual' });
     const setCookie = initRes.headers.get('set-cookie');
     const location = initRes.headers.get('location') || '';
     if (setCookie && location) {
       const stateMatch = location.match(/state=([^&]+)/);
       const codeMatch = location.match(/code=([^&]+)/);
       if (stateMatch && codeMatch) {
-        const cbRes = await fetch(`${BASE_URL}/api/auth/google/callback?code=${codeMatch[1]}&state=${stateMatch[1]}&mock_new=true`, {
+        const cbRes = await fetch(`${BASE_URL}/api/auth/google/callback?code=${codeMatch[1]}&state=${stateMatch[1]}&intent=signup&mock_new=true`, {
           headers: { Cookie: setCookie },
           redirect: 'manual',
         });

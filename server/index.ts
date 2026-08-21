@@ -17,11 +17,13 @@ import {
   logout,
   getMe,
   forgotPassword,
+  verifyPasswordResetCode,
   resetPassword,
   setupPassword,
   verifyEmail,
   googleAuth,
   googleCallback,
+  confirmGoogleSignup,
   resendVerification,
   saveOnboardingStep1,
   saveOnboardingStep2,
@@ -154,7 +156,7 @@ app.use(cookieParser());
 
 // Rate limiters
 // In TEST_MODE, use very high limits so integration tests don't hit 429
-const isTestMode = process.env.TEST_MODE === 'true';
+const isTestMode = process.env.TEST_MODE === 'true' || process.env.NODE_ENV === 'test';
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -178,7 +180,9 @@ app.post('/api/auth/login', authLimiter, login);
 app.post('/api/auth/logout', logout);
 app.get('/api/auth/me', authenticateToken, getMe);
 
+app.post('/api/auth/google/confirm-signup', confirmGoogleSignup);
 app.post('/api/auth/forgot-password', resetLimiter, forgotPassword);
+app.post('/api/auth/verify-reset-code', verifyPasswordResetCode);
 app.post('/api/auth/reset-password', resetLimiter, resetPassword);
 app.post('/api/auth/set-password', authenticateToken, setupPassword);
 app.get('/api/auth/verify-email', verifyEmail);

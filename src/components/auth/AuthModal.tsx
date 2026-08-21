@@ -25,6 +25,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   // Form Fields
   const [name, setName] = useState('');
+  const [username] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -133,7 +134,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setFieldErrors({});
     setIsSubmitting(true);
 
-    const result = await signup(name, email, password, confirmPassword);
+    const result = await signup(name, username, email, password, confirmPassword);
     setIsSubmitting(false);
 
     if (result.success) {
