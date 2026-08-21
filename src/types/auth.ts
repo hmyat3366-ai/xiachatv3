@@ -3,6 +3,7 @@ export interface User {
   name: string;
   email: string;
   authProvider: 'local' | 'google' | 'both';
+  hasPassword: boolean;
   emailVerified: boolean;
   onboardingCompleted: boolean;
   onboardingStep: number;

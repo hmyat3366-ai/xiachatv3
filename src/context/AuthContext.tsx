@@ -7,6 +7,7 @@ interface AuthContextType extends AuthState {
   logout: () => Promise<void>;
   forgotPassword: (email: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   resetPassword: (token: string, newPassword: string, confirmPassword: string) => Promise<{ success: boolean; message?: string; error?: string }>;
+  setupPassword: (password: string, confirmPassword: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   resendVerification: () => Promise<{ success: boolean; message?: string; error?: string }>;
   saveOnboardingStep1: (workspaceName: string, workspaceSlug?: string) => Promise<{ success: boolean; workspace?: any; error?: string }>;
   saveOnboardingStep2: (businessType?: string, customerChannels?: string[]) => Promise<{ success: boolean; error?: string }>;
@@ -196,6 +197,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const setupPassword = async (password: string, confirmPassword: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/set-password`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: authHeaders(),
+        body: JSON.stringify({ password, confirmPassword }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        if (data.user) setUser(data.user);
+        return { success: true, message: data.message };
+      } else {
+        return { success: false, error: data.error || 'Failed to set password.' };
+      }
+    } catch {
+      return { success: false, error: 'Network error. Please try again.' };
+    }
+  };
+
   const resendVerification = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/auth/resend-verification`, {
@@ -314,6 +336,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         forgotPassword,
         resetPassword,
+        setupPassword,
         resendVerification,
         saveOnboardingStep1,
         saveOnboardingStep2,

@@ -18,6 +18,7 @@ import {
   getMe,
   forgotPassword,
   resetPassword,
+  setupPassword,
   verifyEmail,
   googleAuth,
   googleCallback,
@@ -179,6 +180,7 @@ app.get('/api/auth/me', authenticateToken, getMe);
 
 app.post('/api/auth/forgot-password', resetLimiter, forgotPassword);
 app.post('/api/auth/reset-password', resetLimiter, resetPassword);
+app.post('/api/auth/set-password', authenticateToken, setupPassword);
 app.get('/api/auth/verify-email', verifyEmail);
 app.post('/api/auth/resend-verification', authenticateToken, resendVerification);
 

@@ -406,7 +406,7 @@ describe('GOOGLE OAUTH', () => {
     );
   });
 
-  it('✓ new Google user OAuth callback redirects to /onboarding', async () => {
+  it('✓ new Google user OAuth callback redirects to /set-password', async () => {
     // Initiate Google auth with mock_new=true
     const initRes = await fetch(`${BASE_URL}/api/auth/google?mock_new=true`, { redirect: 'manual' });
     const setCookie = initRes.headers.get('set-cookie');
@@ -423,11 +423,79 @@ describe('GOOGLE OAUTH', () => {
         assert.ok([301, 302, 303, 307, 308].includes(cbRes.status));
         const redirectUrl = cbRes.headers.get('location') || '';
         assert.ok(
-          redirectUrl.includes('/onboarding'),
-          `New Google user must redirect to /onboarding, got: ${redirectUrl}`
+          redirectUrl.includes('/set-password'),
+          `New Google user must redirect to /set-password, got: ${redirectUrl}`
         );
       }
     }
+  });
+});
+
+// ─── FIRST-TIME GOOGLE USER PASSWORD SETUP (FLOW A) ───────────────────────
+
+describe('FIRST-TIME GOOGLE USER PASSWORD SETUP (FLOW A)', () => {
+  let googleAuthCookie = '';
+
+  it('✓ setup password requires authentication', async () => {
+    const res = await api('POST', '/api/auth/set-password', {
+      password: 'GoogleUserPassword123!',
+      confirmPassword: 'GoogleUserPassword123!',
+    });
+    assert.equal(res.status, 401, 'Unauthenticated request to set-password must return 401');
+  });
+
+  it('✓ setup password validates password match and min length', async () => {
+    // Initiate Google auth with mock_new=true to create user without local password
+    const initRes = await fetch(`${BASE_URL}/api/auth/google?mock_new=true`, { redirect: 'manual' });
+    const setCookie = initRes.headers.get('set-cookie');
+    const location = initRes.headers.get('location') || '';
+    if (setCookie && location) {
+      const stateMatch = location.match(/state=([^&]+)/);
+      const codeMatch = location.match(/code=([^&]+)/);
+      if (stateMatch && codeMatch) {
+        const cbRes = await fetch(`${BASE_URL}/api/auth/google/callback?code=${codeMatch[1]}&state=${stateMatch[1]}&mock_new=true`, {
+          headers: { Cookie: setCookie },
+          redirect: 'manual',
+        });
+        const tokenVal = extractCookieValue(cbRes.headers.get('set-cookie'), 'auth_token');
+        if (tokenVal) {
+          googleAuthCookie = `auth_token=${tokenVal}`;
+        } else if (setCookie) {
+          googleAuthCookie = setCookie;
+        }
+      }
+    }
+
+    if (!googleAuthCookie) return;
+
+    // Test mismatched passwords
+    const mismatchRes = await api('POST', '/api/auth/set-password', {
+      password: 'GoogleUserPassword123!',
+      confirmPassword: 'DifferentPassword123!',
+    }, googleAuthCookie);
+    assert.equal(mismatchRes.status, 400, 'Password mismatch must return 400');
+
+    // Test short password
+    const shortRes = await api('POST', '/api/auth/set-password', {
+      password: 'short',
+      confirmPassword: 'short',
+    }, googleAuthCookie);
+    assert.equal(shortRes.status, 400, 'Password < 8 chars must return 400');
+  });
+
+  it('✓ setup password for Google user successfully saves password and updates authProvider to both', async () => {
+    if (!googleAuthCookie) return;
+
+    const res = await api('POST', '/api/auth/set-password', {
+      password: 'GoogleUserPassword123!',
+      confirmPassword: 'GoogleUserPassword123!',
+    }, googleAuthCookie);
+
+    assert.equal(res.status, 200, `Expected 200, got ${res.status}: ${JSON.stringify(res.body)}`);
+    assert.ok(res.body.user, 'Response should contain user object');
+    const updatedUser = res.body.user as Record<string, unknown>;
+    assert.equal(updatedUser.authProvider, 'both', 'authProvider should become both');
+    assert.equal(updatedUser.hasPassword, true, 'hasPassword should be true');
   });
 });
 

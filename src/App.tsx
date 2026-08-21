@@ -58,7 +58,7 @@ const PROTECTED_ROUTES = [
   '/billing',
 ];
 
-const AUTH_ROUTES = ['/login', '/signup', '/forgot-password', '/reset-password'];
+const AUTH_ROUTES = ['/login', '/signup', '/forgot-password', '/reset-password', '/set-password'];
 
 function MainApp() {
   const { user, isAuthenticated, isLoading, refreshSession } = useAuth();
@@ -88,14 +88,18 @@ function MainApp() {
     window.addEventListener('popstate', handlePopState);
 
     const searchParams = new URLSearchParams(window.location.search);
-    const token = searchParams.get('token');
+    const resetTokenParam = searchParams.get('reset_token');
+    const tokenParam = searchParams.get('token');
     const authError = searchParams.get('auth_error');
     const authSuccess = searchParams.get('auth');
 
-    if (token) {
-      setResetToken(token);
+    if (resetTokenParam) {
+      setResetToken(resetTokenParam);
       setAuthMode('reset_password');
       navigate('/reset-password');
+    } else if (window.location.pathname === '/reset-password' && tokenParam && authSuccess !== 'google_success') {
+      setResetToken(tokenParam);
+      setAuthMode('reset_password');
     }
 
     if (authSuccess === 'google_success') {
@@ -120,7 +124,7 @@ function MainApp() {
       return;
     }
     setAuthMode(mode);
-    navigate(`/${mode === 'forgot_password' ? 'forgot-password' : mode === 'reset_password' ? 'reset-password' : mode}`);
+    navigate(`/${mode === 'forgot_password' ? 'forgot-password' : mode === 'reset_password' ? 'reset-password' : mode === 'set_password' ? 'set-password' : mode}`);
   };
 
   const openStartFreeModal = () => {
@@ -156,8 +160,8 @@ function MainApp() {
   // 2. ONBOARDING ROUTE GUARDS & RENDERING
   const isOnboardingRoute = currentPath === '/onboarding';
 
-  // Case: Authenticated user who has NOT completed onboarding must be guided through /onboarding
-  if (isAuthenticated && user && !user.onboardingCompleted) {
+  // Case: Authenticated user who has NOT completed onboarding must be guided through /onboarding (unless setting password)
+  if (isAuthenticated && user && !user.onboardingCompleted && currentPath !== '/set-password') {
     return <OnboardingPage onNavigate={navigate} />;
   }
 
@@ -176,11 +180,33 @@ function MainApp() {
     );
   }
 
-  // 3. AUTH ROUTES (LOGIN, SIGNUP, FORGOT/RESET PASSWORD)
+  // 3. AUTH ROUTES (LOGIN, SIGNUP, FORGOT/RESET PASSWORD, SET PASSWORD)
   const isAuthRoute = AUTH_ROUTES.includes(currentPath);
 
-  // Authenticated user accessing auth routes -> redirect to onboarding or dashboard based on user state
-  if (isAuthRoute && isAuthenticated) {
+  // Special handling for /set-password route for authenticated users
+  if (currentPath === '/set-password') {
+    if (!isAuthenticated) {
+      return (
+        <AuthPage
+          initialMode="login"
+          onNavigate={navigate}
+        />
+      );
+    }
+    if (user && !user.hasPassword) {
+      return (
+        <AuthPage
+          initialMode="set_password"
+          onNavigate={navigate}
+        />
+      );
+    } else if (user && user.hasPassword) {
+      navigate(user.onboardingCompleted ? '/dashboard' : '/onboarding');
+    }
+  }
+
+  // Authenticated user accessing other auth routes -> redirect to onboarding or dashboard based on user state
+  if (isAuthRoute && isAuthenticated && currentPath !== '/set-password') {
     if (user && !user.onboardingCompleted) {
       navigate('/onboarding');
     } else {
@@ -194,6 +220,7 @@ function MainApp() {
     if (currentPath === '/signup') modeFromPath = 'signup';
     if (currentPath === '/forgot-password') modeFromPath = 'forgot_password';
     if (currentPath === '/reset-password') modeFromPath = 'reset_password';
+    if (currentPath === '/set-password') modeFromPath = 'set_password';
 
     return (
       <AuthPage

@@ -3,7 +3,7 @@ import { LogoIcon } from '../Logo';
 import { X, Mail, Lock, User as UserIcon, ArrowRight, AlertCircle, CheckCircle2, Loader2, KeyRound } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-export type AuthMode = 'login' | 'signup' | 'forgot_password' | 'reset_password';
+export type AuthMode = 'login' | 'signup' | 'forgot_password' | 'reset_password' | 'set_password';
 
 interface AuthModalProps {
   isOpen: boolean;

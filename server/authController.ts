@@ -353,8 +353,8 @@ export const googleCallback = async (req: Request, res: Response) => {
       return res.redirect(`${FRONTEND_URL}?auth_error=oauth_cancelled`);
     }
 
-    // State validation: check state parameter presence
-    if (!state || (storedState && state !== storedState)) {
+    // State validation: check state parameter presence and cookie match
+    if (!state || !storedState || state !== storedState) {
       return res.redirect(`${FRONTEND_URL}?auth_error=invalid_state`);
     }
 
@@ -463,8 +463,14 @@ export const googleCallback = async (req: Request, res: Response) => {
     const token = generateTokenCookie(res, user.id);
 
     // Source of truth: backend user account state determines destination
-    const isCompleted = Boolean(user.onboarding_completed);
-    const redirectTarget = isCompleted ? '/dashboard' : '/onboarding';
+    const hasLocalPassword = Boolean(user.password_hash);
+    let redirectTarget: string;
+    if (!hasLocalPassword) {
+      redirectTarget = '/set-password';
+    } else {
+      const isCompleted = Boolean(user.onboarding_completed);
+      redirectTarget = isCompleted ? '/dashboard' : '/onboarding';
+    }
     // Pass token via URL for cross-domain (Vercel<->Railway) where cookies may not transfer
     return res.redirect(`${FRONTEND_URL}${redirectTarget}?auth=google_success&token=${token}`);
   } catch {
@@ -694,6 +700,51 @@ export const getOnboardingData = async (req: AuthRequest, res: Response) => {
     });
   } catch {
     return res.status(500).json({ error: 'Failed to retrieve onboarding data.' });
+  }
+};
+
+// 15. FIRST-TIME PASSWORD SETUP (FOR GOOGLE USERS)
+export const setupPassword = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+
+    const { password, confirmPassword } = req.body;
+
+    if (!password || typeof password !== 'string' || password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({ error: 'Passwords do not match.' });
+    }
+
+    const userStmt = db.prepare('SELECT * FROM users WHERE id = ?');
+    const user = userStmt.get(req.user.id) as DbUser | undefined;
+
+    if (!user) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+
+    const now = new Date().toISOString();
+    const newPasswordHash = bcrypt.hashSync(password, 10);
+    const updatedProvider = user.auth_provider === 'google' ? 'both' : user.auth_provider;
+
+    db.prepare(`
+      UPDATE users
+      SET password_hash = ?, auth_provider = ?, updated_at = ?
+      WHERE id = ?
+    `).run(newPasswordHash, updatedProvider, now, user.id);
+
+    const updatedUser = userStmt.get(user.id) as DbUser;
+
+    return res.status(200).json({
+      message: 'Password set successfully!',
+      user: sanitizeUser(updatedUser),
+    });
+  } catch {
+    return res.status(500).json({ error: 'Failed to set password.' });
   }
 };
 

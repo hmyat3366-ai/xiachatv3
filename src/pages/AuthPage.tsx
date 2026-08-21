@@ -3,7 +3,7 @@ import { Mail, Lock, User as UserIcon, ArrowRight, AlertCircle, CheckCircle2, Lo
 import { useAuth } from '../context/AuthContext';
 import { Logo, LogoIcon } from '../components/Logo';
 
-export type AuthPageMode = 'login' | 'signup' | 'forgot_password' | 'reset_password';
+export type AuthPageMode = 'login' | 'signup' | 'forgot_password' | 'reset_password' | 'set_password';
 
 interface AuthPageProps {
   initialMode?: AuthPageMode;
@@ -16,7 +16,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   resetToken = '',
   onNavigate,
 }) => {
-  const { user, login, signup, forgotPassword, resetPassword, isAuthenticated } = useAuth();
+  const { user, login, signup, forgotPassword, resetPassword, setupPassword, isAuthenticated } = useAuth();
   const [mode, setMode] = useState<AuthPageMode>(initialMode);
 
   // Form Fields
@@ -51,13 +51,19 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   // If already authenticated, redirect appropriately
   useEffect(() => {
     if (isAuthenticated && user) {
-      if (!user.onboardingCompleted) {
-        onNavigate('/onboarding');
+      if (mode === 'set_password') {
+        if (user.hasPassword) {
+          onNavigate(user.onboardingCompleted ? '/dashboard' : '/onboarding');
+        }
       } else {
-        onNavigate('/dashboard');
+        if (!user.onboardingCompleted) {
+          onNavigate('/onboarding');
+        } else {
+          onNavigate('/dashboard');
+        }
       }
     }
-  }, [isAuthenticated, user, onNavigate]);
+  }, [isAuthenticated, user, mode, onNavigate]);
 
   const validateEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());
 
@@ -212,6 +218,43 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       }, 1800);
     } else {
       setFormError(result.error || 'Failed to reset password.');
+    }
+  };
+
+  const handleSetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+    setFormSuccess(null);
+    const errors: { [key: string]: string } = {};
+
+    if (!password) {
+      errors.password = 'New password is required.';
+    } else if (password.length < 8) {
+      errors.password = 'Password must be at least 8 characters long.';
+    }
+
+    if (password !== confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match.';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+
+    setFieldErrors({});
+    setIsSubmitting(true);
+
+    const result = await setupPassword(password, confirmPassword);
+    setIsSubmitting(false);
+
+    if (result.success) {
+      setFormSuccess('Password set successfully! Redirecting...');
+      setTimeout(() => {
+        onNavigate(user?.onboardingCompleted ? '/dashboard' : '/onboarding');
+      }, 1200);
+    } else {
+      setFormError(result.error || 'Failed to set password.');
     }
   };
 
@@ -851,6 +894,69 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     ← Back to Sign In
                   </button>
                 </div>
+              </form>
+            )}
+
+            {/* ─── 5. SET PASSWORD MODE (AUTHENTICATED GOOGLE USER FIRST-TIME PASSWORD) ─── */}
+            {mode === 'set_password' && (
+              <form onSubmit={handleSetPasswordSubmit} className="space-y-3.5" noValidate>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#171717] uppercase tracking-wider mb-1.5">
+                    New Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-gray-400" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Min. 8 characters"
+                      className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-[#E8E8E5] text-xs font-medium bg-[#FAF9F6] outline-none focus:border-[#FF8A2A] transition-colors"
+                      disabled={isSubmitting}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3.5 top-3.5 text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {fieldErrors.password && <p className="mt-1 text-[11px] text-red-600">{fieldErrors.password}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-[#171717] uppercase tracking-wider mb-1.5">
+                    Confirm New Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-gray-400" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Re-enter new password"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#E8E8E5] text-xs font-medium bg-[#FAF9F6] outline-none focus:border-[#FF8A2A] transition-colors"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                  {fieldErrors.confirmPassword && <p className="mt-1 text-[11px] text-red-600">{fieldErrors.confirmPassword}</p>}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-3 rounded-full bg-[#FF8A2A] hover:bg-[#D96512] text-white font-bold text-xs shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Saving Password...</span>
+                    </>
+                  ) : (
+                    <span>Save Password →</span>
+                  )}
+                </button>
               </form>
             )}
 
