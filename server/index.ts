@@ -85,6 +85,8 @@ import {
   getPublicWidgetConfig,
   testChannelConnection,
   disconnectChannel,
+  connectChannel,
+  verifyWebhookChallenge,
   handleIncomingWebhook,
 } from './channelController.js';
 import { getAnalyticsOverview, exportAnalyticsCSV } from './analyticsController.js';
@@ -247,6 +249,7 @@ app.post('/api/customers/merge', authenticateToken, mergeCustomers);
 app.get('/api/channels', authenticateToken, getChannels);
 app.get('/api/channels/:id', authenticateToken, getChannelById);
 app.put('/api/channels/website-config', authenticateToken, updateWebsiteChannelConfig);
+app.post('/api/channels/:provider/connect', authenticateToken, checkChannelLimit, connectChannel);
 app.post('/api/channels/:id/test', authenticateToken, testChannelConnection);
 app.post('/api/channels/:id/disconnect', authenticateToken, disconnectChannel);
 
@@ -254,6 +257,7 @@ app.post('/api/channels/:id/disconnect', authenticateToken, disconnectChannel);
 app.get('/api/channels/public-widget/:siteKey', getPublicWidgetConfig);
 
 // Webhook Endpoints
+app.get('/api/webhooks/:provider', verifyWebhookChallenge);
 app.post('/api/webhooks/:provider', handleIncomingWebhook);
 
 // Analytics & Reporting Routes

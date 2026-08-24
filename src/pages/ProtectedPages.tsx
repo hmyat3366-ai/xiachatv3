@@ -2153,7 +2153,7 @@ export const ChannelsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
       let url = '/api/channels';
       if (wsId) url += `?workspaceId=${wsId}`;
 
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await apiFetch(url, { method: 'GET' });
       if (res.ok) {
         const data = await res.json();
         setChannels(data.channels || []);
@@ -2177,7 +2177,7 @@ export const ChannelsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
       let url = `/api/channels/${channelId}`;
       if (wsId) url += `?workspaceId=${wsId}`;
 
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await apiFetch(url, { method: 'GET' });
       if (res.ok) {
         const data = await res.json();
         setSelectedChannel(data.channel || null);
@@ -2217,10 +2217,9 @@ export const ChannelsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
     try {
       setIsSaving(true);
       const url = `/api/channels/website-config${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ ...config, defaultAgentId }),
       });
 
@@ -2235,7 +2234,7 @@ export const ChannelsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
 
   const handleTestChannel = async (channelId: string): Promise<ChannelTestResult> => {
     const url = `/api/channels/${channelId}/test${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-    const res = await fetch(url, { method: 'POST', credentials: 'include' });
+    const res = await apiFetch(url, { method: 'POST' });
     if (res.ok) {
       return await res.json();
     }
@@ -2247,7 +2246,7 @@ export const ChannelsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
     try {
       setIsDisconnecting(true);
       const url = `/api/channels/${channelToDisconnect.id}/disconnect${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-      const res = await fetch(url, { method: 'POST', credentials: 'include' });
+      const res = await apiFetch(url, { method: 'POST' });
 
       if (res.ok) {
         setChannelToDisconnect(null);

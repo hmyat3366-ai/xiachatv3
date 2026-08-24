@@ -311,7 +311,7 @@ export const disconnectChannel = async (req: AuthRequest, res: Response) => {
     if (!channel) return res.status(404).json({ error: 'Channel not found.' });
 
     const now = new Date().toISOString();
-    db.prepare('UPDATE channels SET status = "not_connected", updated_at = ? WHERE id = ? AND workspace_id = ?').run(now, channelId, workspace.id);
+    db.prepare("UPDATE channels SET status = 'not_connected', updated_at = ? WHERE id = ? AND workspace_id = ?").run(now, channelId, workspace.id);
 
     return res.status(200).json({ success: true, message: 'Channel disconnected. Past conversation history retained.' });
   } catch (err) {
@@ -320,11 +320,133 @@ export const disconnectChannel = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// POST /api/channels/:provider/connect
+export const connectChannel = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
+
+    const provider = req.params.provider; // 'meta' | 'facebook' | 'instagram' | 'whatsapp' | 'website'
+    const { name, externalAccountId, accessToken, phoneNumberId, pageId, config, defaultAgentId } = req.body;
+
+    const requestedWsId = req.query.workspaceId as string | undefined;
+    const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
+    if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
+
+    // Validate Credentials
+    if (provider !== 'website') {
+      const accountId = externalAccountId || pageId || phoneNumberId;
+      if (!accountId || typeof accountId !== 'string' || !accountId.trim()) {
+        return res.status(400).json({ error: 'Account ID or Page/Phone ID is required to connect channel.' });
+      }
+      if (!accessToken || typeof accessToken !== 'string' || !accessToken.trim()) {
+        return res.status(400).json({ error: 'Access token or API secret key is required.' });
+      }
+      if (accessToken.trim().length < 8) {
+        return res.status(400).json({ error: 'Invalid API access token or secret credentials.' });
+      }
+    }
+
+    ensureSeedChannels(workspace.id);
+
+    const typeKey = provider === 'meta' ? 'facebook' : provider;
+    const accountId = externalAccountId || pageId || phoneNumberId || `${workspace.slug}-${typeKey}`;
+
+    // Prevent Duplicate Active Connection
+    const existing = db.prepare(`
+      SELECT id, status FROM channels
+      WHERE workspace_id = ? AND type = ? AND external_account_id = ?
+    `).get(workspace.id, typeKey, accountId.trim()) as DbChannel | undefined;
+
+    if (existing && existing.status === 'connected') {
+      return res.status(409).json({ error: 'This channel account is already connected to your workspace.' });
+    }
+
+    const now = new Date().toISOString();
+    // Securely reference/hash secret credentials without storing raw token
+    const credentialsRef = accessToken ? crypto.createHash('sha256').update(accessToken).digest('hex') : null;
+    const channelName = name && name.trim() ? name.trim() : `${typeKey.toUpperCase()} Channel (${accountId.slice(0, 10)})`;
+
+    let channelId: string;
+
+    if (existing) {
+      channelId = existing.id;
+      db.prepare(`
+        UPDATE channels
+        SET status = 'connected',
+            name = ?,
+            credentials_reference = ?,
+            default_agent_id = COALESCE(?, default_agent_id),
+            updated_at = ?
+        WHERE id = ? AND workspace_id = ?
+      `).run(channelName, credentialsRef, defaultAgentId || null, now, channelId, workspace.id);
+    } else {
+      channelId = crypto.randomUUID();
+      db.prepare(`
+        INSERT INTO channels (
+          id, workspace_id, type, name, status, provider, external_account_id,
+          config, credentials_reference, default_agent_id, last_activity_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, 'connected', ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        channelId,
+        workspace.id,
+        typeKey,
+        channelName,
+        provider,
+        accountId.trim(),
+        JSON.stringify(config || { enableAI: true }),
+        credentialsRef,
+        defaultAgentId || null,
+        now,
+        now,
+        now
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `${channelName} connected successfully.`,
+      channel: {
+        id: channelId,
+        workspaceId: workspace.id,
+        type: typeKey,
+        name: channelName,
+        status: 'connected',
+        provider,
+        externalAccountId: accountId.trim(),
+        defaultAgentId,
+        updatedAt: now,
+      },
+    });
+  } catch (err) {
+    console.error('Error connecting channel:', err);
+    return res.status(500).json({ error: 'Failed to connect channel integration.' });
+  }
+};
+
+// GET /api/webhooks/:provider (Meta / WhatsApp challenge verification endpoint)
+export const verifyWebhookChallenge = async (req: Request, res: Response) => {
+  try {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+
+    const verifyToken = process.env.WEBHOOK_VERIFY_TOKEN || 'xia_chat_webhook_verify_secret';
+
+    if (mode === 'subscribe' && token === verifyToken) {
+      return res.status(200).send(challenge);
+    }
+
+    return res.status(403).json({ error: 'Webhook verification token mismatch.' });
+  } catch (err) {
+    console.error('Error verifying webhook challenge:', err);
+    return res.status(500).json({ error: 'Webhook verification failed.' });
+  }
+};
+
 // POST /api/webhooks/:provider (Secure normalized webhook endpoint)
 export const handleIncomingWebhook = async (req: Request, res: Response) => {
   try {
     const provider = req.params.provider; // 'website' | 'meta' | 'whatsapp'
-    const payload = req.body;
 
     // Reject unverified signature requests if Meta app secret configured
     if (provider === 'meta' && process.env.META_APP_SECRET) {
