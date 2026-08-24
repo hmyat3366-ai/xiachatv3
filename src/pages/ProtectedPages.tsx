@@ -479,7 +479,7 @@ export const TeamPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onN
         let url = `/api/team/members?search=${encodeURIComponent(search)}&filter=${filter}`;
         if (wsId) url += `&workspaceId=${wsId}`;
 
-        const res = await fetch(url, { credentials: 'include' });
+        const res = await apiFetch(url, { method: 'GET' });
         if (res.ok) {
           const data = await res.json();
           setMembers(data.members || []);
@@ -495,7 +495,7 @@ export const TeamPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onN
         // Fetch audit logs
         let auditUrl = '/api/team/audit-logs';
         if (wsId) auditUrl += `?workspaceId=${wsId}`;
-        const auditRes = await fetch(auditUrl, { credentials: 'include' });
+        const auditRes = await apiFetch(auditUrl, { method: 'GET' });
         if (auditRes.ok) {
           const auditData = await auditRes.json();
           setAuditLogs(auditData.logs || []);
@@ -522,10 +522,9 @@ export const TeamPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onN
       let url = `/api/team/invitations`;
       if (teamWsId) url += `?workspaceId=${teamWsId}`;
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ email, role, message }),
       });
 
@@ -552,10 +551,9 @@ export const TeamPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onN
       let url = `/api/team/members/${memberToEditRole.id}/role`;
       if (teamWsId) url += `?workspaceId=${teamWsId}`;
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ role, isTransferOwner }),
       });
 
@@ -596,10 +594,9 @@ export const TeamPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onN
       let url = `/api/team/members/${member.id}/status`;
       if (teamWsId) url += `?workspaceId=${teamWsId}`;
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ status: targetStatus }),
       });
 
@@ -633,9 +630,8 @@ export const TeamPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onN
       let url = `/api/team/members/${memberToRemove.id}`;
       if (teamWsId) url += `?workspaceId=${teamWsId}`;
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: 'DELETE',
-        credentials: 'include',
       });
 
       if (res.ok) {
@@ -659,7 +655,7 @@ export const TeamPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onN
     try {
       let url = `/api/team/invitations/${invitationId}/resend`;
       if (teamWsId) url += `?workspaceId=${teamWsId}`;
-      const res = await fetch(url, { method: 'POST', credentials: 'include' });
+      const res = await apiFetch(url, { method: 'POST' });
       if (res.ok) {
         addToast('success', 'Invitation resent.');
       }
@@ -673,7 +669,7 @@ export const TeamPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onN
     try {
       let url = `/api/team/invitations/${invitationId}`;
       if (teamWsId) url += `?workspaceId=${teamWsId}`;
-      const res = await fetch(url, { method: 'DELETE', credentials: 'include' });
+      const res = await apiFetch(url, { method: 'DELETE' });
       if (res.ok) {
         addToast('success', 'Invitation cancelled.');
       }

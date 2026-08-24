@@ -4,6 +4,7 @@ import { ConversationList, type TeamConversationItem } from '../components/teamC
 import { ChatArea, type TeamMessageItem, type ConversationDetail } from '../components/teamChat/ChatArea';
 import { NewConversationModal } from '../components/teamChat/NewConversationModal';
 import type { WorkspaceItem } from '../types/dashboard';
+import { apiFetch } from '../utils/api';
 
 interface TeamChatPageProps {
   onNavigate: (path: string) => void;
@@ -31,7 +32,7 @@ export const TeamChatPage: React.FC<TeamChatPageProps> = ({ onNavigate }) => {
       let url = '/api/team-chat/conversations';
       if (wsId) url += `?workspaceId=${wsId}`;
 
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await apiFetch(url, { method: 'GET' });
       if (res.ok) {
         const data = await res.json();
         setConversations(data.conversations || []);
@@ -47,7 +48,7 @@ export const TeamChatPage: React.FC<TeamChatPageProps> = ({ onNavigate }) => {
   useEffect(() => {
     const initWorkspaceAndConvs = async () => {
       try {
-        const res = await fetch('/api/dashboard/overview', { credentials: 'include' });
+        const res = await apiFetch('/api/dashboard/overview', { method: 'GET' });
         if (res.ok) {
           const data = await res.json();
           if (data.workspaces) setWorkspaces(data.workspaces);
@@ -74,7 +75,7 @@ export const TeamChatPage: React.FC<TeamChatPageProps> = ({ onNavigate }) => {
         let url = `/api/team-chat/conversations/${convId}/messages`;
         if (wsId) url += `?workspaceId=${wsId}`;
 
-        const res = await fetch(url, { credentials: 'include' });
+        const res = await apiFetch(url, { method: 'GET' });
         if (res.ok) {
           const data = await res.json();
           setActiveConversation(data.conversation || null);
@@ -112,10 +113,9 @@ export const TeamChatPage: React.FC<TeamChatPageProps> = ({ onNavigate }) => {
       let url = '/api/team-chat/conversations';
       if (currentWorkspace?.id) url += `?workspaceId=${currentWorkspace.id}`;
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(params),
       });
 
@@ -142,10 +142,9 @@ export const TeamChatPage: React.FC<TeamChatPageProps> = ({ onNavigate }) => {
       let url = `/api/team-chat/conversations/${selectedConversationId}/messages`;
       if (currentWorkspace?.id) url += `?workspaceId=${currentWorkspace.id}`;
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ content }),
       });
 
