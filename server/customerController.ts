@@ -190,8 +190,6 @@ export const getCustomers = async (req: AuthRequest, res: Response) => {
     const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
     if (!workspace) return res.status(200).json({ customers: [], total: 0, page: 1, totalPages: 1, stats: { total: 0, active: 0, new: 0, vip: 0 } });
 
-    ensureSyncedCustomers(workspace.id);
-
     const search = ((req.query.search as string) || '').trim().toLowerCase();
     const filter = ((req.query.filter as string) || 'all').toLowerCase();
     const sort = ((req.query.sort as string) || 'recently_active').toLowerCase();
@@ -414,6 +412,15 @@ export const createCustomer = async (req: AuthRequest, res: Response) => {
     const requestedWsId = req.query.workspaceId as string | undefined;
     const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
     if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
+
+    // Prevent duplicate customer creation for unique email within workspace
+    if (email && email.trim()) {
+      const normalizedEmail = email.trim().toLowerCase();
+      const existing = db.prepare('SELECT id FROM customers WHERE workspace_id = ? AND LOWER(email) = ?').get(workspace.id, normalizedEmail) as { id: string } | undefined;
+      if (existing) {
+        return res.status(409).json({ error: 'A customer with this email address already exists in this workspace.' });
+      }
+    }
 
     const now = new Date().toISOString();
     const customerId = crypto.randomUUID();

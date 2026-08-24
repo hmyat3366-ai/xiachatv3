@@ -1,5 +1,6 @@
 import React from 'react';
 import { InboxLayout } from '../components/inbox/InboxLayout';
+import { apiFetch } from '../utils/api';
 
 
 // 1. Unified Inbox
@@ -1581,7 +1582,7 @@ export const CustomersPage: React.FC<{ onNavigate: (path: string) => void }> = (
         let url = `/api/customers?page=${p}&limit=10&search=${encodeURIComponent(s)}&filter=${f}&sort=${sort}`;
         if (wsId) url += `&workspaceId=${wsId}`;
 
-        const res = await fetch(url, { credentials: 'include' });
+        const res = await apiFetch(url, { method: 'GET' });
         if (res.ok) {
           const data = await res.json();
           setCustomers(data.customers || []);
@@ -1610,7 +1611,7 @@ export const CustomersPage: React.FC<{ onNavigate: (path: string) => void }> = (
       let url = `/api/customers/${customerId}`;
       if (wsId) url += `?workspaceId=${wsId}`;
 
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await apiFetch(url, { method: 'GET' });
       if (res.ok) {
         const data = await res.json();
         setSelectedCustomer(data.customer || null);
@@ -1647,10 +1648,9 @@ export const CustomersPage: React.FC<{ onNavigate: (path: string) => void }> = (
     try {
       setIsSaving(true);
       const url = `/api/customers${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(data),
       });
 
@@ -1665,10 +1665,9 @@ export const CustomersPage: React.FC<{ onNavigate: (path: string) => void }> = (
   const handleUpdateCustomer = async (updatedData: Partial<Customer>) => {
     if (!selectedCustomerId) return;
     const url = `/api/customers/${selectedCustomerId}${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify(updatedData),
     });
 
@@ -1681,10 +1680,9 @@ export const CustomersPage: React.FC<{ onNavigate: (path: string) => void }> = (
   const handleAddNote = async (content: string) => {
     if (!selectedCustomerId) return;
     const url = `/api/customers/${selectedCustomerId}/notes${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ content }),
     });
 
@@ -1696,7 +1694,7 @@ export const CustomersPage: React.FC<{ onNavigate: (path: string) => void }> = (
   const handleDeleteNote = async (noteId: string) => {
     if (!selectedCustomerId) return;
     const url = `/api/customers/${selectedCustomerId}/notes/${noteId}${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-    const res = await fetch(url, { method: 'DELETE', credentials: 'include' });
+    const res = await apiFetch(url, { method: 'DELETE' });
 
     if (res.ok) {
       setNotes((prev) => prev.filter((n) => n.id !== noteId));
@@ -1707,7 +1705,7 @@ export const CustomersPage: React.FC<{ onNavigate: (path: string) => void }> = (
     const targetId = custId || selectedCustomerId;
     if (!targetId) return;
     const url = `/api/customers/${targetId}/block${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-    const res = await fetch(url, { method: 'POST', credentials: 'include' });
+    const res = await apiFetch(url, { method: 'POST' });
 
     if (res.ok) {
       fetchCustomers(currentWorkspace?.id);
@@ -1721,10 +1719,9 @@ export const CustomersPage: React.FC<{ onNavigate: (path: string) => void }> = (
     try {
       setIsMerging(true);
       const url = `/api/customers/merge${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ primaryCustomerId: primaryId, secondaryCustomerId: secondaryId }),
       });
 
@@ -1743,7 +1740,7 @@ export const CustomersPage: React.FC<{ onNavigate: (path: string) => void }> = (
     try {
       setIsDeleting(true);
       const url = `/api/customers/${customerToDelete.id}${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-      const res = await fetch(url, { method: 'DELETE', credentials: 'include' });
+      const res = await apiFetch(url, { method: 'DELETE' });
 
       if (res.ok) {
         setCustomers((prev) => prev.filter((c) => c.id !== customerToDelete.id));
