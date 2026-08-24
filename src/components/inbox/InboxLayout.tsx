@@ -7,6 +7,7 @@ import { ChatThreadPanel } from './ChatThreadPanel';
 import { CustomerDetailsPanel } from './CustomerDetailsPanel';
 import type { ConversationItem, MessageItem, CustomerProfile, FilterState, TeamMember, InboxStats } from '../../types/inbox';
 import type { WorkspaceItem } from '../../types/dashboard';
+import { apiFetch } from '../../utils/api';
 
 interface InboxLayoutProps {
   currentPath: string;
@@ -62,7 +63,7 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
       if (activeFilters.aiOnly) url += `&aiOnly=true`;
       if (activeFilters.unread) url += `&unread=true`;
 
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await apiFetch(url, { method: 'GET' });
       if (!res.ok) throw new Error('Failed to fetch conversations');
 
       const data = await res.json();
@@ -95,7 +96,7 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
       let url = `/api/inbox/conversations/${convId}/messages`;
       if (wsId) url += `?workspaceId=${wsId}`;
 
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await apiFetch(url, { method: 'GET' });
       if (!res.ok) throw new Error('Failed to fetch messages');
 
       const data = await res.json();
@@ -128,7 +129,11 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
   useEffect(() => {
     if (!currentWorkspace?.id) return;
 
-    const eventSource = new EventSource(`/api/inbox/events?workspaceId=${currentWorkspace.id}`, {
+    const API_BASE = import.meta.env.VITE_API_URL || '';
+    const token = localStorage.getItem('xia_auth_token');
+    const sseUrl = `${API_BASE}/api/inbox/events?workspaceId=${currentWorkspace.id}${token ? `&token=${token}` : ''}`;
+
+    const eventSource = new EventSource(sseUrl, {
       withCredentials: true,
     });
 
@@ -176,10 +181,9 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
 
   const handleCreateWorkspace = async (name: string): Promise<boolean> => {
     try {
-      const res = await fetch('/api/dashboard/workspaces', {
+      const res = await apiFetch('/api/dashboard/workspaces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ name }),
       });
       if (res.ok) {
@@ -206,10 +210,9 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
 
   const handleSendMessage = async (content: string, isInternalNote: boolean, attachments?: string[]) => {
     if (!selectedId) return;
-    const res = await fetch(`/api/inbox/conversations/${selectedId}/messages?workspaceId=${currentWorkspace?.id || ''}`, {
+    const res = await apiFetch(`/api/inbox/conversations/${selectedId}/messages?workspaceId=${currentWorkspace?.id || ''}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ content, isInternalNote, attachments }),
     });
     if (res.ok) {
@@ -221,9 +224,8 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
 
   const handleTakeover = async () => {
     if (!selectedId) return;
-    const res = await fetch(`/api/inbox/conversations/${selectedId}/takeover?workspaceId=${currentWorkspace?.id || ''}`, {
+    const res = await apiFetch(`/api/inbox/conversations/${selectedId}/takeover?workspaceId=${currentWorkspace?.id || ''}`, {
       method: 'POST',
-      credentials: 'include',
     });
     if (res.ok) {
       const data = await res.json();
@@ -240,9 +242,8 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
 
   const handleReturnToAI = async () => {
     if (!selectedId) return;
-    const res = await fetch(`/api/inbox/conversations/${selectedId}/return-to-ai?workspaceId=${currentWorkspace?.id || ''}`, {
+    const res = await apiFetch(`/api/inbox/conversations/${selectedId}/return-to-ai?workspaceId=${currentWorkspace?.id || ''}`, {
       method: 'POST',
-      credentials: 'include',
     });
     if (res.ok) {
       const data = await res.json();
@@ -257,10 +258,9 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
 
   const handleAssign = async (assignee: string) => {
     if (!selectedId) return;
-    const res = await fetch(`/api/inbox/conversations/${selectedId}/assign?workspaceId=${currentWorkspace?.id || ''}`, {
+    const res = await apiFetch(`/api/inbox/conversations/${selectedId}/assign?workspaceId=${currentWorkspace?.id || ''}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ assignee }),
     });
     if (res.ok) {
@@ -276,10 +276,9 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
 
   const handleStatusChange = async (status: string) => {
     if (!selectedId) return;
-    const res = await fetch(`/api/inbox/conversations/${selectedId}/status?workspaceId=${currentWorkspace?.id || ''}`, {
+    const res = await apiFetch(`/api/inbox/conversations/${selectedId}/status?workspaceId=${currentWorkspace?.id || ''}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ status }),
     });
     if (res.ok) {
@@ -296,10 +295,9 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
   const handleUpdateTags = async (tags: string[]) => {
     if (!selectedId || !activeCustomer) return;
     setActiveCustomer({ ...activeCustomer, tags });
-    await fetch(`/api/inbox/conversations/${selectedId}/customer-details?workspaceId=${currentWorkspace?.id || ''}`, {
+    await apiFetch(`/api/inbox/conversations/${selectedId}/customer-details?workspaceId=${currentWorkspace?.id || ''}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ tags }),
     });
   };
@@ -307,19 +305,17 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
   const handleUpdateNotes = async (notes: string) => {
     if (!selectedId || !activeCustomer) return;
     setActiveCustomer({ ...activeCustomer, notes });
-    await fetch(`/api/inbox/conversations/${selectedId}/customer-details?workspaceId=${currentWorkspace?.id || ''}`, {
+    await apiFetch(`/api/inbox/conversations/${selectedId}/customer-details?workspaceId=${currentWorkspace?.id || ''}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ notes }),
     });
   };
 
   const handleGenerateAIDraft = async () => {
     if (!selectedId) return;
-    const res = await fetch(`/api/inbox/conversations/${selectedId}/generate-ai-draft?workspaceId=${currentWorkspace?.id || ''}`, {
+    const res = await apiFetch(`/api/inbox/conversations/${selectedId}/generate-ai-draft?workspaceId=${currentWorkspace?.id || ''}`, {
       method: 'POST',
-      credentials: 'include',
     });
     if (res.ok) {
       const data = await res.json();

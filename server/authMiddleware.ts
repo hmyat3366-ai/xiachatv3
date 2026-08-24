@@ -48,6 +48,10 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
     }
   }
 
+  if (!token && req.query.token && typeof req.query.token === 'string') {
+    token = req.query.token;
+  }
+
   if (!token) {
     return res.status(401).json({ error: 'Authentication required. Please log in.' });
   }

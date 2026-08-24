@@ -201,11 +201,25 @@ export const getInboxConversations = async (req: AuthRequest, res: Response) => 
       { id: 'sarah-admin', name: 'Sarah Admin', email: 'sarah@company.com', role: 'Support Lead' },
     ];
 
+    // Pagination
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const totalFiltered = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(totalFiltered / limit));
+    const offset = (page - 1) * limit;
+    const paginatedConversations = filtered.slice(offset, offset + limit);
+
     return res.status(200).json({
       workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug },
-      conversations: filtered,
+      conversations: paginatedConversations,
       stats,
       teamMembers,
+      pagination: {
+        page,
+        limit,
+        total: totalFiltered,
+        totalPages,
+      },
     });
   } catch (err) {
     console.error('Error fetching inbox conversations:', err);
@@ -231,12 +245,21 @@ export const getConversationMessages = async (req: AuthRequest, res: Response) =
     // Mark conversation read (reset unread_count and needs_attention)
     db.prepare('UPDATE conversations SET unread_count = 0, needs_attention = 0 WHERE id = ?').run(conversationId);
 
+    // Pagination parameters for message history
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const offset = (page - 1) * limit;
+
+    const totalCountStmt = db.prepare('SELECT COUNT(*) as count FROM messages WHERE conversation_id = ?');
+    const totalMessages = (totalCountStmt.get(conversationId) as { count: number }).count;
+
     // Fetch messages history
     const rawMessages = db.prepare(`
       SELECT * FROM messages
       WHERE conversation_id = ?
       ORDER BY created_at ASC
-    `).all(conversationId) as DbMessage[];
+      LIMIT ? OFFSET ?
+    `).all(conversationId, limit, offset) as DbMessage[];
 
     const messages = rawMessages.map((m) => ({
       id: m.id,
