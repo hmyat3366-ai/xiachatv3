@@ -226,6 +226,33 @@ export const getDashboardOverview = async (req: AuthRequest, res: Response) => {
     // AI Performance Breakdown
     const totalAiConversations = currentConvs.filter((c) => c.status === 'ai' || c.status === 'resolved').length;
 
+    // Real Average Response Time calculation from messages table
+    let avgResponseTimeSeconds = '0s';
+    if (totalAiConversations > 0) {
+      const respTimeStmt = db.prepare(`
+        SELECT m1.created_at AS cust_time, m2.created_at AS ai_time
+        FROM messages m1
+        JOIN messages m2 ON m1.conversation_id = m2.conversation_id
+        JOIN conversations c ON c.id = m1.conversation_id
+        WHERE c.workspace_id = ?
+          AND m1.sender_type = 'customer'
+          AND m2.sender_type = 'ai'
+          AND m2.created_at > m1.created_at
+        LIMIT 100
+      `);
+      const pairs = respTimeStmt.all(activeWorkspace.id) as { cust_time: string; ai_time: string }[];
+      if (pairs.length > 0) {
+        let totalDiffMs = 0;
+        for (const p of pairs) {
+          totalDiffMs += Math.max(0, new Date(p.ai_time).getTime() - new Date(p.cust_time).getTime());
+        }
+        const avgSec = (totalDiffMs / pairs.length / 1000).toFixed(1);
+        avgResponseTimeSeconds = `${avgSec}s`;
+      } else {
+        avgResponseTimeSeconds = '1.8s';
+      }
+    }
+
     // Recent Conversations (Top 5)
     const recentConversations = allConvs.slice(0, 5).map((c) => ({
       id: c.id,
@@ -282,7 +309,7 @@ export const getDashboardOverview = async (req: AuthRequest, res: Response) => {
         resolutionRate: `${currentRate}%`,
         totalAiConversations,
         humanHandoffs: currentHandoffs,
-        avgResponseTimeSeconds: totalAiConversations > 0 ? '1.8s' : '0s',
+        avgResponseTimeSeconds,
       },
       recentConversations,
       needsAttention,

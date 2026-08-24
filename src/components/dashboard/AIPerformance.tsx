@@ -8,8 +8,9 @@ interface AIPerformanceProps {
 }
 
 export const AIPerformance: React.FC<AIPerformanceProps> = ({ data, onNavigate }) => {
-  const resolutionRateStr = data?.resolutionRate || '78%';
-  const rateNumber = parseInt(resolutionRateStr, 10) || 78;
+  const resolutionRateStr = data?.resolutionRate ?? '0%';
+  const rateNumber = parseInt(resolutionRateStr, 10);
+  const validRateNumber = Number.isNaN(rateNumber) ? 0 : rateNumber;
 
   return (
     <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 space-y-6 shadow-2xs">
@@ -50,7 +51,7 @@ export const AIPerformance: React.FC<AIPerformanceProps> = ({ data, onNavigate }
             <span>AI Conversations</span>
           </div>
           <p className="text-2xl sm:text-3xl font-extrabold text-[#171717]">
-            {data?.totalAiConversations.toLocaleString() || '936'}
+            {(data?.totalAiConversations ?? 0).toLocaleString()}
           </p>
         </div>
 
@@ -60,7 +61,7 @@ export const AIPerformance: React.FC<AIPerformanceProps> = ({ data, onNavigate }
             <span>Human Handoffs</span>
           </div>
           <p className="text-2xl sm:text-3xl font-extrabold text-[#171717]">
-            {data?.humanHandoffs || 42}
+            {data?.humanHandoffs ?? 0}
           </p>
         </div>
 
@@ -70,7 +71,7 @@ export const AIPerformance: React.FC<AIPerformanceProps> = ({ data, onNavigate }
             <span>Avg Response Time</span>
           </div>
           <p className="text-2xl sm:text-3xl font-extrabold text-[#171717]">
-            {data?.avgResponseTimeSeconds || '18s'}
+            {data?.avgResponseTimeSeconds ?? '0s'}
           </p>
         </div>
       </div>
@@ -79,18 +80,18 @@ export const AIPerformance: React.FC<AIPerformanceProps> = ({ data, onNavigate }
       <div className="space-y-2 pt-2">
         <div className="flex items-center justify-between text-xs font-semibold">
           <span className="text-[#171717]">AI Auto-Resolution Distribution</span>
-          <span className="text-[#FF8A2A] font-bold">{rateNumber}% AI Autonomous</span>
+          <span className="text-[#FF8A2A] font-bold">{validRateNumber}% AI Autonomous</span>
         </div>
         <div className="w-full h-3 bg-[#E8E8E5] rounded-full overflow-hidden flex">
           <div
             className="h-full bg-[#FF8A2A] transition-all duration-500"
-            style={{ width: `${rateNumber}%` }}
-            title={`AI Resolved (${rateNumber}%)`}
+            style={{ width: `${validRateNumber}%` }}
+            title={`AI Resolved (${validRateNumber}%)`}
           />
           <div
             className="h-full bg-amber-400 transition-all duration-500"
-            style={{ width: `${100 - rateNumber}%` }}
-            title={`Human Agent Handoff (${100 - rateNumber}%)`}
+            style={{ width: `${100 - validRateNumber}%` }}
+            title={`Human Agent Handoff (${100 - validRateNumber}%)`}
           />
         </div>
         <div className="flex items-center justify-between text-[11px] text-[#6B6B6B]">
