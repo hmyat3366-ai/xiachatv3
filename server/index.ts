@@ -62,6 +62,7 @@ import {
   createFaqKnowledge,
   importUrlKnowledge,
   uploadDocumentKnowledge,
+  updateKnowledgeSource,
   deleteKnowledgeSource,
   reprocessKnowledgeSource,
   searchKnowledgeRAG,
@@ -226,6 +227,7 @@ app.post('/api/knowledge-base/text', authenticateToken, checkKnowledgeLimit, cre
 app.post('/api/knowledge-base/faq', authenticateToken, checkKnowledgeLimit, createFaqKnowledge);
 app.post('/api/knowledge-base/import-url', authenticateToken, checkKnowledgeLimit, importUrlKnowledge);
 app.post('/api/knowledge-base/upload-document', authenticateToken, checkKnowledgeLimit, uploadDocumentKnowledge);
+app.put('/api/knowledge-base/:id', authenticateToken, updateKnowledgeSource);
 app.delete('/api/knowledge-base/:id', authenticateToken, deleteKnowledgeSource);
 app.post('/api/knowledge-base/:id/reprocess', authenticateToken, reprocessKnowledgeSource);
 app.post('/api/knowledge-base/search', authenticateToken, searchKnowledgeRAG);

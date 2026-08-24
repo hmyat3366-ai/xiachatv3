@@ -311,6 +311,12 @@ export const createTextKnowledge = async (req: AuthRequest, res: Response) => {
     const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
     if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
 
+    // Duplicate Source Prevention
+    const existing = db.prepare('SELECT id FROM knowledge_sources WHERE workspace_id = ? AND LOWER(name) = LOWER(?)').get(workspace.id, name.trim());
+    if (existing) {
+      return res.status(409).json({ error: 'A knowledge source with this name already exists in your workspace.' });
+    }
+
     const now = new Date().toISOString();
     const sourceId = crypto.randomUUID();
 
@@ -347,6 +353,12 @@ export const createFaqKnowledge = async (req: AuthRequest, res: Response) => {
     const requestedWsId = req.query.workspaceId as string | undefined;
     const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
     if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
+
+    // Duplicate Source Prevention
+    const existing = db.prepare('SELECT id FROM knowledge_sources WHERE workspace_id = ? AND LOWER(name) = LOWER(?)').get(workspace.id, name.trim());
+    if (existing) {
+      return res.status(409).json({ error: 'A knowledge source with this name already exists in your workspace.' });
+    }
 
     const now = new Date().toISOString();
     const sourceId = crypto.randomUUID();
@@ -407,6 +419,12 @@ export const importUrlKnowledge = async (req: AuthRequest, res: Response) => {
     const requestedWsId = req.query.workspaceId as string | undefined;
     const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
     if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
+
+    // Duplicate URL Prevention
+    const existingUrl = db.prepare('SELECT id FROM knowledge_sources WHERE workspace_id = ? AND original_url = ?').get(workspace.id, url.trim());
+    if (existingUrl) {
+      return res.status(409).json({ error: 'A knowledge source with this URL already exists in your workspace.' });
+    }
 
     const now = new Date().toISOString();
     const sourceId = crypto.randomUUID();
@@ -491,6 +509,54 @@ export const uploadDocumentKnowledge = async (req: AuthRequest, res: Response) =
   }
 };
 
+// PUT /api/knowledge-base/:id
+export const updateKnowledgeSource = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
+
+    const sourceId = req.params.id;
+    const requestedWsId = req.query.workspaceId as string | undefined;
+    const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
+    if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
+
+    const source = db.prepare('SELECT * FROM knowledge_sources WHERE id = ? AND workspace_id = ?').get(sourceId, workspace.id) as DbKnowledgeSource | undefined;
+    if (!source) return res.status(404).json({ error: 'Knowledge source not found.' });
+
+    const { name, content } = req.body;
+    if (name !== undefined && (!name || !name.trim())) {
+      return res.status(400).json({ error: 'Source name cannot be empty.' });
+    }
+
+    const now = new Date().toISOString();
+    const newName = name ? name.trim() : source.name;
+    const newContent = content !== undefined ? (typeof content === 'object' ? JSON.stringify(content) : content) : source.content;
+
+    db.prepare(`
+      UPDATE knowledge_sources
+      SET name = ?, content = ?, updated_at = ?
+      WHERE id = ? AND workspace_id = ?
+    `).run(newName, newContent, now, sourceId, workspace.id);
+
+    let textToChunk = typeof newContent === 'object' ? JSON.stringify(newContent) : (newContent || '');
+    if (source.type === 'FAQ' && typeof newContent === 'string') {
+      try {
+        const faqs = JSON.parse(newContent);
+        textToChunk = faqs.map((f: any) => `Q: ${f.question}\nA: ${f.answer}`).join('\n\n');
+      } catch {
+        // raw text
+      }
+    }
+
+    const count = createTextChunks(sourceId, workspace.id, newName, source.type, textToChunk);
+    db.prepare('UPDATE knowledge_sources SET chunk_count = ? WHERE id = ?').run(count, sourceId);
+
+    return res.status(200).json({ success: true, message: 'Knowledge source updated and re-indexed.', chunkCount: count });
+  } catch (err) {
+    console.error('Error updating knowledge source:', err);
+    return res.status(500).json({ error: 'Failed to update knowledge source.' });
+  }
+};
+
 // DELETE /api/knowledge-base/:id
 export const deleteKnowledgeSource = async (req: AuthRequest, res: Response) => {
   try {
@@ -557,14 +623,15 @@ export const reprocessKnowledgeSource = async (req: AuthRequest, res: Response) 
 };
 
 // Pure RAG search helper for internal AI Provider Service & LLM Execution
-export function performRagSearch(workspaceId: string, query: string, limit = 5) {
+export function performRagSearch(workspaceId: string, query: string, limit = 5, allowedSources?: string[]) {
   const allChunks = db.prepare(`
-    SELECT kc.id, kc.text, kc.chunk_index, kc.metadata, ks.name as source_name, ks.type as source_type
+    SELECT kc.id, kc.source_id, kc.text, kc.chunk_index, kc.metadata, ks.name as source_name, ks.type as source_type
     FROM knowledge_chunks kc
     JOIN knowledge_sources ks ON kc.source_id = ks.id
     WHERE kc.workspace_id = ?
   `).all(workspaceId) as Array<{
     id: string;
+    source_id: string;
     text: string;
     chunk_index: number;
     metadata: string | null;
@@ -572,9 +639,19 @@ export function performRagSearch(workspaceId: string, query: string, limit = 5) 
     source_type: string;
   }>;
 
+  let filteredChunks = allChunks;
+  if (allowedSources && allowedSources.length > 0) {
+    const allowedLower = allowedSources.map((s) => s.toLowerCase());
+    filteredChunks = allChunks.filter((chunk) =>
+      allowedLower.includes(chunk.source_id.toLowerCase()) ||
+      allowedLower.includes(chunk.source_type.toLowerCase()) ||
+      allowedLower.includes(chunk.source_name.toLowerCase())
+    );
+  }
+
   const queryTokens = query.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(Boolean);
 
-  return allChunks
+  return filteredChunks
     .map((chunk) => {
       const textLower = chunk.text.toLowerCase();
       let matchCount = 0;
@@ -587,6 +664,7 @@ export function performRagSearch(workspaceId: string, query: string, limit = 5) 
 
       return {
         id: chunk.id,
+        sourceId: chunk.source_id,
         sourceName: chunk.source_name,
         sourceType: chunk.source_type,
         text: chunk.text,

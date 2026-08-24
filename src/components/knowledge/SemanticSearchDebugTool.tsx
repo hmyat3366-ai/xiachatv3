@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { RAGSearchResult } from '../../types/knowledge';
+import { apiFetch } from '../../utils/api';
 import {
   Search,
   Sparkles,
@@ -31,10 +32,9 @@ export const SemanticSearchDebugTool: React.FC<SemanticSearchDebugToolProps> = (
     try {
       setIsSearching(true);
       setSearchedQuery(query.trim());
-      const res = await fetch(`/api/knowledge-base/search?workspaceId=${workspaceId || ''}`, {
+      const res = await apiFetch(`/api/knowledge-base/search?workspaceId=${workspaceId || ''}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ query: query.trim() }),
       });
 

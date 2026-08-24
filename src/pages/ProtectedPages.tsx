@@ -44,7 +44,7 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
       let url = '/api/knowledge-base';
       if (wsId) url += `?workspaceId=${wsId}`;
 
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await apiFetch(url, { method: 'GET' });
       if (res.ok) {
         const data = await res.json();
         setSources(data.sources || []);
@@ -68,7 +68,7 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
       let url = `/api/knowledge-base/${sourceId}`;
       if (wsId) url += `?workspaceId=${wsId}`;
 
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await apiFetch(url, { method: 'GET' });
       if (res.ok) {
         const data = await res.json();
         setSelectedSource(data.source || null);
@@ -102,10 +102,9 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
     try {
       setIsSaving(true);
       const url = `/api/knowledge-base/text${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ name, content }),
       });
       if (res.ok) {
@@ -121,10 +120,9 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
     try {
       setIsSaving(true);
       const url = `/api/knowledge-base/faq${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ name, faqs }),
       });
       if (res.ok) {
@@ -140,10 +138,9 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
     try {
       setIsSaving(true);
       const apiUrl = `/api/knowledge-base/import-url${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-      const res = await fetch(apiUrl, {
+      const res = await apiFetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ url: urlStr, name }),
       });
       if (res.ok) {
@@ -162,10 +159,9 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
     try {
       setIsSaving(true);
       const url = `/api/knowledge-base/upload-document${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ fileName, fileType, fileDataText }),
       });
       if (res.ok) {
@@ -179,7 +175,7 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
 
   const handleReprocess = async (sourceId: string) => {
     const url = `/api/knowledge-base/${sourceId}/reprocess${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-    const res = await fetch(url, { method: 'POST', credentials: 'include' });
+    const res = await apiFetch(url, { method: 'POST' });
     if (res.ok) {
       fetchSources(currentWorkspace?.id);
       if (selectedSourceId === sourceId) {
@@ -193,7 +189,7 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
     try {
       setIsDeleting(true);
       const url = `/api/knowledge-base/${sourceToDelete.id}${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-      const res = await fetch(url, { method: 'DELETE', credentials: 'include' });
+      const res = await apiFetch(url, { method: 'DELETE' });
       if (res.ok) {
         setSources((prev) => prev.filter((s) => s.id !== sourceToDelete.id));
         setSourceToDelete(null);
@@ -268,14 +264,16 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
           onReprocess={() => handleReprocess(selectedSource.id)}
           onDeleteClick={() => setSourceToDelete(selectedSource)}
           onSaveEdit={async (updatedContent) => {
-            const url = `/api/knowledge-base/text${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-            await fetch(url, {
-              method: 'POST',
+            const url = `/api/knowledge-base/${selectedSource.id}${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
+            const res = await apiFetch(url, {
+              method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
               body: JSON.stringify({ name: selectedSource.name, content: updatedContent }),
             });
-            fetchSourceDetail(selectedSource.id, currentWorkspace?.id);
+            if (res.ok) {
+              fetchSourceDetail(selectedSource.id, currentWorkspace?.id);
+              fetchSources(currentWorkspace?.id);
+            }
           }}
         />
       )}
