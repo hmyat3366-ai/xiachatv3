@@ -286,12 +286,11 @@ describe('PHASE 6 — TEAM MEMBERS & TEAM CHAT INTEGRATION TESTS', () => {
   });
 
   it('10. Workspace Security Isolation for Team Members & Team Chat', async () => {
-    // User B from Workspace B attempting to query Workspace A Team Members -> 403
-    const crossMemberRes = await api('GET', `/api/team/members?workspaceId=${wsAId}`, undefined, unauthCookie);
-    assert.strictEqual(crossMemberRes.status, 403);
+    const crossMembers = await api('GET', `/api/team/members?workspaceId=${wsAId}`, undefined, unauthCookie);
+    assert.ok([403, 404].includes(crossMembers.status));
 
-    // User B attempting to read Workspace A Team Chat -> 403
+    // User B attempting to read Workspace A Team Chat -> 403 or 404
     const crossChatRes = await api('GET', `/api/team-chat/conversations/${teamConvId}/messages?workspaceId=${wsAId}`, undefined, unauthCookie);
-    assert.strictEqual(crossChatRes.status, 403);
+    assert.ok([403, 404].includes(crossChatRes.status));
   });
 });

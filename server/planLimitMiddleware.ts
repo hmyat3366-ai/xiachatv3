@@ -15,6 +15,8 @@ export function getWorkspaceForUser(userId: string, requestedWsId?: string): DbW
       const memberWs = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(requestedWsId) as DbWorkspace | undefined;
       if (memberWs) return memberWs;
     }
+
+    return null;
   }
 
   // Fallback to primary owned workspace or first workspace user belongs to

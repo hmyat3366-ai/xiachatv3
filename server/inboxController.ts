@@ -93,7 +93,7 @@ export const getInboxConversations = async (req: AuthRequest, res: Response) => 
     const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
 
     if (!workspace) {
-      return res.status(200).json({ conversations: [], workspace: null, stats: { total: 0, open: 0, assigned: 0, ai: 0, resolved: 0 } });
+      return res.status(404).json({ error: 'Workspace not found or unauthorized access.' });
     }
 
     // Query parameters

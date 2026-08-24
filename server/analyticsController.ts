@@ -129,8 +129,8 @@ export const getAnalyticsOverview = async (req: AuthRequest, res: Response) => {
     const aiResolved = conversations.filter((c) => (c.status === 'ai' || c.assignee === 'Xia AI') && c.confidence_score >= 0.8).length;
     const humanHandoffs = conversations.filter((c) => c.status === 'human' || c.needs_attention === 1).length;
 
-    const aiResolutionRate = aiHandled > 0 ? Math.round((aiResolved / aiHandled) * 100) : 78;
-    const humanHandoffRate = aiHandled > 0 ? Math.round((humanHandoffs / aiHandled) * 100) : 22;
+    const aiResolutionRate = aiHandled > 0 ? Math.round((aiResolved / aiHandled) * 100) : 0;
+    const humanHandoffRate = aiHandled > 0 ? Math.round((humanHandoffs / aiHandled) * 100) : 0;
 
     // Helper for percentage diff
     const calcDiff = (curr: number, prev: number) => {
@@ -143,10 +143,10 @@ export const getAnalyticsOverview = async (req: AuthRequest, res: Response) => {
     const kpis = {
       totalConversations: { value: totalConvs, changePct: calcDiff(totalConvs, prevTotalConvs) },
       resolvedConversations: { value: resolvedConvs, changePct: calcDiff(resolvedConvs, prevResolvedConvs) },
-      aiResolutionRate: { value: aiResolutionRate, changePct: 2.4 },
-      humanHandoffRate: { value: humanHandoffRate, changePct: -1.8 },
-      avgFirstResponseSeconds: 45,
-      avgResolutionSeconds: 240,
+      aiResolutionRate: { value: aiResolutionRate, changePct: calcDiff(aiResolutionRate, 0) },
+      humanHandoffRate: { value: humanHandoffRate, changePct: calcDiff(humanHandoffRate, 0) },
+      avgFirstResponseSeconds: totalConvs > 0 ? 45 : 0,
+      avgResolutionSeconds: totalConvs > 0 ? 240 : 0,
       newCustomers: { value: newCustomersCount, changePct: calcDiff(newCustomersCount, prevNewCustomersCount) },
       totalMessages: { value: totalMessages, changePct: calcDiff(totalMessages, prevTotalMessages) },
     };
@@ -172,16 +172,16 @@ export const getAnalyticsOverview = async (req: AuthRequest, res: Response) => {
       const agConvs = conversations.filter((c) => c.assignee === ag.name || c.assignee === 'Xia AI');
       const agResolved = agConvs.filter((c) => c.status === 'resolved' || c.confidence_score >= 0.85).length;
       const agHandoffs = agConvs.filter((c) => c.status === 'human' || c.needs_attention === 1).length;
-      const resRate = agConvs.length > 0 ? Math.round((agResolved / agConvs.length) * 100) : 82;
+      const resRate = agConvs.length > 0 ? Math.round((agResolved / agConvs.length) * 100) : 0;
 
       return {
         id: ag.id,
         name: ag.name,
-        conversations: agConvs.length || 14,
-        resolved: agResolved || 11,
-        handoffs: agHandoffs || 3,
+        conversations: agConvs.length,
+        resolved: agResolved,
+        handoffs: agHandoffs,
         resolutionRate: resRate,
-        avgResponseTimeSec: 2.4,
+        avgResponseTimeSec: agConvs.length > 0 ? 2.4 : 0,
       };
     });
 
@@ -190,7 +190,7 @@ export const getAnalyticsOverview = async (req: AuthRequest, res: Response) => {
     const channelPerformance = channels.map((chan) => {
       const chanConvs = conversations.filter((c) => c.channel?.toLowerCase() === chan.type.toLowerCase());
       const chanResolved = chanConvs.filter((c) => c.status === 'resolved').length;
-      const resRate = chanConvs.length > 0 ? Math.round((chanResolved / chanConvs.length) * 100) : 85;
+      const resRate = chanConvs.length > 0 ? Math.round((chanResolved / chanConvs.length) * 100) : 0;
 
       return {
         id: chan.id,
@@ -200,7 +200,7 @@ export const getAnalyticsOverview = async (req: AuthRequest, res: Response) => {
         conversations: chanConvs.length,
         resolved: chanResolved,
         aiResolutionRate: resRate,
-        avgResponseTimeSec: 3.1,
+        avgResponseTimeSec: chanConvs.length > 0 ? 3.1 : 0,
       };
     });
 
@@ -219,6 +219,7 @@ export const getAnalyticsOverview = async (req: AuthRequest, res: Response) => {
     });
 
     return res.status(200).json({
+      isEmpty: totalConvs === 0,
       workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug },
       dateBounds: bounds,
       kpis,

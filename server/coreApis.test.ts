@@ -102,8 +102,7 @@ describe('Core APIs & Workspace Isolation Integration Tests', () => {
 
   it('2. Workspace Isolation Enforcement: User A cannot query Workspace B data via query params', async () => {
     const res = await api('GET', `/api/inbox/conversations?workspaceId=${wsBId}`, undefined, userACookie);
-    assert.strictEqual(res.status, 200);
-    assert.strictEqual(res.body.workspace.id, wsAId, 'User A request must resolve to Workspace A, ignoring target Workspace B parameter');
+    assert.ok([403, 404].includes(res.status), 'User A request for Workspace B must be rejected with 403 or 404');
   });
 
   it('3. Core Inbox APIs: Conversations, Messages, Takeover, Return to AI, Assignment, Status', async () => {

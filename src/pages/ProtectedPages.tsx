@@ -322,7 +322,7 @@ export const AnalyticsPage: React.FC<{ onNavigate: (path: string) => void }> = (
         let url = `/api/analytics?preset=${p}&channelId=${chan}&agentId=${ag}`;
         if (wsId) url += `&workspaceId=${wsId}`;
 
-        const res = await fetch(url, { credentials: 'include' });
+        const res = await apiFetch(url, { method: 'GET' });
         if (res.ok) {
           const data = await res.json();
           setAnalyticsData(data);
@@ -352,10 +352,26 @@ export const AnalyticsPage: React.FC<{ onNavigate: (path: string) => void }> = (
     fetchAnalytics(analyticsWsId);
   }, [fetchAnalytics, analyticsWsId]);
 
-  const handleExportCSV = () => {
-    let url = `/api/analytics/export.csv?preset=${preset}&channelId=${channelFilter}&agentId=${agentFilter}`;
-    if (analyticsWsId) url += `&workspaceId=${analyticsWsId}`;
-    window.open(url, '_blank');
+  const handleExportCSV = async () => {
+    try {
+      let url = `/api/analytics/export.csv?preset=${preset}&channelId=${channelFilter}&agentId=${agentFilter}`;
+      if (analyticsWsId) url += `&workspaceId=${analyticsWsId}`;
+
+      const res = await apiFetch(url, { method: 'GET' });
+      if (res.ok) {
+        const blob = await res.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `xiachat_analytics_${preset}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+      }
+    } catch (err) {
+      console.error('Error downloading CSV export:', err);
+    }
   };
 
   return (
