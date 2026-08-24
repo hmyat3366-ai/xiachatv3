@@ -155,8 +155,8 @@ app.use(express.json());
 app.use(cookieParser());
 
 // Rate limiters
-// In TEST_MODE, use very high limits so integration tests don't hit 429
-const isTestMode = process.env.TEST_MODE === 'true' || process.env.NODE_ENV === 'test';
+// In development/test mode, use high limits so integration tests don't hit 429
+const isTestMode = process.env.TEST_MODE === 'true' || process.env.NODE_ENV === 'test' || process.env.NODE_ENV !== 'production';
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes

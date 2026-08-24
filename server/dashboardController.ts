@@ -30,19 +30,35 @@ export const getDashboardOverview = async (req: AuthRequest, res: Response) => {
       WHERE w.user_id = ? OR (m.user_id = ? AND m.status = 'active')
       ORDER BY w.created_at ASC
     `);
-    const workspaces = workspacesStmt.all(req.user.id, req.user.id) as DbWorkspace[];
+    let workspaces = workspacesStmt.all(req.user.id, req.user.id) as DbWorkspace[];
 
     if (workspaces.length === 0) {
-      return res.status(200).json({
-        workspace: null,
-        workspaces: [],
-        isEmpty: true,
-        metrics: null,
-        activityChart: [],
-        aiPerformance: null,
-        recentConversations: [],
-        needsAttention: [],
+      // Self-heal workspace & member provisioning for existing user missing a workspace
+      const now = new Date().toISOString();
+      const defaultWsId = crypto.randomUUID();
+      const firstName = req.user.name.split(' ')[0] || 'My';
+      const defaultName = `${firstName}'s Workspace`;
+      const defaultSlug = `${firstName.toLowerCase().replace(/[^a-z0-9]+/g, '')}-workspace-${crypto.randomBytes(2).toString('hex')}`;
+
+      const provisionTx = db.transaction(() => {
+        db.prepare(`
+          INSERT INTO workspaces (id, user_id, name, slug, business_type, customer_channels, created_at, updated_at)
+          VALUES (?, ?, ?, ?, NULL, NULL, ?, ?)
+        `).run(defaultWsId, req.user.id, defaultName, defaultSlug, now, now);
+
+        db.prepare(`
+          INSERT INTO workspace_members (id, workspace_id, user_id, role, status, joined_at, created_at, updated_at)
+          VALUES (?, ?, ?, 'owner', 'active', ?, ?, ?)
+        `).run(crypto.randomUUID(), defaultWsId, req.user.id, now, now, now);
+
+        db.prepare(`
+          INSERT INTO ai_assistants (id, workspace_id, name, instructions, created_at, updated_at)
+          VALUES (?, ?, 'Xia Assistant', 'You are a helpful customer support AI assistant.', ?, ?)
+        `).run(crypto.randomUUID(), defaultWsId, now, now);
       });
+
+      provisionTx();
+      workspaces = workspacesStmt.all(req.user.id, req.user.id) as DbWorkspace[];
     }
 
     // Active workspace selection & strict authorization check

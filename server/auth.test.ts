@@ -10,6 +10,8 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'crypto';
+import { db } from './db.js';
 
 const BASE_URL = process.env.TEST_API_URL || 'http://localhost:5000';
 
@@ -685,6 +687,123 @@ describe('ONBOARDING FLOW', () => {
     assert.equal(res.status, 200);
     assert.ok(res.body.workspace);
     assert.equal((res.body.workspace as Record<string, unknown>).name, 'Acme Support Desk');
+  });
+});
+
+describe('NEW ACCOUNT PERSISTENCE & WORKSPACE PROVISIONING', () => {
+  it('1. Brand-new email signup atomically creates User + Workspace + WorkspaceMember (Owner)', async () => {
+    const ts = Date.now();
+    const email = `persist_new_${ts}@example.com`;
+    const res = await api('POST', '/api/auth/signup', {
+      name: 'Persist Test User',
+      username: `puser_${ts}`,
+      email,
+      password: 'Password123!',
+      confirmPassword: 'Password123!',
+    });
+
+    assert.equal(res.status, 201);
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
+    assert.ok(user);
+
+    const ws = db.prepare('SELECT * FROM workspaces WHERE user_id = ?').get(user.id) as any;
+    assert.ok(ws, 'Workspace must be provisioned for new email signup');
+
+    const member = db.prepare('SELECT * FROM workspace_members WHERE workspace_id = ? AND user_id = ?').get(ws.id, user.id) as any;
+    assert.ok(member, 'WorkspaceMember must be provisioned for new email signup');
+    assert.equal(member.role, 'owner');
+    assert.equal(member.status, 'active');
+  });
+
+  it('2. Existing email login reuses existing User & Workspace without duplicate records', async () => {
+    const ts = Date.now();
+    const email = `persist_login_${ts}@example.com`;
+
+    // 1. Signup
+    const signupRes = await api('POST', '/api/auth/signup', {
+      name: 'Reuse Test User',
+      username: `ruser_${ts}`,
+      email,
+      password: 'Password123!',
+      confirmPassword: 'Password123!',
+    });
+    assert.equal(signupRes.status, 201);
+
+    const initialUserCount = (db.prepare('SELECT COUNT(*) as cnt FROM users WHERE email = ?').get(email) as any).cnt;
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
+    const initialWsCount = (db.prepare('SELECT COUNT(*) as cnt FROM workspaces WHERE user_id = ?').get(user.id) as any).cnt;
+
+    // 2. Login again
+    const loginRes = await api('POST', '/api/auth/login', {
+      identifier: email,
+      password: 'Password123!',
+    });
+    assert.equal(loginRes.status, 200);
+
+    // 3. Verify zero duplicates
+    const postUserCount = (db.prepare('SELECT COUNT(*) as cnt FROM users WHERE email = ?').get(email) as any).cnt;
+    const postWsCount = (db.prepare('SELECT COUNT(*) as cnt FROM workspaces WHERE user_id = ?').get(user.id) as any).cnt;
+
+    assert.equal(initialUserCount, 1);
+    assert.equal(postUserCount, 1);
+    assert.equal(initialWsCount, 1);
+    assert.equal(postWsCount, 1);
+  });
+
+  it('3. Brand-new Google user signup atomically creates User + Workspace + WorkspaceMember (Owner)', async () => {
+    const ts = Date.now();
+    const email = `google_persist_${ts}@example.com`;
+    const googleId = `gid_${ts}`;
+
+    // Confirm Google Signup
+    const tempToken = `tt_${ts}`;
+    db.prepare(`
+      INSERT INTO pending_google_signups (id, token, google_id, email, name, expires_at, created_at)
+      VALUES (?, ?, ?, ?, 'Google Persist User', ?, ?)
+    `).run(crypto.randomUUID(), tempToken, googleId, email, new Date(Date.now() + 600000).toISOString(), new Date().toISOString());
+
+    const res = await api('POST', '/api/auth/google/confirm-signup', { tempToken });
+    assert.equal(res.status, 200);
+
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
+    assert.ok(user);
+
+    const ws = db.prepare('SELECT * FROM workspaces WHERE user_id = ?').get(user.id) as any;
+    assert.ok(ws, 'Workspace must be provisioned for new Google user');
+
+    const member = db.prepare('SELECT * FROM workspace_members WHERE workspace_id = ? AND user_id = ?').get(ws.id, user.id) as any;
+    assert.ok(member);
+    assert.equal(member.role, 'owner');
+    assert.equal(member.status, 'active');
+  });
+
+  it('4. Repeated logins do not duplicate User or Workspace records', async () => {
+    const ts = Date.now();
+    const email = `repeat_login_${ts}@example.com`;
+
+    // Signup
+    await api('POST', '/api/auth/signup', {
+      name: 'Repeat Login User',
+      username: `repeat_${ts}`,
+      email,
+      password: 'Password123!',
+      confirmPassword: 'Password123!',
+    });
+
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
+
+    // Login 3 times in a row
+    await api('POST', '/api/auth/login', { identifier: email, password: 'Password123!' });
+    await api('POST', '/api/auth/login', { identifier: email, password: 'Password123!' });
+    await api('POST', '/api/auth/login', { identifier: email, password: 'Password123!' });
+
+    const totalUsers = (db.prepare('SELECT COUNT(*) as cnt FROM users WHERE email = ?').get(email) as any).cnt;
+    const totalWs = (db.prepare('SELECT COUNT(*) as cnt FROM workspaces WHERE user_id = ?').get(user.id) as any).cnt;
+    const totalMembers = (db.prepare('SELECT COUNT(*) as cnt FROM workspace_members WHERE user_id = ?').get(user.id) as any).cnt;
+
+    assert.equal(totalUsers, 1);
+    assert.equal(totalWs, 1);
+    assert.equal(totalMembers, 1);
   });
 });
 

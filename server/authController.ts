@@ -29,6 +29,73 @@ function generateTokenCookie(res: Response, userId: string) {
   return token;
 }
 
+// Atomic account & workspace provisioning helper
+export function provisionNewAccount(params: {
+  userId: string;
+  name: string;
+  email: string;
+  username: string;
+  passwordHash: string | null;
+  authProvider: 'local' | 'google' | 'both';
+  googleId: string | null;
+  emailVerified: boolean;
+}): DbUser {
+  const now = new Date().toISOString();
+
+  const createAccountTx = db.transaction(() => {
+    // 1. Insert User
+    db.prepare(`
+      INSERT INTO users (
+        id, name, email, username, password_hash, auth_provider, google_id, 
+        email_verified, onboarding_completed, onboarding_step, created_at, updated_at, last_login_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1, ?, ?, ?)
+    `).run(
+      params.userId,
+      params.name.trim(),
+      params.email.trim().toLowerCase(),
+      params.username,
+      params.passwordHash,
+      params.authProvider,
+      params.googleId,
+      params.emailVerified ? 1 : 0,
+      now,
+      now,
+      now
+    );
+
+    // 2. Create Default Workspace if not present
+    const existingWs = db.prepare('SELECT id FROM workspaces WHERE user_id = ?').get(params.userId) as { id: string } | undefined;
+
+    if (!existingWs) {
+      const workspaceId = crypto.randomUUID();
+      const firstName = params.name.trim().split(' ')[0] || 'My';
+      const cleanWsName = `${firstName}'s Workspace`;
+      const baseSlug = `${firstName.toLowerCase().replace(/[^a-z0-9]+/g, '')}-workspace-${crypto.randomBytes(2).toString('hex')}`;
+
+      db.prepare(`
+        INSERT INTO workspaces (id, user_id, name, slug, business_type, customer_channels, created_at, updated_at)
+        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?)
+      `).run(workspaceId, params.userId, cleanWsName, baseSlug, now, now);
+
+      // 3. Create WorkspaceMember (Owner role)
+      db.prepare(`
+        INSERT INTO workspace_members (id, workspace_id, user_id, role, status, joined_at, created_at, updated_at)
+        VALUES (?, ?, ?, 'owner', 'active', ?, ?, ?)
+      `).run(crypto.randomUUID(), workspaceId, params.userId, now, now, now);
+
+      // 4. Create Default AI Assistant
+      db.prepare(`
+        INSERT INTO ai_assistants (id, workspace_id, name, instructions, created_at, updated_at)
+        VALUES (?, ?, 'Xia Assistant', 'You are a helpful customer support AI assistant.', ?, ?)
+      `).run(crypto.randomUUID(), workspaceId, now, now);
+    }
+  });
+
+  createAccountTx();
+
+  return db.prepare('SELECT * FROM users WHERE id = ?').get(params.userId) as DbUser;
+}
+
 // 1. SIGN UP
 export const signup = async (req: Request, res: Response) => {
   try {
@@ -99,19 +166,20 @@ export const signup = async (req: Request, res: Response) => {
       return res.status(409).json({ error: 'Username is already taken. Please choose another username.' });
     }
 
-    // Create brand new user
+    // Create brand new user atomically with default Workspace & WorkspaceMember
     const userId = crypto.randomUUID();
     const passwordHash = bcrypt.hashSync(password, 10);
 
-    const insertStmt = db.prepare(`
-      INSERT INTO users (id, name, email, username, password_hash, auth_provider, google_id, email_verified, created_at, updated_at, last_login_at)
-      VALUES (?, ?, ?, ?, ?, 'local', NULL, 0, ?, ?, ?)
-    `);
-
-    insertStmt.run(userId, name.trim(), normalizedEmail, cleanUsername, passwordHash, now, now, now);
-
-    const newUserStmt = db.prepare('SELECT * FROM users WHERE id = ?');
-    const newUser = newUserStmt.get(userId) as DbUser;
+    const newUser = provisionNewAccount({
+      userId,
+      name: name.trim(),
+      email: normalizedEmail,
+      username: cleanUsername,
+      passwordHash,
+      authProvider: 'local',
+      googleId: null,
+      emailVerified: false,
+    });
 
     // Generate Verification Token
     const verifyToken = crypto.randomBytes(32).toString('hex');
@@ -508,14 +576,19 @@ export const googleCallback = async (req: Request, res: Response) => {
         return res.redirect(`${FRONTEND_URL}/signup?google_account_exists=true&email=${encodeURIComponent(googleProfile.email)}`);
       }
 
-      // New user -> Create account immediately
+      // New user -> Create account atomically with Workspace & WorkspaceMember
       const newUserId = crypto.randomUUID();
       const defaultUsername = `user_${crypto.randomBytes(3).toString('hex')}`;
-      db.prepare(`
-        INSERT INTO users (id, name, email, username, password_hash, auth_provider, google_id, email_verified, onboarding_completed, onboarding_step, created_at, updated_at, last_login_at)
-        VALUES (?, ?, ?, ?, NULL, 'google', ?, 1, 0, 1, ?, ?, ?)
-      `).run(newUserId, googleProfile.name, googleProfile.email, defaultUsername, googleProfile.id, now, now, now);
-      user = db.prepare('SELECT * FROM users WHERE id = ?').get(newUserId) as DbUser;
+      user = provisionNewAccount({
+        userId: newUserId,
+        name: googleProfile.name,
+        email: googleProfile.email,
+        username: defaultUsername,
+        passwordHash: null,
+        authProvider: 'google',
+        googleId: googleProfile.id,
+        emailVerified: true,
+      });
 
       const token = generateTokenCookie(res, user.id);
       return res.redirect(`${FRONTEND_URL}/set-password?auth=google_success&token=${token}`);
@@ -583,11 +656,16 @@ export const confirmGoogleSignup = async (req: Request, res: Response) => {
     } else {
       const newUserId = crypto.randomUUID();
       const defaultUsername = `user_${crypto.randomBytes(3).toString('hex')}`;
-      db.prepare(`
-        INSERT INTO users (id, name, email, username, password_hash, auth_provider, google_id, email_verified, onboarding_completed, onboarding_step, created_at, updated_at, last_login_at)
-        VALUES (?, ?, ?, ?, NULL, 'google', ?, 1, 0, 1, ?, ?, ?)
-      `).run(newUserId, pending.name, pending.email, defaultUsername, pending.google_id, now, now, now);
-      user = db.prepare('SELECT * FROM users WHERE id = ?').get(newUserId) as DbUser;
+      user = provisionNewAccount({
+        userId: newUserId,
+        name: pending.name,
+        email: pending.email,
+        username: defaultUsername,
+        passwordHash: null,
+        authProvider: 'google',
+        googleId: pending.google_id,
+        emailVerified: true,
+      });
     }
 
     db.prepare('DELETE FROM pending_google_signups WHERE id = ?').run(pending.id);
