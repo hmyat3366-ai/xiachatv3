@@ -70,12 +70,23 @@ export const getDashboardOverview = async (req: AuthRequest, res: Response) => {
     `);
     const allConvs = convsStmt.all(activeWorkspace.id) as DbConversation[];
 
+    // Safe JSON parsing helper to prevent unhandled syntax errors on invalid DB strings
+    const safeParseJsonArray = (jsonStr: string | null | undefined): string[] => {
+      if (!jsonStr) return [];
+      try {
+        const parsed = JSON.parse(jsonStr);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    };
+
     const formattedWorkspaces = workspaces.map((w) => ({
       id: w.id,
       name: w.name,
       slug: w.slug,
       businessType: w.business_type || undefined,
-      customerChannels: w.customer_channels ? JSON.parse(w.customer_channels) : [],
+      customerChannels: safeParseJsonArray(w.customer_channels),
     }));
 
     const formattedActiveWorkspace = {
@@ -83,7 +94,7 @@ export const getDashboardOverview = async (req: AuthRequest, res: Response) => {
       name: activeWorkspace.name,
       slug: activeWorkspace.slug,
       businessType: activeWorkspace.business_type || undefined,
-      customerChannels: activeWorkspace.customer_channels ? JSON.parse(activeWorkspace.customer_channels) : [],
+      customerChannels: safeParseJsonArray(activeWorkspace.customer_channels),
     };
 
     // If workspace has no conversations in DB, return clean empty state

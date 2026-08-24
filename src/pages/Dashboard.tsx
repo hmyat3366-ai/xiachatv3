@@ -12,6 +12,7 @@ import { LoadingSkeleton } from '../components/dashboard/LoadingSkeleton';
 import { ErrorState } from '../components/dashboard/ErrorState';
 import type { DashboardOverviewResponse, DateRangePeriod } from '../types/dashboard';
 import { MessageSquare, Inbox, Bot, UserCheck, AlertTriangle } from 'lucide-react';
+import { apiFetch } from '../utils/api';
 
 interface DashboardProps {
   currentPath: string;
@@ -53,10 +54,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentPath, onNavigate })
         url += `&workspaceId=${wsId}`;
       }
 
-      const res = await fetch(url, {
-        method: 'GET',
-        credentials: 'include',
-      });
+      const res = await apiFetch(url, { method: 'GET' });
 
       if (!res.ok) {
         throw new Error('Failed to fetch dashboard metrics');
@@ -87,10 +85,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentPath, onNavigate })
 
   const handleCreateWorkspace = async (name: string): Promise<boolean> => {
     try {
-      const res = await fetch('/api/dashboard/workspaces', {
+      const res = await apiFetch('/api/dashboard/workspaces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ name }),
       });
 

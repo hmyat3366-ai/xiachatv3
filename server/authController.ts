@@ -697,6 +697,11 @@ export const saveOnboardingStep1 = async (req: AuthRequest, res: Response) => {
         INSERT INTO workspaces (id, user_id, name, slug, business_type, customer_channels, created_at, updated_at)
         VALUES (?, ?, ?, ?, NULL, NULL, ?, ?)
       `).run(workspaceId, req.user.id, cleanName, finalSlug, now, now);
+
+      db.prepare(`
+        INSERT INTO workspace_members (id, workspace_id, user_id, role, status, joined_at, created_at, updated_at)
+        VALUES (?, ?, ?, 'owner', 'active', ?, ?, ?)
+      `).run(crypto.randomUUID(), workspaceId, req.user.id, now, now, now);
     }
 
     // Advance onboarding step to 2
@@ -768,6 +773,12 @@ export const completeOnboarding = async (req: AuthRequest, res: Response) => {
         INSERT INTO workspaces (id, user_id, name, slug, business_type, customer_channels, created_at, updated_at)
         VALUES (?, ?, ?, ?, NULL, NULL, ?, ?)
       `).run(defaultWsId, req.user.id, defaultName, defaultSlug, now, now);
+
+      db.prepare(`
+        INSERT INTO workspace_members (id, workspace_id, user_id, role, status, joined_at, created_at, updated_at)
+        VALUES (?, ?, ?, 'owner', 'active', ?, ?, ?)
+      `).run(crypto.randomUUID(), defaultWsId, req.user.id, now, now, now);
+
       ws = { id: defaultWsId };
     }
 
