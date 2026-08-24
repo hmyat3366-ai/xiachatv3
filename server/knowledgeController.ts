@@ -556,6 +556,48 @@ export const reprocessKnowledgeSource = async (req: AuthRequest, res: Response) 
   }
 };
 
+// Pure RAG search helper for internal AI Provider Service & LLM Execution
+export function performRagSearch(workspaceId: string, query: string, limit = 5) {
+  const allChunks = db.prepare(`
+    SELECT kc.id, kc.text, kc.chunk_index, kc.metadata, ks.name as source_name, ks.type as source_type
+    FROM knowledge_chunks kc
+    JOIN knowledge_sources ks ON kc.source_id = ks.id
+    WHERE kc.workspace_id = ?
+  `).all(workspaceId) as Array<{
+    id: string;
+    text: string;
+    chunk_index: number;
+    metadata: string | null;
+    source_name: string;
+    source_type: string;
+  }>;
+
+  const queryTokens = query.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(Boolean);
+
+  return allChunks
+    .map((chunk) => {
+      const textLower = chunk.text.toLowerCase();
+      let matchCount = 0;
+
+      queryTokens.forEach((token) => {
+        if (textLower.includes(token)) matchCount += 1;
+      });
+
+      const score = queryTokens.length > 0 ? Math.min(0.99, (matchCount / queryTokens.length) * 0.45 + 0.54) : 0.75;
+
+      return {
+        id: chunk.id,
+        sourceName: chunk.source_name,
+        sourceType: chunk.source_type,
+        text: chunk.text,
+        chunkIndex: chunk.chunk_index,
+        similarityScore: Math.round(score * 100),
+      };
+    })
+    .sort((a, b) => b.similarityScore - a.similarityScore)
+    .slice(0, limit);
+}
+
 // POST /api/knowledge-base/search (RAG Debug & Retrieval Test Tool)
 export const searchKnowledgeRAG = async (req: AuthRequest, res: Response) => {
   try {
@@ -570,46 +612,7 @@ export const searchKnowledgeRAG = async (req: AuthRequest, res: Response) => {
     const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
     if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
 
-    // Workspace-isolated semantic RAG search across knowledge chunks
-    const allChunks = db.prepare(`
-      SELECT kc.id, kc.text, kc.chunk_index, kc.metadata, ks.name as source_name, ks.type as source_type
-      FROM knowledge_chunks kc
-      JOIN knowledge_sources ks ON kc.source_id = ks.id
-      WHERE kc.workspace_id = ?
-    `).all(workspace.id) as Array<{
-      id: string;
-      text: string;
-      chunk_index: number;
-      metadata: string | null;
-      source_name: string;
-      source_type: string;
-    }>;
-
-    const queryTokens = query.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(Boolean);
-
-    // Calculate token match similarity score for each chunk
-    const results = allChunks
-      .map((chunk) => {
-        const textLower = chunk.text.toLowerCase();
-        let matchCount = 0;
-
-        queryTokens.forEach((token) => {
-          if (textLower.includes(token)) matchCount += 1;
-        });
-
-        const score = queryTokens.length > 0 ? Math.min(0.99, (matchCount / queryTokens.length) * 0.45 + 0.54) : 0.75;
-
-        return {
-          id: chunk.id,
-          sourceName: chunk.source_name,
-          sourceType: chunk.source_type,
-          text: chunk.text,
-          chunkIndex: chunk.chunk_index,
-          similarityScore: Math.round(score * 100),
-        };
-      })
-      .sort((a, b) => b.similarityScore - a.similarityScore)
-      .slice(0, 5);
+    const results = performRagSearch(workspace.id, query.trim(), 5);
 
     return res.status(200).json({ query: query.trim(), results });
   } catch (err) {

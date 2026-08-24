@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { db, DbAiAssistant, DbWorkspace, DbConversation } from './db.js';
 import { AuthRequest } from './authMiddleware.js';
 import { getWorkspaceForUser } from './planLimitMiddleware.js';
+import { generateAiAgentResponse } from './aiProviderService.js';
 
 // Seed default AI Agent if workspace has no agents yet
 function ensureSeedAgents(workspaceId: string) {
@@ -191,6 +192,8 @@ export const createAiAgent = async (req: AuthRequest, res: Response) => {
     const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
     if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
 
+    ensureSeedAgents(workspace.id);
+
     const now = new Date().toISOString();
     const id = crypto.randomUUID();
 
@@ -351,6 +354,12 @@ export const deleteAiAgent = async (req: AuthRequest, res: Response) => {
     const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
     if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
 
+    // Protect primary default agent when it's the sole agent in the workspace
+    const agentCount = (db.prepare('SELECT COUNT(*) as count FROM ai_assistants WHERE workspace_id = ?').get(workspace.id) as { count: number }).count;
+    if (agentCount <= 1) {
+      return res.status(400).json({ error: 'Cannot delete the primary AI agent when it is the only agent in your workspace.' });
+    }
+
     const result = db.prepare('DELETE FROM ai_assistants WHERE id = ? AND workspace_id = ?').run(agentId, workspace.id);
     if (result.changes === 0) {
       return res.status(404).json({ error: 'AI Agent not found or access denied.' });
@@ -406,39 +415,28 @@ export const testAiAgentPlayground = async (req: AuthRequest, res: Response) => 
     const agent = db.prepare('SELECT * FROM ai_assistants WHERE id = ? AND workspace_id = ?').get(agentId, workspace.id) as DbAiAssistant | undefined;
     if (!agent) return res.status(404).json({ error: 'AI Agent not found.' });
 
-    // Generate intelligent sandbox test response matching configured agent tone and instructions
-    const promptLower = message.toLowerCase();
-    let replyText = `Hello! I am ${agent.name}. How can I assist you today?`;
-    let sourceUsed = 'Product FAQ & Knowledge Base';
-    let confidence = 0.98;
-
-    if (promptLower.includes('return') || promptLower.includes('refund')) {
-      replyText = `Our return policy allows items to be returned within 30 days of purchase in original packaging. Refunds are processed within 3-5 business days after inspection.`;
-      sourceUsed = 'Return Policy Knowledge Source';
-      confidence = 0.99;
-    } else if (promptLower.includes('shipping') || promptLower.includes('delivery')) {
-      replyText = `We offer standard shipping (3-5 business days) and express shipping (1-2 business days). Tracking details are emailed automatically upon dispatch.`;
-      sourceUsed = 'Shipping Information Guide';
-      confidence = 0.96;
-    } else if (promptLower.includes('human') || promptLower.includes('agent') || promptLower.includes('talk to person')) {
-      replyText = agent.handoff_message || "I'll connect you with a member of our team who can help.";
-      sourceUsed = 'Human Handoff Trigger Rule';
-      confidence = 1.0;
-    } else if (promptLower.includes('price') || promptLower.includes('discount') || promptLower.includes('plan')) {
-      replyText = `We offer Starter, Growth Pro, and Custom Enterprise tiers with scalable AI message limits. You can start with a 14-day free trial.`;
-      sourceUsed = 'Company & Product Knowledge Base';
-      confidence = 0.97;
-    }
+    // Execute server-side LLM provider execution service with timeout, retries, and RAG context
+    const aiResponse = await generateAiAgentResponse({
+      workspaceId: workspace.id,
+      agentName: agent.name,
+      systemInstructions: agent.custom_instructions || agent.instructions || '',
+      tone: agent.tone || 'Friendly',
+      model: 'gemini-2.5-flash',
+      userMessage: message.trim(),
+      knowledgeSources: agent.knowledge_source_ids ? JSON.parse(agent.knowledge_source_ids) : [],
+    });
 
     return res.status(200).json({
-      reply: replyText,
+      reply: aiResponse.reply,
       metadata: {
         agentId: agent.id,
         agentName: agent.name,
         tone: agent.tone || 'Friendly',
-        knowledgeSourceUsed: sourceUsed,
-        confidenceScore: confidence,
-        responseTimeMs: Math.floor(Math.random() * 120) + 140, // 140ms - 260ms
+        modelUsed: aiResponse.modelUsed,
+        knowledgeSourceUsed: aiResponse.knowledgeSourcesUsed.join(', ') || 'Internal Knowledge Base',
+        confidenceScore: aiResponse.confidenceScore,
+        tokensUsed: aiResponse.tokensUsed,
+        responseTimeMs: aiResponse.latencyMs,
       },
     });
   } catch (err) {

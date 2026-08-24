@@ -1896,7 +1896,7 @@ export const AIAgentsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
       let url = '/api/ai-agents';
       if (wsId) url += `?workspaceId=${wsId}`;
 
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await apiFetch(url, { method: 'GET' });
       if (res.ok) {
         const data = await res.json();
         setAgents(data.agents || []);
@@ -1919,7 +1919,7 @@ export const AIAgentsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
       let url = `/api/ai-agents/${agentId}`;
       if (wsId) url += `?workspaceId=${wsId}`;
 
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await apiFetch(url, { method: 'GET' });
       if (res.ok) {
         const data = await res.json();
         setRecentConvs(data.recentConversations || []);
@@ -1952,10 +1952,9 @@ export const AIAgentsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
     try {
       setIsSaving(true);
       const url = `/api/ai-agents${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(agentData),
       });
 
@@ -1971,10 +1970,9 @@ export const AIAgentsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
   const handleUpdateAgent = async (updatedData: Partial<AIAgent>) => {
     if (!selectedAgentId) return;
     const url = `/api/ai-agents/${selectedAgentId}${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify(updatedData),
     });
 
@@ -1986,10 +1984,9 @@ export const AIAgentsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
   const handleToggleStatus = async (agentId: string, currentStatus: string) => {
     const nextStatus = currentStatus === 'active' ? 'paused' : 'active';
     const url = `/api/ai-agents/${agentId}/status${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ status: nextStatus }),
     });
 
@@ -2025,9 +2022,8 @@ export const AIAgentsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
     try {
       setIsDeleting(true);
       const url = `/api/ai-agents/${agentToDelete.id}${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: 'DELETE',
-        credentials: 'include',
       });
 
       if (res.ok) {
