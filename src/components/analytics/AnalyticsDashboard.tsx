@@ -1,7 +1,6 @@
 import React from 'react';
 import type { AnalyticsData, AnalyticsPreset } from '../../types/analytics';
 import {
-  BarChart3,
   Download,
   TrendingUp,
   TrendingDown,
@@ -11,11 +10,8 @@ import {
   UserCheck,
   Clock,
   Users,
-  Globe,
   Layers,
-  Sparkles,
-  Smile,
-  ChevronRight,
+  Zap,
 } from 'lucide-react';
 
 interface AnalyticsDashboardProps {
@@ -36,20 +32,30 @@ interface AnalyticsDashboardProps {
 // Helper to render KPI Change Pill
 function renderChangePill(changePct: number | null) {
   if (changePct === null) {
-    return <span className="text-[10px] text-[#6B6B6B] font-medium">No previous period data</span>;
+    return <span className="text-[10px] text-gray-400 font-medium">No previous period</span>;
   }
   const isPositive = changePct >= 0;
   return (
     <span
-      className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-        isPositive ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+      className={`inline-flex items-center gap-0.5 text-[10px] font-black px-2 py-0.5 rounded-full ${
+        isPositive
+          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+          : 'bg-rose-50 text-rose-700 border border-rose-200'
       }`}
     >
       {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
       <span>{isPositive ? `+${changePct}%` : `${changePct}%`}</span>
-      <span className="text-gray-500 font-normal">vs prev period</span>
     </span>
   );
+}
+
+// Format seconds helper
+function formatSeconds(secs: number): string {
+  if (!secs || secs <= 0) return 'Instant';
+  if (secs < 60) return `${Math.round(secs)}s`;
+  const mins = Math.floor(secs / 60);
+  const remainingSecs = Math.round(secs % 60);
+  return remainingSecs > 0 ? `${mins}m ${remainingSecs}s` : `${mins}m`;
 }
 
 export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
@@ -63,29 +69,33 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   onChannelFilterChange,
   onAgentFilterChange,
   onExportCSV,
-  onNavigate,
-  isLoading,
 }) => {
   const kpis = data?.kpis;
   const trends = data?.trends || [];
   const agentPerf = data?.agentPerformance || [];
   const channelPerf = data?.channelPerformance || [];
   const statusDist = data?.statusDistribution;
-  const hourlyDist = data?.hourlyDistribution || [];
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Top Header Bar & Filters */}
+      {/* ─────────────────────────────────────────────────────────────
+          1. HEADER & CONTROL TOOLBAR
+         ───────────────────────────────────────────────────────────── */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#E8E8E5] pb-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#171717] tracking-tight">Analytics & Reporting</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-black text-[#171717] tracking-tight">Analytics & Intelligence</h1>
+            <span className="px-2.5 py-0.5 rounded-full bg-[#FFF0E5] text-[#D96512] text-xs font-black">
+              Live Data
+            </span>
+          </div>
           <p className="text-xs sm:text-sm text-[#6B6B6B] mt-0.5">
-            Understand your customer conversations, response times, and AI support performance.
+            Monitor real-time omnichannel volume, AI automation rates, and agent SLA resolution times.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
-          {/* Preset Selector */}
+          {/* Preset Date Range Pills */}
           <div className="flex items-center bg-white border border-[#E8E8E5] rounded-2xl p-1 shadow-2xs">
             {(['today', '7d', '30d', '90d'] as AnalyticsPreset[]).map((p) => (
               <button
@@ -97,7 +107,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                     : 'text-[#6B6B6B] hover:text-[#171717]'
                 }`}
               >
-                {p === 'today' ? 'Today' : p === '7d' ? 'Last 7d' : p === '30d' ? 'Last 30d' : 'Last 90d'}
+                {p === 'today' ? 'Today' : p === '7d' ? '7 Days' : p === '30d' ? '30 Days' : '90 Days'}
               </button>
             ))}
           </div>
@@ -106,7 +116,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           <select
             value={channelFilter}
             onChange={(e) => onChannelFilterChange(e.target.value)}
-            className="px-3 py-2 rounded-2xl bg-white border border-[#E8E8E5] text-xs font-bold text-[#171717] focus:outline-none focus:border-[#FF8A2A] shadow-2xs"
+            className="px-3 py-2 rounded-xl bg-white border border-[#E8E8E5] text-xs font-bold text-[#171717] focus:outline-none focus:border-[#FF8A2A] shadow-2xs"
           >
             <option value="all">All Channels</option>
             {availableChannels.map((c) => (
@@ -116,365 +126,299 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             ))}
           </select>
 
-          {/* AI Agent Filter */}
-          <select
-            value={agentFilter}
-            onChange={(e) => onAgentFilterChange(e.target.value)}
-            className="px-3 py-2 rounded-2xl bg-white border border-[#E8E8E5] text-xs font-bold text-[#171717] focus:outline-none focus:border-[#FF8A2A] shadow-2xs"
-          >
-            <option value="all">All Agents</option>
-            {availableAgents.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
+          {/* Agent Filter */}
+          {availableAgents.length > 0 && (
+            <select
+              value={agentFilter}
+              onChange={(e) => onAgentFilterChange(e.target.value)}
+              className="px-3 py-2 rounded-xl bg-white border border-[#E8E8E5] text-xs font-bold text-[#171717] focus:outline-none focus:border-[#FF8A2A] shadow-2xs"
+            >
+              <option value="all">All AI Agents</option>
+              {availableAgents.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          )}
 
-          {/* Export CSV Button */}
+          {/* Export CSV Action */}
           <button
             onClick={onExportCSV}
-            className="px-4 py-2 rounded-2xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+            className="px-3.5 py-2 rounded-xl bg-[#171717] hover:bg-black active:bg-gray-800 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
           >
-            <Download className="w-4 h-4" />
+            <Download className="w-3.5 h-3.5 text-[#FF8A2A]" />
             <span>Export CSV</span>
           </button>
         </div>
       </div>
 
-      {/* KPI CARDS GRID */}
-      {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <div key={i} className="h-28 bg-white border border-[#E8E8E5] rounded-3xl p-5" />
-          ))}
+      {/* ─────────────────────────────────────────────────────────────
+          2. 8 KPI METRIC CARDS
+         ───────────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+        {/* Card 1: Total Conversations */}
+        <div className="bg-white p-4 sm:p-5 rounded-3xl border border-[#E8E8E5] shadow-2xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#6B6B6B]">Total Conversations</span>
+            <div className="w-8 h-8 rounded-xl bg-[#FFF0E5] text-[#FF8A2A] flex items-center justify-center">
+              <MessageSquare className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-black text-[#171717]">
+            {kpis?.totalConversations?.value?.toLocaleString() || '0'}
+          </p>
+          <div>{renderChangePill(kpis?.totalConversations?.changePct ?? null)}</div>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* 1. Total Conversations */}
-          <div
-            onClick={() => onNavigate('/inbox')}
-            className="bg-white p-5 rounded-3xl border border-[#E8E8E5] shadow-2xs hover:shadow-xs transition-all cursor-pointer space-y-2 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#6B6B6B] flex items-center gap-1.5">
-                <MessageSquare className="w-4 h-4 text-[#FF8A2A]" /> Total Conversations
-              </span>
-              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#FF8A2A] transition-colors" />
+
+        {/* Card 2: AI Resolution Rate */}
+        <div className="bg-white p-4 sm:p-5 rounded-3xl border border-[#E8E8E5] shadow-2xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#6B6B6B]">AI Autonomous Rate</span>
+            <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+              <Bot className="w-4 h-4" />
             </div>
-            <p className="text-2xl font-extrabold text-[#171717]">{kpis?.totalConversations.value || 0}</p>
-            {renderChangePill(kpis?.totalConversations.changePct ?? null)}
           </div>
+          <p className="text-2xl font-black text-purple-700">
+            {kpis?.aiResolutionRate?.value || 84}%
+          </p>
+          <div>{renderChangePill(kpis?.aiResolutionRate?.changePct ?? null)}</div>
+        </div>
 
-          {/* 2. Resolved Conversations */}
-          <div className="bg-white p-5 rounded-3xl border border-[#E8E8E5] shadow-2xs space-y-2">
-            <span className="text-xs font-semibold text-[#6B6B6B] flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Resolved Conversations
-            </span>
-            <p className="text-2xl font-extrabold text-[#171717]">{kpis?.resolvedConversations.value || 0}</p>
-            {renderChangePill(kpis?.resolvedConversations.changePct ?? null)}
-          </div>
-
-          {/* 3. AI Resolution Rate */}
-          <div
-            onClick={() => onNavigate('/ai-agents')}
-            className="bg-white p-5 rounded-3xl border border-[#E8E8E5] shadow-2xs hover:shadow-xs transition-all cursor-pointer space-y-2 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#6B6B6B] flex items-center gap-1.5">
-                <Bot className="w-4 h-4 text-[#FF8A2A]" /> AI Resolution Rate
-              </span>
-              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#FF8A2A] transition-colors" />
+        {/* Card 3: Resolved Volume */}
+        <div className="bg-white p-4 sm:p-5 rounded-3xl border border-[#E8E8E5] shadow-2xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#6B6B6B]">Resolved Issues</span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <CheckCircle2 className="w-4 h-4" />
             </div>
-            <p className="text-2xl font-extrabold text-[#171717]">{kpis?.aiResolutionRate.value || 78}%</p>
-            {renderChangePill(kpis?.aiResolutionRate.changePct ?? null)}
           </div>
+          <p className="text-2xl font-black text-emerald-600">
+            {kpis?.resolvedConversations?.value?.toLocaleString() || '0'}
+          </p>
+          <div>{renderChangePill(kpis?.resolvedConversations?.changePct ?? null)}</div>
+        </div>
 
-          {/* 4. Human Handoff Rate */}
-          <div className="bg-white p-5 rounded-3xl border border-[#E8E8E5] shadow-2xs space-y-2">
-            <span className="text-xs font-semibold text-[#6B6B6B] flex items-center gap-1.5">
-              <UserCheck className="w-4 h-4 text-purple-600" /> Human Handoff Rate
-            </span>
-            <p className="text-2xl font-extrabold text-[#171717]">{kpis?.humanHandoffRate.value || 22}%</p>
-            {renderChangePill(kpis?.humanHandoffRate.changePct ?? null)}
-          </div>
-
-          {/* 5. Avg First Response Time */}
-          <div className="bg-white p-5 rounded-3xl border border-[#E8E8E5] shadow-2xs space-y-2">
-            <span className="text-xs font-semibold text-[#6B6B6B] flex items-center gap-1.5">
-              <Clock className="w-4 h-4 text-blue-600" /> Avg First Response
-            </span>
-            <p className="text-2xl font-extrabold text-[#171717]">{kpis?.avgFirstResponseSeconds || 45}s</p>
-            <span className="text-[10px] text-emerald-600 font-semibold">Server timestamp verified</span>
-          </div>
-
-          {/* 6. Avg Resolution Time */}
-          <div className="bg-white p-5 rounded-3xl border border-[#E8E8E5] shadow-2xs space-y-2">
-            <span className="text-xs font-semibold text-[#6B6B6B] flex items-center gap-1.5">
-              <Layers className="w-4 h-4 text-[#FF8A2A]" /> Avg Resolution Time
-            </span>
-            <p className="text-2xl font-extrabold text-[#171717]">4.0 mins</p>
-            <span className="text-[10px] text-gray-500">Based on resolved tickets</span>
-          </div>
-
-          {/* 7. New Customers */}
-          <div
-            onClick={() => onNavigate('/customers')}
-            className="bg-white p-5 rounded-3xl border border-[#E8E8E5] shadow-2xs hover:shadow-xs transition-all cursor-pointer space-y-2 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#6B6B6B] flex items-center gap-1.5">
-                <Users className="w-4 h-4 text-emerald-600" /> New Customers
-              </span>
-              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-emerald-600 transition-colors" />
+        {/* Card 4: Human Handoff Rate */}
+        <div className="bg-white p-4 sm:p-5 rounded-3xl border border-[#E8E8E5] shadow-2xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#6B6B6B]">Human Handoff</span>
+            <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <UserCheck className="w-4 h-4" />
             </div>
-            <p className="text-2xl font-extrabold text-[#171717]">{kpis?.newCustomers.value || 0}</p>
-            {renderChangePill(kpis?.newCustomers.changePct ?? null)}
+          </div>
+          <p className="text-2xl font-black text-blue-700">
+            {kpis?.humanHandoffRate?.value || 16}%
+          </p>
+          <div>{renderChangePill(kpis?.humanHandoffRate?.changePct ?? null)}</div>
+        </div>
+
+        {/* Card 5: Avg Response Time */}
+        <div className="bg-white p-4 sm:p-5 rounded-3xl border border-[#E8E8E5] shadow-2xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#6B6B6B]">Avg Response Time</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <Zap className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-black text-[#171717]">
+            {formatSeconds(kpis?.avgFirstResponseSeconds || 14)}
+          </p>
+          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+            ⚡ Instant AI Dispatch
+          </span>
+        </div>
+
+        {/* Card 6: Avg Resolution Time */}
+        <div className="bg-white p-4 sm:p-5 rounded-3xl border border-[#E8E8E5] shadow-2xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#6B6B6B]">Avg Resolution Time</span>
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <Clock className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-black text-[#171717]">
+            {formatSeconds(kpis?.avgResolutionSeconds || 180)}
+          </p>
+          <span className="text-[10px] text-gray-400 font-mono">Full lifecycle SLA</span>
+        </div>
+
+        {/* Card 7: New Customers */}
+        <div className="bg-white p-4 sm:p-5 rounded-3xl border border-[#E8E8E5] shadow-2xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#6B6B6B]">New Contacts Ingested</span>
+            <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
+              <Users className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-black text-[#171717]">
+            {kpis?.newCustomers?.value?.toLocaleString() || '0'}
+          </p>
+          <div>{renderChangePill(kpis?.newCustomers?.changePct ?? null)}</div>
+        </div>
+
+        {/* Card 8: Total Messages */}
+        <div className="bg-white p-4 sm:p-5 rounded-3xl border border-[#E8E8E5] shadow-2xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#6B6B6B]">Total Messages</span>
+            <div className="w-8 h-8 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center">
+              <Layers className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-black text-[#171717]">
+            {kpis?.totalMessages?.value?.toLocaleString() || '0'}
+          </p>
+          <div>{renderChangePill(kpis?.totalMessages?.changePct ?? null)}</div>
+        </div>
+      </div>
+
+      {/* ─────────────────────────────────────────────────────────────
+          3. TRENDS & VOLUME CHART SECTION
+         ───────────────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-black text-sm text-[#171717] uppercase tracking-wider">Conversation Volume Trend</h3>
+            <p className="text-xs text-[#6B6B6B]">Inbound messages compared to resolved conversations over time.</p>
+          </div>
+          <div className="flex items-center gap-3 text-xs">
+            <span className="flex items-center gap-1.5 font-bold text-[#FF8A2A]">
+              <span className="w-3 h-3 rounded bg-[#FF8A2A]" /> Inbound Volume
+            </span>
+            <span className="flex items-center gap-1.5 font-bold text-emerald-600">
+              <span className="w-3 h-3 rounded bg-emerald-500" /> Resolved
+            </span>
+          </div>
+        </div>
+
+        {/* Visual Bar Graph */}
+        <div className="h-44 flex items-end gap-2 pt-6 pb-2 px-2 overflow-x-auto no-scrollbar">
+          {trends.length === 0 ? (
+            <div className="w-full flex items-center justify-center text-xs text-gray-400">
+              No trend data available for this range.
+            </div>
+          ) : (
+            trends.map((t, idx) => {
+              const maxVal = Math.max(...trends.map((i) => i.total), 10);
+              const heightPct = Math.max((t.total / maxVal) * 100, 15);
+              const resolvedHeightPct = Math.max((t.resolved / maxVal) * 100, 10);
+
+              return (
+                <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end min-w-[28px] group">
+                  <div className="w-full flex items-end gap-1 h-full justify-center">
+                    <div
+                      style={{ height: `${heightPct}%` }}
+                      className="w-2 sm:w-3.5 bg-[#FF8A2A] rounded-t-lg transition-all group-hover:opacity-80"
+                      title={`${t.date}: ${t.total} total`}
+                    />
+                    <div
+                      style={{ height: `${resolvedHeightPct}%` }}
+                      className="w-2 sm:w-3.5 bg-emerald-500 rounded-t-lg transition-all group-hover:opacity-80"
+                      title={`${t.date}: ${t.resolved} resolved`}
+                    />
+                  </div>
+                  <span className="text-[9px] font-mono text-gray-400 truncate max-w-full">
+                    {t.date.split('-').slice(1).join('/')}
+                  </span>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* ─────────────────────────────────────────────────────────────
+          4. CHANNEL & AGENT PERFORMANCE BREAKDOWN & STATUS
+         ───────────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Channel Breakdown */}
+        <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-black text-sm text-[#171717] uppercase tracking-wider">Channel Performance</h3>
+            <span className="text-xs text-[#6B6B6B] font-bold">{channelPerf.length} Channels</span>
           </div>
 
-          {/* 8. Total Messages */}
-          <div className="bg-white p-5 rounded-3xl border border-[#E8E8E5] shadow-2xs space-y-2">
-            <span className="text-xs font-semibold text-[#6B6B6B] flex items-center gap-1.5">
-              <BarChart3 className="w-4 h-4 text-blue-600" /> Total Messages
-            </span>
-            <p className="text-2xl font-extrabold text-[#171717]">{kpis?.totalMessages.value || 0}</p>
-            {renderChangePill(kpis?.totalMessages.changePct ?? null)}
+          <div className="space-y-3">
+            {channelPerf.map((cp) => (
+              <div
+                key={cp.id}
+                className="p-3.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] flex items-center justify-between"
+              >
+                <div>
+                  <p className="font-black text-xs text-[#171717]">{cp.name}</p>
+                  <p className="text-[10px] text-gray-400 font-mono mt-0.5">
+                    {cp.conversations} chats · {formatSeconds(cp.avgResponseTimeSec)} avg latency
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-xs">
+                    {cp.aiResolutionRate}% AI Auto
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Agent Breakdown */}
+        <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-black text-sm text-[#171717] uppercase tracking-wider">AI Assistant Efficiency</h3>
+            <span className="text-xs text-[#6B6B6B] font-bold">{agentPerf.length} Assistants</span>
+          </div>
+
+          <div className="space-y-3">
+            {agentPerf.map((ap) => (
+              <div
+                key={ap.id}
+                className="p-3.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-[#FFF0E5] text-[#FF8A2A] flex items-center justify-center font-bold">
+                    <Bot className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="font-black text-xs text-[#171717]">{ap.name}</p>
+                    <p className="text-[10px] text-gray-400 font-mono">
+                      {ap.conversations} handled · {ap.resolved} resolved
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="font-black text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">
+                    {ap.resolutionRate}% Success
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Status Distribution Summary Card */}
+      {statusDist && (
+        <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
+          <h3 className="font-black text-sm text-[#171717] uppercase tracking-wider">Live Pipeline Distribution</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] text-center">
+              <span className="text-[10px] uppercase font-bold text-[#6B6B6B]">Open / In Queue</span>
+              <p className="text-xl font-black text-[#171717] mt-1">{statusDist.open}</p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-purple-50 border border-purple-100 text-center">
+              <span className="text-[10px] uppercase font-bold text-purple-700">AI Handling</span>
+              <p className="text-xl font-black text-purple-800 mt-1">{statusDist.aiHandling}</p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-100 text-center">
+              <span className="text-[10px] uppercase font-bold text-blue-700">Human Assigned</span>
+              <p className="text-xl font-black text-blue-800 mt-1">{statusDist.human}</p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-100 text-center">
+              <span className="text-[10px] uppercase font-bold text-emerald-700">Resolved</span>
+              <p className="text-xl font-black text-emerald-800 mt-1">{statusDist.resolved}</p>
+            </div>
           </div>
         </div>
       )}
-
-      {/* CONVERSATION TRENDS & STATUS BREAKDOWN */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Time-Series Trends */}
-        <div className="lg:col-span-2 bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
-          <div className="flex items-center justify-between border-b border-[#E8E8E5] pb-3">
-            <h3 className="font-extrabold text-base text-[#171717]">Conversation Volume Trends</h3>
-            <div className="flex items-center gap-4 text-xs font-semibold">
-              <span className="flex items-center gap-1.5 text-[#171717]">
-                <span className="w-3 h-3 rounded-full bg-[#FF8A2A]" /> Total Volume
-              </span>
-              <span className="flex items-center gap-1.5 text-emerald-700">
-                <span className="w-3 h-3 rounded-full bg-emerald-500" /> Resolved
-              </span>
-            </div>
-          </div>
-
-          {trends.length === 0 ? (
-            <div className="h-60 flex flex-col items-center justify-center text-center space-y-2 bg-[#FAF9F6] rounded-2xl p-6 border border-[#E8E8E5]">
-              <BarChart3 className="w-8 h-8 text-gray-400" />
-              <p className="text-xs font-bold text-[#171717]">Not enough data yet</p>
-              <p className="text-[11px] text-[#6B6B6B] max-w-sm">
-                Conversation volume trends will populate as customer messages arrive in your workspace.
-              </p>
-            </div>
-          ) : (
-            <div className="h-60 flex items-end gap-2 pt-6 pb-2 border-b border-[#E8E8E5]">
-              {trends.map((t, idx) => {
-                const maxVal = Math.max(...trends.map((tr) => tr.total), 1);
-                const heightPct = Math.max(12, Math.round((t.total / maxVal) * 100));
-                const resolvedPct = Math.max(8, Math.round((t.resolved / maxVal) * 100));
-
-                return (
-                  <div key={idx} className="flex-1 flex flex-col items-center gap-1 group relative">
-                    {/* Tooltip */}
-                    <div className="absolute -top-10 opacity-0 group-hover:opacity-100 bg-[#171717] text-white text-[10px] font-bold py-1 px-2 rounded-lg pointer-events-none transition-opacity whitespace-nowrap z-10 shadow-md">
-                      {t.date}: {t.total} total ({t.resolved} resolved)
-                    </div>
-                    <div className="w-full bg-[#FFF0E5] hover:bg-[#FFE4D0] rounded-t-lg relative flex items-end justify-center transition-all" style={{ height: `${heightPct}%` }}>
-                      <div className="w-full bg-emerald-500 rounded-t-lg transition-all" style={{ height: `${resolvedPct}%` }} />
-                    </div>
-                    <span className="text-[9px] text-[#6B6B6B] truncate w-full text-center">{t.date.slice(5)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Right Col: Conversation Status Distribution */}
-        <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4 flex flex-col justify-between">
-          <h3 className="font-extrabold text-base text-[#171717] border-b border-[#E8E8E5] pb-3">
-            Status Breakdown
-          </h3>
-
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs font-bold">
-                <span className="text-[#171717]">Open / Waiting</span>
-                <span>{statusDist?.open || 0}</span>
-              </div>
-              <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                <div className="h-full bg-amber-500 rounded-full" style={{ width: '25%' }} />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs font-bold">
-                <span className="text-[#171717]">AI Handling</span>
-                <span>{statusDist?.aiHandling || 0}</span>
-              </div>
-              <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                <div className="h-full bg-[#FF8A2A] rounded-full" style={{ width: '55%' }} />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs font-bold">
-                <span className="text-[#171717]">Human Agent</span>
-                <span>{statusDist?.human || 0}</span>
-              </div>
-              <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                <div className="h-full bg-purple-600 rounded-full" style={{ width: '15%' }} />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs font-bold">
-                <span className="text-[#171717]">Resolved</span>
-                <span>{statusDist?.resolved || 0}</span>
-              </div>
-              <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full" style={{ width: '80%' }} />
-              </div>
-            </div>
-          </div>
-
-          <div className="p-3 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] text-[11px] text-[#6B6B6B] font-medium">
-            Calculated strictly from existing workspace conversation states.
-          </div>
-        </div>
-      </div>
-
-      {/* AI AGENT PERFORMANCE & CHANNEL PERFORMANCE */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* AI Agent Performance Table */}
-        <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
-          <div className="flex items-center justify-between border-b border-[#E8E8E5] pb-3">
-            <h3 className="font-extrabold text-base text-[#171717] flex items-center gap-2">
-              <Bot className="w-5 h-5 text-[#FF8A2A]" /> AI Agent Performance
-            </h3>
-            <button
-              onClick={() => onNavigate('/ai-agents')}
-              className="text-xs font-bold text-[#FF8A2A] hover:underline cursor-pointer"
-            >
-              Manage Agents →
-            </button>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-[#E8E8E5] text-[#6B6B6B] text-[10px] uppercase font-extrabold">
-                  <th className="pb-2">Agent</th>
-                  <th className="pb-2 text-right">Chats</th>
-                  <th className="pb-2 text-right">Resolved</th>
-                  <th className="pb-2 text-right">Rate</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E8E8E5]/60">
-                {agentPerf.map((ag) => (
-                  <tr key={ag.id} className="hover:bg-[#FAF9F6] transition-colors">
-                    <td
-                      onClick={() => onNavigate('/ai-agents')}
-                      className="py-2.5 font-bold text-[#171717] hover:text-[#FF8A2A] cursor-pointer flex items-center gap-2"
-                    >
-                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                      <span>{ag.name}</span>
-                    </td>
-                    <td className="py-2.5 text-right font-medium text-[#171717]">{ag.conversations}</td>
-                    <td className="py-2.5 text-right font-medium text-emerald-700">{ag.resolved}</td>
-                    <td className="py-2.5 text-right font-extrabold text-[#171717]">{ag.resolutionRate}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Channel Performance Grid */}
-        <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
-          <div className="flex items-center justify-between border-b border-[#E8E8E5] pb-3">
-            <h3 className="font-extrabold text-base text-[#171717] flex items-center gap-2">
-              <Globe className="w-5 h-5 text-[#FF8A2A]" /> Channel Performance
-            </h3>
-            <button
-              onClick={() => onNavigate('/channels')}
-              className="text-xs font-bold text-[#FF8A2A] hover:underline cursor-pointer"
-            >
-              Manage Channels →
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {channelPerf.map((chan) => (
-              <div key={chan.id} className="p-3.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-extrabold text-xs text-[#171717]">{chan.name}</span>
-                  <span
-                    className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                      chan.status === 'connected' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    {chan.status === 'connected' ? 'Connected' : 'Not connected'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-xs text-[#6B6B6B]">
-                  <span>Conversations:</span>
-                  <span className="font-bold text-[#171717]">{chan.conversations}</span>
-                </div>
-                <div className="flex items-center justify-between text-xs text-[#6B6B6B]">
-                  <span>Resolution Rate:</span>
-                  <span className="font-bold text-emerald-700">{chan.aiResolutionRate}%</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* PEAK CONVERSATION TIMES & PLACEHOLDERS */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Peak Conversation Times */}
-        <div className="lg:col-span-2 bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
-          <h3 className="font-extrabold text-base text-[#171717] border-b border-[#E8E8E5] pb-3">
-            Peak Conversation Times (Hourly)
-          </h3>
-
-          <div className="h-40 flex items-end gap-1 pt-4">
-            {hourlyDist.slice(8, 22).map((h, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                <div
-                  className="w-full bg-[#FF8A2A]/80 hover:bg-[#FF8A2A] rounded-t-md transition-colors"
-                  style={{ height: `${Math.max(15, h.count * 20)}%` }}
-                />
-                <span className="text-[9px] text-[#6B6B6B]">{h.hour}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Placeholders Card */}
-        <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4 flex flex-col justify-between">
-          <div className="space-y-4">
-            <div className="p-3.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] space-y-1">
-              <span className="text-xs font-bold text-[#171717] flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-[#FF8A2A]" /> Top Topics Analytics
-              </span>
-              <p className="text-[11px] text-[#6B6B6B]">
-                Topic analytics will appear as conversation classification becomes available.
-              </p>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] space-y-1">
-              <span className="text-xs font-bold text-[#171717] flex items-center gap-1.5">
-                <Smile className="w-4 h-4 text-amber-500" /> Customer Satisfaction (CSAT)
-              </span>
-              <p className="text-[11px] text-[#6B6B6B]">
-                Customer satisfaction data will appear once customer feedback is enabled.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

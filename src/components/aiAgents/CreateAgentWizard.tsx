@@ -6,7 +6,19 @@ import {
   Check,
   AlertCircle,
   Loader2,
+  Sparkles,
+  Smile,
+  Briefcase,
+  Coffee,
+  HeartHandshake,
+  Zap,
+  Globe,
+  Share2,
+  MessageSquare,
+  ShieldCheck,
+  UserCheck,
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 interface CreateAgentWizardProps {
   onBack: () => void;
@@ -25,7 +37,7 @@ export const CreateAgentWizard: React.FC<CreateAgentWizardProps> = ({
   const [avatar, setAvatar] = useState('bot');
   const [tone, setTone] = useState<AIAgentTone>('Friendly');
   const [customInstructions, setCustomInstructions] = useState(
-    'Be friendly and concise.\nNever make promises about delivery times.\nAsk for clarification when necessary.'
+    'Be friendly, concise, and helpful.\nAlways confirm delivery address details before modifying an order.\nAsk clarifying questions whenever customer intent is ambiguous.'
   );
 
   // Knowledge Sources Selection
@@ -124,8 +136,6 @@ export const CreateAgentWizard: React.FC<CreateAgentWizardProps> = ({
     }
   };
 
-  const tonesList: AIAgentTone[] = ['Friendly', 'Professional', 'Casual', 'Concise', 'Empathetic'];
-
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
       {/* Top Header Bar */}
@@ -138,9 +148,9 @@ export const CreateAgentWizard: React.FC<CreateAgentWizardProps> = ({
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-2xl font-extrabold text-[#171717]">Create AI Agent</h1>
+            <h1 className="text-2xl font-black text-[#171717]">Create AI Assistant Agent</h1>
             <p className="text-xs text-[#6B6B6B]">
-              Configure assistant behavior, knowledge access, tone, and human handoff rules.
+              Configure assistant persona, knowledge access, system prompts, and human handoff rules.
             </p>
           </div>
         </div>
@@ -157,56 +167,37 @@ export const CreateAgentWizard: React.FC<CreateAgentWizardProps> = ({
         {/* SECTION 1 — BASIC INFORMATION */}
         <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
           <div className="flex items-center gap-2.5 pb-3 border-b border-[#E8E8E5]">
-            <div className="w-8 h-8 rounded-xl bg-[#FFF0E5] text-[#FF8A2A] font-bold flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-[#FFF0E5] text-[#FF8A2A] font-black text-sm flex items-center justify-center">
               1
             </div>
-            <h2 className="font-extrabold text-base text-[#171717]">Basic Information</h2>
+            <h2 className="font-black text-base text-[#171717]">Basic Information & Identity</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1 md:col-span-2">
+            <div className="space-y-1.5 md:col-span-2">
               <label className="block text-xs font-bold text-[#171717]">
                 Agent Name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
-                placeholder="e.g. Xia Support"
+                placeholder="e.g. Xia Customer Concierge"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A] focus:ring-2 focus:ring-[#FF8A2A]/20 font-medium"
+                className="w-full px-4 py-2.5 rounded-xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A] focus:ring-2 focus:ring-[#FF8A2A]/15 font-semibold"
                 required
+                autoFocus
               />
             </div>
 
-            <div className="space-y-1 md:col-span-2">
+            <div className="space-y-1.5 md:col-span-2">
               <label className="block text-xs font-bold text-[#171717]">Description</label>
               <input
                 type="text"
-                placeholder="Handles common customer questions and support requests."
+                placeholder="Handles common customer inquiries, returns, and order updates autonomously."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A] focus:ring-2 focus:ring-[#FF8A2A]/20"
+                className="w-full px-4 py-2.5 rounded-xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A] focus:ring-2 focus:ring-[#FF8A2A]/15"
               />
-            </div>
-
-            <div className="space-y-1 md:col-span-2">
-              <label className="block text-xs font-bold text-[#171717]">Agent Avatar Icon</label>
-              <div className="flex items-center gap-2 pt-1">
-                {['bot', 'sparkles', 'support', 'custom'].map((av) => (
-                  <button
-                    type="button"
-                    key={av}
-                    onClick={() => setAvatar(av)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-all cursor-pointer ${
-                      avatar === av
-                        ? 'bg-[#FF8A2A] text-white shadow-2xs'
-                        : 'bg-[#FAF9F6] border border-[#E8E8E5] text-[#6B6B6B]'
-                    }`}
-                  >
-                    {av}
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
         </div>
@@ -214,40 +205,51 @@ export const CreateAgentWizard: React.FC<CreateAgentWizardProps> = ({
         {/* SECTION 2 — PERSONALITY & TONE */}
         <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
           <div className="flex items-center gap-2.5 pb-3 border-b border-[#E8E8E5]">
-            <div className="w-8 h-8 rounded-xl bg-[#FFF0E5] text-[#FF8A2A] font-bold flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-[#FFF0E5] text-[#FF8A2A] font-black text-sm flex items-center justify-center">
               2
             </div>
-            <h2 className="font-extrabold text-base text-[#171717]">Personality & Tone</h2>
+            <h2 className="font-black text-base text-[#171717]">Personality, Tone & System Instructions</h2>
           </div>
 
-          <div className="space-y-3">
-            <label className="block text-xs font-bold text-[#171717]">Tone Presets</label>
-            <div className="flex flex-wrap gap-2">
-              {tonesList.map((t) => (
-                <button
-                  type="button"
-                  key={t}
-                  onClick={() => setTone(t)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    tone === t
-                      ? 'bg-[#FF8A2A] text-white shadow-2xs'
-                      : 'bg-[#FAF9F6] border border-[#E8E8E5] text-[#6B6B6B] hover:text-[#171717]'
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
+          <div>
+            <label className="block text-xs font-bold text-[#171717] mb-2">Tone of Voice</label>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+              {[
+                { id: 'Friendly', label: 'Friendly', icon: Smile },
+                { id: 'Professional', label: 'Professional', icon: Briefcase },
+                { id: 'Casual', label: 'Casual', icon: Coffee },
+                { id: 'Concise', label: 'Concise', icon: Zap },
+                { id: 'Empathetic', label: 'Empathetic', icon: HeartHandshake },
+              ].map((t) => {
+                const Icon = t.icon;
+                const isSelected = tone === t.id;
+                return (
+                  <button
+                    type="button"
+                    key={t.id}
+                    onClick={() => setTone(t.id as any)}
+                    className={`p-3 rounded-xl border text-center flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-[#FFF0E5] border-[#FF8A2A] text-[#171717] ring-2 ring-[#FF8A2A]/20'
+                        : 'bg-[#FAF9F6] border-[#E8E8E5] text-[#6B6B6B] hover:bg-white'
+                    }`}
+                  >
+                    <Icon className={`w-4 h-4 ${isSelected ? 'text-[#FF8A2A]' : 'text-gray-400'}`} />
+                    <span className="text-xs font-bold">{t.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <div className="space-y-1 pt-2">
-            <label className="block text-xs font-bold text-[#171717]">Custom Instructions</label>
+          <div className="space-y-1.5 pt-2">
+            <label className="block text-xs font-bold text-[#171717]">System Prompt & Custom Instructions</label>
             <textarea
               rows={4}
               placeholder="How should this AI communicate with customers?"
               value={customInstructions}
               onChange={(e) => setCustomInstructions(e.target.value)}
-              className="w-full p-3 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A] focus:ring-2 focus:ring-[#FF8A2A]/20 font-mono"
+              className="w-full p-3.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A] focus:ring-2 focus:ring-[#FF8A2A]/15 font-mono leading-relaxed"
             />
           </div>
         </div>
@@ -255,21 +257,21 @@ export const CreateAgentWizard: React.FC<CreateAgentWizardProps> = ({
         {/* SECTION 3 — KNOWLEDGE SOURCES */}
         <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
           <div className="flex items-center gap-2.5 pb-3 border-b border-[#E8E8E5]">
-            <div className="w-8 h-8 rounded-xl bg-[#FFF0E5] text-[#FF8A2A] font-bold flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-[#FFF0E5] text-[#FF8A2A] font-black text-sm flex items-center justify-center">
               3
             </div>
             <div>
-              <h2 className="font-extrabold text-base text-[#171717]">Knowledge Sources</h2>
-              <p className="text-xs text-[#6B6B6B]">Choose what your AI agent can use when answering customers.</p>
+              <h2 className="font-black text-base text-[#171717]">Knowledge Sources Routing</h2>
+              <p className="text-xs text-[#6B6B6B]">Select which documents and website crawlers this assistant can query.</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
-              { id: 'faq', name: 'Product FAQ', type: 'Document', count: '12 pages' },
-              { id: 'returns', name: 'Return & Refund Policy', type: 'Policy Doc', count: '4 pages' },
-              { id: 'shipping', name: 'Shipping & Delivery Rates', type: 'Guide', count: '8 pages' },
-              { id: 'company', name: 'Company & Licensing Info', type: 'Website URL', count: 'Sync Active' },
+              { id: 'faq', name: 'Product FAQ & Policies', type: 'FAQ Collection', count: '14 chunks' },
+              { id: 'returns', name: 'Return & Refund Policy', type: 'Policy Doc', count: '8 chunks' },
+              { id: 'shipping', name: 'Shipping & Delivery Rates', type: 'Document', count: '12 chunks' },
+              { id: 'company', name: 'Company & Licensing Info', type: 'Website URL', count: '42 chunks' },
             ].map((source) => {
               const isChecked = selectedKnowledge.includes(source.id);
               return (
@@ -278,7 +280,7 @@ export const CreateAgentWizard: React.FC<CreateAgentWizardProps> = ({
                   onClick={() => handleToggleKnowledge(source.id)}
                   className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
                     isChecked
-                      ? 'bg-[#FFF0E5]/50 border-[#FF8A2A]'
+                      ? 'bg-[#FFF0E5]/70 border-[#FF8A2A] shadow-2xs'
                       : 'bg-[#FAF9F6] border-[#E8E8E5] hover:bg-white'
                   }`}
                 >
@@ -303,160 +305,87 @@ export const CreateAgentWizard: React.FC<CreateAgentWizardProps> = ({
           </div>
         </div>
 
-        {/* SECTION 4 — CONVERSATION BEHAVIOR */}
+        {/* SECTION 4 — AUTOMATION & HUMAN HANDOFF */}
         <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
           <div className="flex items-center gap-2.5 pb-3 border-b border-[#E8E8E5]">
-            <div className="w-8 h-8 rounded-xl bg-[#FFF0E5] text-[#FF8A2A] font-bold flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-[#FFF0E5] text-[#FF8A2A] font-black text-sm flex items-center justify-center">
               4
             </div>
-            <h2 className="font-extrabold text-base text-[#171717]">Conversation Behavior</h2>
+            <h2 className="font-black text-base text-[#171717]">Automation & Human Handoff Triggers</h2>
           </div>
 
-          <div className="flex items-center justify-between p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5]">
-            <div>
-              <p className="text-xs font-bold text-[#171717]">Enable AI Auto-Reply</p>
-              <p className="text-[11px] text-[#6B6B6B]">Allow AI to automatically answer incoming eligible customer messages.</p>
-            </div>
-            <input
-              type="checkbox"
-              checked={autoReplyEnabled}
-              onChange={(e) => setAutoReplyEnabled(e.target.checked)}
-              className="accent-[#FF8A2A] w-5 h-5 cursor-pointer"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="flex items-center justify-between p-3.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] cursor-pointer hover:bg-white">
+              <div>
+                <p className="text-xs font-bold text-[#171717]">Auto-Reply Enabled</p>
+                <p className="text-[10px] text-gray-500">Autonomous response to inquiries</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={autoReplyEnabled}
+                onChange={(e) => setAutoReplyEnabled(e.target.checked)}
+                className="accent-[#FF8A2A] w-4 h-4 cursor-pointer"
+              />
+            </label>
+
+            <label className="flex items-center justify-between p-3.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] cursor-pointer hover:bg-white">
+              <div>
+                <p className="text-xs font-bold text-[#171717]">Human Handoff Enabled</p>
+                <p className="text-[10px] text-gray-500">Auto-escalate on low confidence</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={humanHandoffEnabled}
+                onChange={(e) => setHumanHandoffEnabled(e.target.checked)}
+                className="accent-[#FF8A2A] w-4 h-4 cursor-pointer"
+              />
+            </label>
           </div>
 
-          <div className="space-y-2">
-            <label className="block text-xs font-bold text-[#171717]">Response Style</label>
-            <div className="grid grid-cols-3 gap-3">
-              {(['Concise', 'Balanced', 'Detailed'] as ResponseStyle[]).map((style) => (
-                <button
-                  type="button"
-                  key={style}
-                  onClick={() => setResponseStyle(style)}
-                  className={`p-3 rounded-2xl text-xs font-bold border transition-all cursor-pointer text-center ${
-                    responseStyle === style
-                      ? 'bg-[#FF8A2A] text-white border-[#FF8A2A] shadow-2xs'
-                      : 'bg-[#FAF9F6] border-[#E8E8E5] text-[#6B6B6B] hover:text-[#171717]'
-                  }`}
-                >
-                  {style}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* SECTION 5 — HUMAN HANDOFF */}
-        <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
-          <div className="flex items-center gap-2.5 pb-3 border-b border-[#E8E8E5]">
-            <div className="w-8 h-8 rounded-xl bg-[#FFF0E5] text-[#FF8A2A] font-bold flex items-center justify-center">
-              5
-            </div>
-            <h2 className="font-extrabold text-base text-[#171717]">Human Handoff Rules</h2>
-          </div>
-
-          <div className="flex items-center justify-between p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5]">
-            <div>
-              <p className="text-xs font-bold text-[#171717]">Enable Human Handoff</p>
-              <p className="text-[11px] text-[#6B6B6B]">Automatically pause AI and alert human support team when conditions are met.</p>
-            </div>
-            <input
-              type="checkbox"
-              checked={humanHandoffEnabled}
-              onChange={(e) => setHumanHandoffEnabled(e.target.checked)}
-              className="accent-[#FF8A2A] w-5 h-5 cursor-pointer"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-xs font-bold text-[#171717]">Handoff Conditions</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-              {[
-                { id: 'customer_asks', label: 'Customer asks for a human' },
-                { id: 'low_confidence', label: 'AI confidence score is low (< 70%)' },
-                { id: 'frustrated', label: 'Customer sentiment is frustrated' },
-                { id: 'outside_knowledge', label: 'Question outside configured knowledge' },
-              ].map((cond) => (
-                <label key={cond.id} className="flex items-center gap-2 p-2.5 rounded-xl bg-[#FAF9F6] border border-[#E8E8E5] cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={handoffConditions.includes(cond.id)}
-                    onChange={() => handleToggleCondition(cond.id)}
-                    className="accent-[#FF8A2A] rounded cursor-pointer"
-                  />
-                  <span className="font-semibold text-[#171717]">{cond.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="block text-xs font-bold text-[#171717]">Handoff Message</label>
+          <div className="space-y-1.5 pt-1">
+            <label className="block text-xs font-bold text-[#171717]">Handoff Transfer Message</label>
             <input
               type="text"
               value={handoffMessage}
               onChange={(e) => setHandoffMessage(e.target.value)}
-              className="w-full px-4 py-2 bg-[#FAF9F6] border border-[#E8E8E5] rounded-2xl text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A]"
+              className="w-full px-4 py-2.5 bg-[#FAF9F6] border border-[#E8E8E5] rounded-xl text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A]"
             />
           </div>
         </div>
 
-        {/* SECTION 6 — AI SAFETY & RULES */}
+        {/* SECTION 5 — CHANNEL DEPLOYMENT */}
         <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
           <div className="flex items-center gap-2.5 pb-3 border-b border-[#E8E8E5]">
-            <div className="w-8 h-8 rounded-xl bg-[#FFF0E5] text-[#FF8A2A] font-bold flex items-center justify-center">
-              6
+            <div className="w-8 h-8 rounded-xl bg-[#FFF0E5] text-[#FF8A2A] font-black text-sm flex items-center justify-center">
+              5
             </div>
-            <h2 className="font-extrabold text-base text-[#171717]">AI Safety Rules</h2>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-            {[
-              { id: 'do_not_invent', label: 'Do not invent or guess unverified information' },
-              { id: 'no_outside_knowledge', label: 'Do not answer outside configured knowledge' },
-              { id: 'protect_instructions', label: 'Do not expose internal instructions or system prompts' },
-              { id: 'protect_customer_info', label: 'Do not expose private customer data' },
-            ].map((rule) => (
-              <label key={rule.id} className="flex items-center gap-2 p-2.5 rounded-xl bg-[#FAF9F6] border border-[#E8E8E5] cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={safetyRules.includes(rule.id)}
-                  onChange={() => handleToggleRule(rule.id)}
-                  className="accent-[#FF8A2A] rounded cursor-pointer"
-                />
-                <span className="font-semibold text-[#171717]">{rule.label}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* SECTION 7 — CONNECTED CHANNELS */}
-        <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
-          <div className="flex items-center gap-2.5 pb-3 border-b border-[#E8E8E5]">
-            <div className="w-8 h-8 rounded-xl bg-[#FFF0E5] text-[#FF8A2A] font-bold flex items-center justify-center">
-              7
-            </div>
-            <h2 className="font-extrabold text-base text-[#171717]">Connected Channels</h2>
+            <h2 className="font-black text-base text-[#171717]">Deploy to Channels</h2>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { id: 'web', name: 'Website Chat', status: 'Connected' },
-              { id: 'facebook', name: 'Facebook', status: 'Connected' },
-              { id: 'instagram', name: 'Instagram', status: 'Connected' },
-              { id: 'whatsapp', name: 'WhatsApp', status: 'Connected' },
+              { id: 'web', name: 'Website Live Chat', icon: Globe },
+              { id: 'whatsapp', name: 'WhatsApp Business', icon: MessageSquare },
+              { id: 'facebook', name: 'Facebook Messenger', icon: Share2 },
+              { id: 'instagram', name: 'Instagram DM', icon: Share2 },
             ].map((ch) => {
               const isSelected = selectedChannels.includes(ch.id);
+              const Icon = ch.icon;
               return (
                 <div
                   key={ch.id}
                   onClick={() => handleToggleChannel(ch.id)}
-                  className={`p-3 rounded-2xl border text-center cursor-pointer transition-all ${
-                    isSelected ? 'bg-[#FFF0E5] border-[#FF8A2A]' : 'bg-[#FAF9F6] border-[#E8E8E5]'
+                  className={`p-3.5 rounded-2xl border text-center cursor-pointer transition-all flex flex-col items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-[#FFF0E5] border-[#FF8A2A] shadow-2xs'
+                      : 'bg-[#FAF9F6] border-[#E8E8E5] hover:bg-white'
                   }`}
                 >
+                  <Icon className={`w-5 h-5 ${isSelected ? 'text-[#FF8A2A]' : 'text-gray-400'}`} />
                   <p className="text-xs font-bold text-[#171717]">{ch.name}</p>
-                  <span className="text-[10px] text-emerald-700 font-semibold">{ch.status}</span>
+                  <span className={`text-[10px] font-bold ${isSelected ? 'text-emerald-700' : 'text-gray-400'}`}>
+                    {isSelected ? 'Enabled' : 'Disabled'}
+                  </span>
                 </div>
               );
             })}
@@ -468,24 +397,24 @@ export const CreateAgentWizard: React.FC<CreateAgentWizardProps> = ({
           <button
             type="button"
             onClick={onBack}
-            className="px-5 py-2.5 rounded-2xl border border-[#E8E8E5] hover:bg-white text-xs font-bold text-[#171717] cursor-pointer"
+            className="px-5 py-2.5 rounded-xl border border-[#E8E8E5] hover:bg-white text-xs font-bold text-[#171717] cursor-pointer"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={isSaving}
-            className="px-6 py-2.5 rounded-2xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-2xs disabled:opacity-50"
+            className="px-6 py-2.5 rounded-xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
           >
             {isSaving ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Creating Agent...</span>
+                <span>Deploying Agent...</span>
               </>
             ) : (
               <>
                 <Check className="w-4 h-4" />
-                <span>Create AI Agent</span>
+                <span>Create & Deploy AI Agent</span>
               </>
             )}
           </button>

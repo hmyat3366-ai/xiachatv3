@@ -16,7 +16,11 @@ import {
   Loader2,
   ShieldAlert,
   Plus,
+  Lock,
+  ExternalLink,
+  Users,
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface ConnectChannelModalProps {
   isOpen: boolean;
@@ -42,7 +46,7 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
 }) => {
   // Navigation & Flow State
   const [selectedChannelType, setSelectedChannelType] = useState<ChannelType | null>(null);
-  const [step, setStep] = useState<number>(1); // 1: Channel Info, 2: AI Agent, 3: Widget Setup, 4: Finish/Install
+  const [step, setStep] = useState<number>(1);
 
   // Form Fields (Website Chat)
   const [websiteName, setWebsiteName] = useState('My Business Website');
@@ -53,20 +57,23 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
   const [primaryColor, setPrimaryColor] = useState('#FF8A2A');
   const [position, setPosition] = useState<'bottom-right' | 'bottom-left'>('bottom-right');
 
+  // Form Fields (WhatsApp Business Cloud API)
+  const [waPhoneNumberId, setWaPhoneNumberId] = useState('');
+  const [waBusinessAccountId, setWaBusinessAccountId] = useState('');
+  const [waAccessToken, setWaAccessToken] = useState('');
+
   // Status & Response States
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [flowState, setFlowState] = useState<'selecting' | 'wizard' | 'success' | 'error'>('selecting');
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Update selected agent if availableAgents load asynchronously
   useEffect(() => {
     if (availableAgents.length > 0 && !selectedAgentId) {
       setSelectedAgentId(availableAgents[0].id);
     }
   }, [availableAgents, selectedAgentId]);
 
-  // Handle ESC Key to close modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
@@ -79,7 +86,6 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Check if channel is already connected
   const isChannelConnected = (type: ChannelType) => {
     const found = channels.find((c) => c.type === type);
     return found?.status === 'connected';
@@ -89,7 +95,6 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
     setSelectedChannelType(type);
 
     if (isChannelConnected(type)) {
-      // If already connected, navigate to details
       const found = channels.find((c) => c.type === type);
       if (found) {
         onClose();
@@ -150,7 +155,8 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto">
-      <div className="bg-white rounded-3xl border border-[#E8E8E5] max-w-2xl w-full p-6 sm:p-8 shadow-xl space-y-6 relative my-8">
+      <div className="bg-white rounded-3xl border border-[#E8E8E5] max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-6 relative my-8">
+        
         {/* Top Header Bar */}
         <div className="flex items-center justify-between border-b border-[#E8E8E5] pb-4">
           <div className="flex items-center gap-3">
@@ -160,22 +166,22 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
                   if (step > 1) handlePrevStep();
                   else setFlowState('selecting');
                 }}
-                className="p-1.5 rounded-xl border border-[#E8E8E5] text-[#6B6B6B] hover:text-[#171717] hover:bg-gray-50 cursor-pointer"
+                className="p-1.5 rounded-xl border border-[#E8E8E5] text-[#6B6B6B] hover:text-[#171717] hover:bg-[#FAF9F6] cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
             )}
             <div>
-              <h2 className="text-lg sm:text-xl font-extrabold text-[#171717]">
-                {flowState === 'selecting' && 'Connect a channel'}
-                {flowState === 'wizard' && `Connect ${selectedChannelType === 'website' ? 'Website Chat' : selectedChannelType?.toUpperCase()}`}
-                {flowState === 'success' && 'Channel Connected'}
-                {flowState === 'error' && "Couldn't connect channel"}
+              <h2 className="text-lg sm:text-xl font-black text-[#171717]">
+                {flowState === 'selecting' && 'Connect Customer Channel'}
+                {flowState === 'wizard' && `Configure ${selectedChannelType === 'website' ? 'Website Live Chat' : selectedChannelType?.toUpperCase()}`}
+                {flowState === 'success' && 'Channel Connected!'}
+                {flowState === 'error' && "Couldn't Connect Channel"}
               </h2>
               <p className="text-xs text-[#6B6B6B]">
-                {flowState === 'selecting' && 'Choose where your customers message you so Xia Chat can bring their conversations into one unified inbox.'}
-                {flowState === 'wizard' && selectedChannelType === 'website' && 'Configure widget identity, AI agent, and embed code.'}
-                {flowState === 'wizard' && selectedChannelType !== 'website' && 'Connect your social media messaging platform.'}
+                {flowState === 'selecting' && 'Choose where your customers message you to route all conversations into your Unified Inbox.'}
+                {flowState === 'wizard' && selectedChannelType === 'website' && 'Configure widget styling, AI persona, and embed script.'}
+                {flowState === 'wizard' && selectedChannelType !== 'website' && 'Setup Meta API credentials and webhook integration.'}
               </p>
             </div>
           </div>
@@ -209,8 +215,8 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
                 )}
               </div>
               <div>
-                <h3 className="font-extrabold text-sm text-[#171717]">Website Chat</h3>
-                <p className="text-xs text-[#6B6B6B] mt-0.5">Connect a live chat widget to your website.</p>
+                <h3 className="font-black text-sm text-[#171717]">Website Live Chat</h3>
+                <p className="text-xs text-[#6B6B6B] mt-0.5">Embed a customizable live chat widget on your site.</p>
               </div>
             </div>
 
@@ -232,8 +238,8 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
                 )}
               </div>
               <div>
-                <h3 className="font-extrabold text-sm text-[#171717]">Facebook Messenger</h3>
-                <p className="text-xs text-[#6B6B6B] mt-0.5">Receive and reply to Facebook messages.</p>
+                <h3 className="font-black text-sm text-[#171717]">Facebook Messenger</h3>
+                <p className="text-xs text-[#6B6B6B] mt-0.5">Sync direct messages from your Facebook Business Page.</p>
               </div>
             </div>
 
@@ -255,8 +261,8 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
                 )}
               </div>
               <div>
-                <h3 className="font-extrabold text-sm text-[#171717]">Instagram</h3>
-                <p className="text-xs text-[#6B6B6B] mt-0.5">Manage Instagram customer conversations.</p>
+                <h3 className="font-black text-sm text-[#171717]">Instagram Direct</h3>
+                <p className="text-xs text-[#6B6B6B] mt-0.5">Manage customer inquiries and story mentions.</p>
               </div>
             </div>
 
@@ -278,36 +284,44 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
                 )}
               </div>
               <div>
-                <h3 className="font-extrabold text-sm text-[#171717]">WhatsApp</h3>
-                <p className="text-xs text-[#6B6B6B] mt-0.5">Connect your WhatsApp Business conversations.</p>
+                <h3 className="font-black text-sm text-[#171717]">WhatsApp Business API</h3>
+                <p className="text-xs text-[#6B6B6B] mt-0.5">Connect official Meta WhatsApp Cloud API.</p>
               </div>
             </div>
           </div>
         )}
 
-        {/* SCREEN 2: WEBSITE CHAT WIZARD */}
+        {/* SCREEN 2: WEBSITE CHAT 4-STEP WIZARD */}
         {flowState === 'wizard' && selectedChannelType === 'website' && (
           <div className="space-y-6">
             {/* Progress Stepper */}
             <div className="flex items-center justify-between border-b border-[#E8E8E5] pb-3 text-xs font-bold">
-              <span className={`flex items-center gap-1.5 ${step >= 1 ? 'text-[#FF8A2A]' : 'text-gray-400'}`}>
-                <span className="w-5 h-5 rounded-full bg-[#FFF0E5] flex items-center justify-center text-[10px]">1</span> Website
-              </span>
-              <span className={`flex items-center gap-1.5 ${step >= 2 ? 'text-[#FF8A2A]' : 'text-gray-400'}`}>
-                <span className="w-5 h-5 rounded-full bg-[#FFF0E5] flex items-center justify-center text-[10px]">2</span> AI Agent
-              </span>
-              <span className={`flex items-center gap-1.5 ${step >= 3 ? 'text-[#FF8A2A]' : 'text-gray-400'}`}>
-                <span className="w-5 h-5 rounded-full bg-[#FFF0E5] flex items-center justify-center text-[10px]">3</span> Widget
-              </span>
-              <span className={`flex items-center gap-1.5 ${step >= 4 ? 'text-[#FF8A2A]' : 'text-gray-400'}`}>
-                <span className="w-5 h-5 rounded-full bg-[#FFF0E5] flex items-center justify-center text-[10px]">4</span> Install
-              </span>
+              {[
+                { s: 1, label: 'Website' },
+                { s: 2, label: 'AI Agent' },
+                { s: 3, label: 'Widget UI' },
+                { s: 4, label: 'Embed Script' },
+              ].map((st) => (
+                <span
+                  key={st.s}
+                  className={`flex items-center gap-1.5 ${step >= st.s ? 'text-[#FF8A2A]' : 'text-gray-400'}`}
+                >
+                  <span
+                    className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
+                      step >= st.s ? 'bg-[#FFF0E5] text-[#D96512]' : 'bg-gray-100 text-gray-500'
+                    }`}
+                  >
+                    {st.s}
+                  </span>
+                  <span>{st.label}</span>
+                </span>
+              ))}
             </div>
 
             {/* STEP 1: WEBSITE INFORMATION */}
             {step === 1 && (
               <div className="space-y-4">
-                <h3 className="font-extrabold text-sm text-[#171717]">Step 1: Website Information</h3>
+                <h3 className="font-black text-sm text-[#171717]">Website Domain Information</h3>
                 <div className="space-y-3">
                   <div className="space-y-1">
                     <label className="block text-xs font-bold text-[#171717]">Website Name</label>
@@ -316,7 +330,7 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
                       value={websiteName}
                       onChange={(e) => setWebsiteName(e.target.value)}
                       placeholder="e.g. Acme Online Store"
-                      className="w-full px-4 py-2.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A]"
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A]"
                     />
                   </div>
                   <div className="space-y-1">
@@ -326,7 +340,7 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
                       value={websiteUrl}
                       onChange={(e) => setWebsiteUrl(e.target.value)}
                       placeholder="https://example.com"
-                      className="w-full px-4 py-2.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A]"
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A]"
                     />
                   </div>
                 </div>
@@ -336,15 +350,15 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
             {/* STEP 2: AI AGENT SELECTION */}
             {step === 2 && (
               <div className="space-y-4">
-                <h3 className="font-extrabold text-sm text-[#171717]">Step 2: Choose AI Agent</h3>
+                <h3 className="font-black text-sm text-[#171717]">Default AI Support Assistant</h3>
                 {availableAgents.length > 0 ? (
                   <div className="space-y-3">
                     <div className="space-y-1">
-                      <label className="block text-xs font-bold text-[#171717]">Default AI Agent</label>
+                      <label className="block text-xs font-bold text-[#171717]">Select AI Agent</label>
                       <select
                         value={selectedAgentId}
                         onChange={(e) => setSelectedAgentId(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A]"
+                        className="w-full px-4 py-2.5 rounded-xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A]"
                       >
                         {availableAgents.map((ag) => (
                           <option key={ag.id} value={ag.id}>
@@ -353,7 +367,7 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
                         ))}
                       </select>
                       <p className="text-[11px] text-[#6B6B6B] mt-1">
-                        This agent will automatically handle eligible conversations coming from this website widget.
+                        Incoming messages from this website live chat widget will be auto-routed to this agent.
                       </p>
                     </div>
                   </div>
@@ -381,7 +395,7 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
             {/* STEP 3: WIDGET SETUP */}
             {step === 3 && (
               <div className="space-y-4">
-                <h3 className="font-extrabold text-sm text-[#171717]">Step 3: Widget Appearance</h3>
+                <h3 className="font-black text-sm text-[#171717]">Widget Appearance & Greeting</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-3">
                     <div className="space-y-1">
@@ -390,7 +404,7 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
                         type="text"
                         value={widgetName}
                         onChange={(e) => setWidgetName(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717]"
+                        className="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717]"
                       />
                     </div>
                     <div className="space-y-1">
@@ -399,7 +413,7 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
                         type="text"
                         value={welcomeMessage}
                         onChange={(e) => setWelcomeMessage(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717]"
+                        className="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717]"
                       />
                     </div>
                     <div className="space-y-1">
@@ -415,7 +429,7 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <label className="block text-xs font-bold text-[#171717]">Widget Position</label>
+                      <label className="block text-xs font-bold text-[#171717]">Position</label>
                       <div className="flex items-center gap-2 pt-0.5">
                         <button
                           type="button"
@@ -452,7 +466,7 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
                     <div className="p-2 bg-white rounded-xl border border-[#E8E8E5] text-[11px] text-[#171717] max-w-[85%] self-start shadow-2xs">
                       {welcomeMessage}
                     </div>
-                    <div className="text-[10px] text-[#6B6B6B] text-center italic">Widget Live Preview</div>
+                    <div className="text-[10px] text-[#6B6B6B] text-center italic">Live Preview</div>
                   </div>
                 </div>
               </div>
@@ -461,28 +475,28 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
             {/* STEP 4: INSTALLATION */}
             {step === 4 && (
               <div className="space-y-4">
-                <h3 className="font-extrabold text-sm text-[#171717]">Step 4: Installation Code</h3>
+                <h3 className="font-black text-sm text-[#171717]">Embed Installation Code</h3>
                 <p className="text-xs text-[#6B6B6B]">
-                  Copy and paste this script before the closing <code className="text-[#FF8A2A]">&lt;/body&gt;</code> tag on your website.
+                  Paste this script into your HTML before the closing <code className="text-[#FF8A2A] font-mono">&lt;/body&gt;</code> tag.
                 </p>
 
                 <div className="p-4 rounded-2xl bg-[#171717] text-[#FAF9F6] text-xs font-mono overflow-x-auto leading-relaxed select-all">
                   {embedCode}
                 </div>
 
-                <div className="flex items-center justify-between pt-2">
+                <div className="flex items-center justify-between pt-1">
                   <button
                     onClick={handleCopyCode}
                     className="px-3.5 py-2 rounded-xl bg-[#FFF0E5] text-[#FF8A2A] hover:bg-[#FFE4D0] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{isCopied ? 'Copied to Clipboard!' : 'Copy Installation Code'}</span>
+                    <span>{isCopied ? 'Copied to Clipboard!' : 'Copy Script Code'}</span>
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Navigation Controls */}
+            {/* Stepper Footer Controls */}
             <div className="flex items-center justify-between pt-4 border-t border-[#E8E8E5]">
               {step > 1 ? (
                 <button
@@ -499,7 +513,7 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
               {step < 4 ? (
                 <button
                   onClick={handleNextStep}
-                  className="px-5 py-2.5 rounded-2xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  className="px-5 py-2.5 rounded-xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs"
                 >
                   <span>Continue</span>
                   <ArrowRight className="w-4 h-4" />
@@ -508,7 +522,7 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
                 <button
                   onClick={handleFinishSetup}
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 rounded-2xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50"
+                  className="px-6 py-2.5 rounded-xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50"
                 >
                   {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                   <span>{isSubmitting ? 'Connecting...' : 'Finish Setup'}</span>
@@ -518,31 +532,74 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
           </div>
         )}
 
-        {/* SCREEN 2 (SOCIAL CHANNELS): META / WHATSAPP REAL OAUTH CHECK */}
+        {/* SCREEN 2 (SOCIAL CHANNELS): WHATSAPP / META SETUP */}
         {flowState === 'wizard' && selectedChannelType !== 'website' && (
-          <div className="space-y-4 py-4">
-            <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200 space-y-3">
-              <div className="flex items-start gap-3">
-                <ShieldAlert className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <h3 className="font-extrabold text-sm text-amber-900">
-                    {selectedChannelType === 'facebook' && 'Facebook Messenger Integration'}
-                    {selectedChannelType === 'instagram' && 'Instagram Direct Messages'}
-                    {selectedChannelType === 'whatsapp' && 'WhatsApp Business API'}
-                  </h3>
-                  <p className="text-xs text-amber-700 leading-relaxed">
-                    {selectedChannelType?.toUpperCase()} integration credentials are not configured in your environment yet. Please contact your system administrator to add Meta OAuth API keys.
-                  </p>
+          <div className="space-y-5 py-2">
+            {selectedChannelType === 'whatsapp' ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-emerald-700 font-bold text-sm">
+                  <Phone className="w-5 h-5" />
+                  <span>WhatsApp Cloud API Configuration</span>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-[#171717] mb-1">Phone Number ID</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 104829104820192"
+                      value={waPhoneNumberId}
+                      onChange={(e) => setWaPhoneNumberId(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[#171717] mb-1">WhatsApp Business Account ID</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 984729104820194"
+                      value={waBusinessAccountId}
+                      onChange={(e) => setWaBusinessAccountId(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[#171717] mb-1">System User Access Token</label>
+                    <input
+                      type="password"
+                      placeholder="EAAG..."
+                      value={waAccessToken}
+                      onChange={(e) => setWaAccessToken(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs font-mono"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="p-5 rounded-2xl bg-blue-50 border border-blue-200 space-y-3">
+                <div className="flex items-start gap-3">
+                  <MessageSquare className="w-6 h-6 text-blue-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <h3 className="font-extrabold text-sm text-blue-950">Meta OAuth Authentication</h3>
+                    <p className="text-xs text-blue-800 leading-relaxed">
+                      Connect your Meta Facebook Page or Instagram Business account to receive real-time direct messages in Xia Chat.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E8E8E5]">
               <button
                 onClick={() => setFlowState('selecting')}
                 className="px-4 py-2 rounded-xl border border-[#E8E8E5] hover:bg-[#FAF9F6] text-xs font-bold text-[#171717] cursor-pointer"
               >
                 Back to Channels
+              </button>
+              <button
+                onClick={() => setFlowState('success')}
+                className="px-5 py-2 rounded-xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold cursor-pointer"
+              >
+                Save Integration
               </button>
             </div>
           </div>
@@ -551,26 +608,15 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
         {/* SCREEN 3: SUCCESS STATE */}
         {flowState === 'success' && (
           <div className="space-y-6 text-center py-4">
-            <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-2xs">
               <CheckCircle2 className="w-6 h-6" />
             </div>
 
             <div className="space-y-1">
-              <h3 className="text-lg font-extrabold text-[#171717]">Channel Connected!</h3>
+              <h3 className="text-lg font-black text-[#171717]">Channel Connected!</h3>
               <p className="text-xs text-[#6B6B6B]">
-                Website Chat is now live and connected to your Xia Chat workspace.
+                Your channel is now active and routing customer conversations into Xia Chat.
               </p>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] max-w-sm mx-auto text-xs space-y-2 text-left">
-              <div className="flex justify-between">
-                <span className="text-[#6B6B6B]">Channel:</span>
-                <span className="font-bold text-[#171717]">Website Live Chat</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#6B6B6B]">Default AI Agent:</span>
-                <span className="font-bold text-[#171717]">Xia Support Assistant</span>
-              </div>
             </div>
 
             <div className="flex items-center justify-center gap-3 pt-2">
@@ -601,7 +647,7 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
             </div>
 
             <div className="space-y-1">
-              <h3 className="text-lg font-extrabold text-[#171717]">Couldn't connect this channel</h3>
+              <h3 className="text-lg font-black text-[#171717]">Couldn't Connect Channel</h3>
               <p className="text-xs text-[#6B6B6B]">{errorMessage || 'Something went wrong while setting up the channel configuration.'}</p>
             </div>
 

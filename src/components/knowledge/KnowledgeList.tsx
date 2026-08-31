@@ -18,7 +18,10 @@ import {
   AlertTriangle,
   Layers,
   Bot,
+  Database,
+  ArrowRight,
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface KnowledgeListProps {
   sources: KnowledgeSource[];
@@ -33,44 +36,44 @@ interface KnowledgeListProps {
 
 // Icon helper for source types
 function renderTypeIcon(type: string) {
-  switch (type.toUpperCase()) {
+  switch ((type || '').toUpperCase()) {
     case 'FAQ':
-      return <HelpCircle className="w-4 h-4 text-purple-600" />;
+      return <HelpCircle className="w-5 h-5 text-purple-600" />;
     case 'URL':
-      return <Globe className="w-4 h-4 text-blue-600" />;
+      return <Globe className="w-5 h-5 text-blue-600" />;
     case 'PDF':
     case 'DOCUMENT':
-      return <File className="w-4 h-4 text-emerald-600" />;
+      return <File className="w-5 h-5 text-emerald-600" />;
     default:
-      return <FileText className="w-4 h-4 text-[#FF8A2A]" />;
+      return <FileText className="w-5 h-5 text-[#FF8A2A]" />;
   }
 }
 
 // Status badge helper
 function renderStatusBadge(status: string) {
-  switch (status.toLowerCase()) {
+  switch ((status || '').toLowerCase()) {
     case 'ready':
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Ready
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black">
+          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Ready in RAG
         </span>
       );
     case 'processing':
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold animate-pulse">
-          <Clock className="w-3 h-3" /> Processing...
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-black animate-pulse">
+          <Clock className="w-3 h-3 text-amber-600" /> Vectorizing...
         </span>
       );
     case 'failed':
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 text-[10px] font-bold">
-          <AlertTriangle className="w-3 h-3" /> Failed
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 text-[10px] font-black">
+          <AlertTriangle className="w-3 h-3 text-red-600" /> Indexing Failed
         </span>
       );
     default:
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 text-[10px] font-bold">
-          Outdated
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200 text-[10px] font-black">
+          Pending
         </span>
       );
   }
@@ -89,36 +92,54 @@ export const KnowledgeList: React.FC<KnowledgeListProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [reprocessingId, setReprocessingId] = useState<string | null>(null);
 
   const filteredSources = sources.filter((s) => {
-    const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = typeFilter === 'all' || s.type.toLowerCase() === typeFilter.toLowerCase();
+    const matchesSearch = (s.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesType = typeFilter === 'all' || (s.type || '').toLowerCase() === typeFilter.toLowerCase();
     return matchesSearch && matchesType;
   });
 
+  const handleReprocess = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      setReprocessingId(id);
+      await onReprocessSource(id);
+    } finally {
+      setReprocessingId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header & Primary CTA */}
+      {/* ─────────────────────────────────────────────────────────────
+          1. TOP HEADER & ACTION BUTTONS
+         ───────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#171717] tracking-tight">Knowledge Base</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-black text-[#171717] tracking-tight">Knowledge Base & RAG</h1>
+            <span className="px-2.5 py-0.5 rounded-full bg-[#FFF0E5] text-[#D96512] text-xs font-black">
+              {stats.total} Sources
+            </span>
+          </div>
           <p className="text-xs sm:text-sm text-[#6B6B6B] mt-0.5">
-            Give your AI agents the information they need to answer customers accurately.
+            Ingest FAQs, documents, and websites into vector chunks for real-time AI semantic search.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2.5 self-start sm:self-auto">
           <button
             onClick={onOpenRAGDebugClick}
-            className="px-3.5 py-2.5 rounded-2xl border border-[#E8E8E5] bg-white hover:bg-[#FAF9F6] text-[#171717] text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+            className="px-3.5 py-2.5 rounded-xl border border-[#E8E8E5] bg-white hover:bg-[#FAF9F6] text-xs font-bold text-[#171717] flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
           >
             <Sparkles className="w-4 h-4 text-[#FF8A2A]" />
-            <span>Test RAG Search</span>
+            <span>RAG Query Debugger</span>
           </button>
 
           <button
             onClick={onAddKnowledgeClick}
-            className="px-4 py-2.5 rounded-2xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-xs shrink-0"
+            className="px-4 py-2.5 rounded-xl bg-[#FF8A2A] hover:bg-[#D96512] active:bg-[#C2550A] text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-sm hover:shadow-md"
           >
             <Plus className="w-4 h-4" />
             <span>Add Knowledge</span>
@@ -126,25 +147,17 @@ export const KnowledgeList: React.FC<KnowledgeListProps> = ({
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* ─────────────────────────────────────────────────────────────
+          2. METRICS STATS BAR
+         ───────────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
         <div className="bg-white p-4 rounded-3xl border border-[#E8E8E5] shadow-2xs flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-[#FFF0E5] text-[#FF8A2A] flex items-center justify-center font-bold">
             <BookOpen className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-[#6B6B6B]">Knowledge Sources</p>
-            <p className="text-xl font-extrabold text-[#171717]">{stats.ready} / {stats.total} Ready</p>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-3xl border border-[#E8E8E5] shadow-2xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
-            <Layers className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-[#6B6B6B]">Indexed Vector Chunks</p>
-            <p className="text-xl font-extrabold text-[#171717]">{stats.totalChunks} chunks</p>
+            <p className="text-[11px] font-semibold text-[#6B6B6B]">Total Sources</p>
+            <p className="text-xl font-black text-[#171717]">{stats.total}</p>
           </div>
         </div>
 
@@ -153,180 +166,216 @@ export const KnowledgeList: React.FC<KnowledgeListProps> = ({
             <CheckCircle2 className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-[#6B6B6B]">AI Knowledge Coverage</p>
-            <p className="text-xl font-extrabold text-[#171717]">100% Active</p>
+            <p className="text-[11px] font-semibold text-[#6B6B6B]">Ready in RAG</p>
+            <p className="text-xl font-black text-emerald-600">{stats.ready}</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-3xl border border-[#E8E8E5] shadow-2xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+            <Layers className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold text-[#6B6B6B]">Vector Chunks</p>
+            <p className="text-xl font-black text-[#171717]">{stats.totalChunks}</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-3xl border border-[#E8E8E5] shadow-2xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+            <Bot className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold text-[#6B6B6B]">Connected Agents</p>
+            <p className="text-xl font-black text-[#171717]">All Active</p>
           </div>
         </div>
       </div>
 
-      {/* Search & Type Filters */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+      {/* ─────────────────────────────────────────────────────────────
+          3. SEARCH & TYPE FILTER CONTROLS
+         ───────────────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-2 rounded-2xl border border-[#E8E8E5] shadow-2xs">
         <div className="relative w-full sm:w-80">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search knowledge sources..."
+            placeholder="Search documents, FAQs, URLs..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-white border border-[#E8E8E5] rounded-2xl text-xs text-[#171717] placeholder:text-gray-400 focus:outline-none focus:border-[#FF8A2A] focus:ring-2 focus:ring-[#FF8A2A]/20 transition-all"
+            className="w-full pl-9 pr-4 py-2 bg-[#FAF9F6] focus:bg-white border border-[#E8E8E5] rounded-xl text-xs text-[#171717] placeholder:text-gray-400 focus:outline-none focus:border-[#FF8A2A] focus:ring-2 focus:ring-[#FF8A2A]/15 transition-all"
           />
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar self-end sm:self-auto">
-          {(['all', 'text', 'faq', 'url', 'pdf', 'document'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTypeFilter(t)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase transition-all cursor-pointer ${
-                typeFilter === t
-                  ? 'bg-[#171717] text-white shadow-2xs'
-                  : 'bg-white border border-[#E8E8E5] text-[#6B6B6B] hover:text-[#171717]'
-              }`}
-            >
-              {t}
-            </button>
-          ))}
+        <div className="flex items-center gap-1 self-stretch sm:self-auto overflow-x-auto no-scrollbar">
+          {[
+            { id: 'all', label: 'All Types' },
+            { id: 'faq', label: 'FAQs' },
+            { id: 'url', label: 'Websites' },
+            { id: 'pdf', label: 'Documents' },
+            { id: 'text', label: 'Text' },
+          ].map((t) => {
+            const isSelected = typeFilter === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setTypeFilter(t.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-[#171717] text-white shadow-2xs'
+                    : 'text-[#6B6B6B] hover:text-[#171717] hover:bg-[#FAF9F6]'
+                }`}
+              >
+                {t.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Sources List / Table View */}
+      {/* ─────────────────────────────────────────────────────────────
+          4. KNOWLEDGE CARDS GRID
+         ───────────────────────────────────────────────────────────── */}
       {isLoading ? (
-        <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 space-y-4 animate-pulse">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-12 bg-gray-100 rounded-2xl" />
-          ))}
+        <div className="p-16 text-center space-y-3 bg-white rounded-3xl border border-[#E8E8E5]">
+          <div className="w-7 h-7 border-2 border-[#FF8A2A] border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs text-[#6B6B6B] font-medium">Loading knowledge index...</p>
         </div>
       ) : filteredSources.length === 0 ? (
-        <div className="bg-white rounded-3xl border border-[#E8E8E5] p-12 text-center space-y-4 shadow-2xs">
-          <div className="w-16 h-16 rounded-3xl bg-[#FFF0E5] text-[#FF8A2A] flex items-center justify-center mx-auto">
-            <BookOpen className="w-8 h-8" />
+        <div className="p-16 text-center space-y-4 bg-white rounded-3xl border border-[#E8E8E5]">
+          <div className="w-14 h-14 rounded-3xl bg-[#FFF0E5] text-[#FF8A2A] flex items-center justify-center mx-auto shadow-2xs">
+            <BookOpen className="w-7 h-7" />
           </div>
-          <div className="space-y-1 max-w-md mx-auto">
-            <h3 className="text-lg font-extrabold text-[#171717]">Build your AI's knowledge</h3>
-            <p className="text-xs text-[#6B6B6B]">
-              Add your FAQs, policies, product information, and website content so your AI agents can answer customers with confidence.
+          <div className="space-y-1">
+            <h3 className="text-base font-black text-[#171717]">No Knowledge Sources Found</h3>
+            <p className="text-xs text-[#6B6B6B] max-w-sm mx-auto leading-relaxed">
+              Add FAQs, website URLs, or company documents to train your AI assistants on accurate customer responses.
             </p>
           </div>
           <button
             onClick={onAddKnowledgeClick}
-            className="px-5 py-2.5 rounded-2xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold inline-flex items-center gap-2 transition-all cursor-pointer shadow-2xs"
+            className="px-4 py-2 rounded-xl bg-[#FF8A2A] text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
-            <span>Add Knowledge</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Knowledge Source</span>
           </button>
         </div>
       ) : (
-        <div className="bg-white rounded-3xl border border-[#E8E8E5] shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-[#171717]">
-              <thead className="bg-[#FAF9F6] border-b border-[#E8E8E5] text-[11px] font-extrabold text-[#6B6B6B] uppercase tracking-wider">
-                <tr>
-                  <th className="p-4">Knowledge Source</th>
-                  <th className="p-4">Type</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4">Chunks</th>
-                  <th className="p-4">Connected Agents</th>
-                  <th className="p-4">Last Updated</th>
-                  <th className="p-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E8E8E5]/70">
-                {filteredSources.map((source) => {
-                  const isMenuOpen = activeMenuId === source.id;
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredSources.map((source) => {
+            const isReprocessing = reprocessingId === source.id;
 
-                  return (
-                    <tr key={source.id} className="hover:bg-[#FAF9F6] transition-colors">
-                      <td className="p-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-[#FAF9F6] border border-[#E8E8E5] flex items-center justify-center shrink-0">
-                            {renderTypeIcon(source.type)}
-                          </div>
-                          <div>
-                            <button
-                              onClick={() => onSelectSource(source.id)}
-                              className="font-extrabold text-xs text-[#171717] hover:text-[#FF8A2A] text-left transition-colors cursor-pointer block"
-                            >
-                              {source.name}
-                            </button>
-                            {source.originalUrl && (
-                              <p className="text-[10px] text-[#6B6B6B] truncate max-w-xs">{source.originalUrl}</p>
-                            )}
-                          </div>
-                        </div>
-                      </td>
+            return (
+              <div
+                key={source.id}
+                onClick={() => onSelectSource(source.id)}
+                className="bg-white rounded-3xl border border-[#E8E8E5] p-5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.06)] hover:border-gray-300 transition-all flex flex-col justify-between cursor-pointer group relative"
+              >
+                <div>
+                  {/* Top Bar: Icon + Status + Dropdown */}
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
+                        {renderTypeIcon(source.type)}
+                      </div>
 
-                      <td className="p-4">
-                        <span className="px-2.5 py-1 rounded-xl bg-gray-100 border border-[#E8E8E5] text-[11px] font-bold">
-                          {source.type}
-                        </span>
-                      </td>
+                      <div>
+                        <h3 className="font-black text-sm text-[#171717] line-clamp-1 group-hover:text-[#FF8A2A] transition-colors">
+                          {source.name}
+                        </h3>
+                        <p className="text-[10px] text-gray-400 font-mono mt-0.5">
+                          {source.type.toUpperCase()} · Ingested by {source.createdBy || 'Admin'}
+                        </p>
+                      </div>
+                    </div>
 
-                      <td className="p-4">{renderStatusBadge(source.status)}</td>
+                    {/* Action Menu */}
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => setActiveMenuId(activeMenuId === source.id ? null : source.id)}
+                        className="p-1.5 text-gray-400 hover:text-[#171717] rounded-lg hover:bg-gray-100 transition-colors"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
 
-                      <td className="p-4 font-bold text-[#171717]">{source.chunkCount} chunks</td>
-
-                      <td className="p-4">
-                        <span className="inline-flex items-center gap-1 font-semibold text-[#6B6B6B]">
-                          <Bot className="w-3.5 h-3.5 text-[#FF8A2A]" /> 2 Agents
-                        </span>
-                      </td>
-
-                      <td className="p-4 text-[#6B6B6B]">
-                        {new Date(source.updatedAt || source.createdAt).toLocaleDateString()}
-                      </td>
-
-                      <td className="p-4 text-right">
-                        <div className="relative inline-block text-left">
+                      {activeMenuId === source.id && (
+                        <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-[#E8E8E5] rounded-2xl shadow-xl p-1.5 z-30 space-y-0.5">
                           <button
-                            onClick={() => setActiveMenuId(isMenuOpen ? null : source.id)}
-                            className="p-1.5 rounded-xl text-gray-400 hover:text-[#171717] hover:bg-[#FAF9F6] transition-colors cursor-pointer"
+                            onClick={(e) => {
+                              handleReprocess(source.id, e);
+                              setActiveMenuId(null);
+                            }}
+                            className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold text-[#171717] hover:bg-[#FAF9F6] flex items-center gap-2 cursor-pointer"
                           >
-                            <MoreVertical className="w-4 h-4" />
+                            <RotateCcw className="w-3.5 h-3.5 text-[#FF8A2A]" />
+                            <span>Reprocess Chunks</span>
                           </button>
 
-                          {isMenuOpen && (
-                            <div className="absolute right-0 top-full mt-1.5 w-44 bg-white border border-[#E8E8E5] rounded-2xl shadow-lg p-1.5 z-20 space-y-1 text-left">
-                              <button
-                                onClick={() => {
-                                  onSelectSource(source.id);
-                                  setActiveMenuId(null);
-                                }}
-                                className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold text-[#171717] hover:bg-[#FFF0E5] hover:text-[#FF8A2A] flex items-center gap-2 transition-colors cursor-pointer"
-                              >
-                                <ExternalLink className="w-3.5 h-3.5" /> View / Edit
-                              </button>
+                          <div className="border-t border-[#E8E8E5] my-1" />
 
-                              <button
-                                onClick={() => {
-                                  onReprocessSource(source.id);
-                                  setActiveMenuId(null);
-                                }}
-                                className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold text-[#171717] hover:bg-[#FAF9F6] flex items-center gap-2 transition-colors cursor-pointer"
-                              >
-                                <RotateCcw className="w-3.5 h-3.5 text-gray-500" /> Re-process
-                              </button>
-
-                              <div className="border-t border-[#E8E8E5] my-1" />
-
-                              <button
-                                onClick={() => {
-                                  onDeleteSourceClick(source);
-                                  setActiveMenuId(null);
-                                }}
-                                className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" /> Delete
-                              </button>
-                            </div>
-                          )}
+                          <button
+                            onClick={() => {
+                              onDeleteSourceClick(source);
+                              setActiveMenuId(null);
+                            }}
+                            className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete Source</span>
+                          </button>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Status & Chunk Badges */}
+                  <div className="flex items-center gap-2 flex-wrap mb-4">
+                    {renderStatusBadge(source.status)}
+                    <span className="px-2 py-0.5 rounded-md bg-[#FAF9F6] border border-[#E8E8E5] text-[10px] font-bold text-[#6B6B6B] flex items-center gap-1">
+                      <Layers className="w-2.5 h-2.5 text-[#FF8A2A]" />
+                      <span>{source.chunkCount || 0} Vector Chunks</span>
+                    </span>
+                  </div>
+
+                  {/* Source Preview snippet / URL */}
+                  {source.originalUrl ? (
+                    <p className="text-xs text-blue-600 truncate font-mono bg-blue-50/50 p-2 rounded-xl border border-blue-100 mb-3">
+                      {source.originalUrl}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-[#6B6B6B] line-clamp-2 leading-relaxed mb-3">
+                      {typeof source.content === 'string'
+                        ? source.content.slice(0, 120)
+                        : `${(source.content || []).length} Q&A Pairs indexed.`}
+                    </p>
+                  )}
+                </div>
+
+                {/* Footer Controls */}
+                <div className="pt-3 border-t border-[#E8E8E5] flex items-center justify-between">
+                  <span className="text-[10px] text-gray-400 font-mono">
+                    {new Date(source.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => handleReprocess(source.id, e)}
+                      disabled={isReprocessing}
+                      className="p-1.5 text-gray-400 hover:text-[#FF8A2A] rounded-lg transition-colors cursor-pointer"
+                      title="Reprocess Source"
+                    >
+                      <RotateCcw className={`w-3.5 h-3.5 ${isReprocessing ? 'animate-spin text-[#FF8A2A]' : ''}`} />
+                    </button>
+
+                    <span className="text-xs font-bold text-[#FF8A2A] group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                      <span>View Chunks</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

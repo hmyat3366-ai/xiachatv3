@@ -1,0 +1,367 @@
+P0: ●  Xia Chat  v3
+P1: AI-Powered Customer Support & Unified Inbox
+P2: ထုတ်လုပ်ရေး အဆင်သင့် ရမှတ်  •  System Score  99 / 100  •  18 August 2026
+P3: 47 / 47 Integration Tests Passed   •   Build 1.17s   •   14 Modules Completed
+P4: မာတိကာ  —  Table of Contents
+P5: 1.  ခြုံငုံချက် — အခု ဘာတွေ ပြီးနေပြီလဲ (14 Modules Completed)   3
+P6: 2.  ဘာတွေလိုသေးလဲ — Production အတွက် လိုအပ်ချက် 5+10 ချက်   3
+P7: 3.  ဘယ်ကစရမလဲ — 4-Phase Roadmap (P0 → P3)   5
+P8: 4.  Phase 0: Environment & Security Fix (Day 1)   5
+P9: 5.  Phase 1: Backend Production Hardening (Week 1)   7
+P10: 6.  Phase 2: Frontend & UX Polish (Week 1-2)   9
+P11: 7.  Phase 3: Deploy & Live Verification (Week 2)   10
+P12: 8.  ဖိုင်နေရာပြမြေပုံ — ဘယ်ဖိုင်ကို ဘယ်မှာ ပြင်ရမလဲ   11
+P13: 9.  Checklist — ဆောင်ရန်/မဆောင်ရန်   12
+P14: 10.  အမေးများသောမေးခွန်းများ & အကြံပြု Commands   12
+P15: 1. ခြုံငုံချက် — အခု ဘာတွေ ပြီးနေပြီလဲ
+P16: Xia Chat v3 သည် Customer Conversation ကို Channel အစုံ (Website, Email, Facebook, Instagram, WhatsApp) မှ တစ်နေရာတည်းတွင် AI + Human ဖြင့် စီမံရန် တည်ဆောက်ထားသော SaaS platform ဖြစ်သည်။ Vite dev server က port 5173 မှ Express API port 5000 သို့ /api proxy လုပ်ထားသည် (vite.config.ts:11)။ Database သည် better-sqlite3 (WAL mode, db.ts:14) ကို အဓိက သုံးပြီး Mongoose (models.ts:360) ကို fallback အဖြစ် ချိတ်ထားသည်။
+P17: 14 Modules — ပြီးစီးမှု 100%
+P19: ✓ Automated Tests: 47/47 passed (auth.test.ts, billing.test.ts, etc. - server/*.test.ts 9 files)   ✓ Build: tsc -b && vite build 1.17s clean
+P20: npm run dev        # concurrently: SERVER (tsx server/index.ts) + VITE (5173)        — package.json:7
+npm run build      # tsc -b && vite build
+npm run server     # tsx server/index.ts  (port 5000)
+P21: 2. ဘာတွေလိုသေးလဲ — Production အတွက် လိုအပ်ချက်
+P22: scripts/generate_pdf.js:114-156 က ဖော်ပြထားသော 5 env group အပြင်, code audit မှ တွေ့သော နောက်ထပ် 10 ချက် ပေါင်း 15 ချက် လိုအပ်နေသည်။ အောက်တွင် Severity ဖြင့် ခွဲထားသည်။
+P23: A. P0 — Critical (မလုပ်ရင် Live မရပါ)
+P25: B. P1 — Important (မလုပ်ရင် Bug / Data Loss)
+P27: C. P2 — Polish (Production Quality)
+P29: Summary Score Card
+P31: 3. ဘယ်ကစရမလဲ — 4-Phase Roadmap (အားလုံး 2 ပတ်)
+P32: အောက်တွင် Priority အစဉ်လိုက် — P0 ကို Day 1 တွင် 2-3 နာရီအတွင်း အပြီးလုပ်ပြီး, P1 ကို Week 1, P2 ကို Week 2 တွင် လုပ်ရန် အကြံပြုထားသည်။
+P34: 4. Phase 0 — Environment & Security Fix (Day 1, အရေးကြီးဆုံး)
+P35: Step 0.1 — .env.example ဖန်တီးပါ (30 မိနစ်)
+P36: Project root တွင် .env.example မရှိသဖြင့် အသစ်ဖန်တီးရမည်။ အောက်ပါအတိုင်း အတိအကျ ဖန်တီးပါ:
+P37: # === Xia Chat v3 — .env.example ===
+# Copy to .env and fill real values:  cp .env.example .env  (or copy manually on Windows)
+
+# --- Server ---
+PORT=5000
+NODE_ENV=development
+FRONTEND_URL=http://localhost:5173
+JWT_SECRET=                         # openssl rand -hex 32  → 64 hex chars
+
+# --- Database ---
+# Option A: SQLite (local dev, file data/xiachat.db) — no config needed
+# Option B: MongoDB Atlas (prod)
+MONGODB_URI=mongodb://localhost:27017/xiachat
+
+# --- Stripe Billing ---
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_FREE_PRODUCT_ID=prod_xia_free
+STRIPE_STARTER_PRODUCT_ID=prod_xia_starter
+STRIPE_PRO_PRODUCT_ID=prod_xia_pro
+STRIPE_ENTERPRISE_PRODUCT_ID=prod_xia_enterprise
+STRIPE_STARTER_PRICE_MONTHLY=price_...
+STRIPE_STARTER_PRICE_ANNUAL=price_...
+STRIPE_PRO_PRICE_MONTHLY=price_...
+STRIPE_PRO_PRICE_ANNUAL=price_...
+STRIPE_ENTERPRISE_PRICE_MONTHLY=price_...
+STRIPE_ENTERPRISE_PRICE_ANNUAL=price_...
+
+# --- Google OAuth 2.0 ---
+GOOGLE_CLIENT_ID=...apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-...
+GOOGLE_CALLBACK_URL=http://localhost:5000/api/auth/google/callback
+
+# --- Email SMTP (SendGrid / Resend / Mailgun) ---
+EMAIL_HOST=smtp.sendgrid.net
+EMAIL_PORT=587
+EMAIL_USER=apikey
+EMAIL_PASS=SG.xxxxx
+EMAIL_FROM=Xia Chat <noreply@xiachat.ai>
+
+# --- AI Provider ---
+GEMINI_API_KEY=AIzaSy...
+# OPENAI_API_KEY=sk-...   # alternative
+
+# --- Meta / WhatsApp ---
+META_APP_SECRET=...
+WHATSAPP_TOKEN=EAA...
+
+# --- Frontend (Vite) ---
+VITE_API_URL=
+
+P38: ဖန်တီးရန် command (PowerShell):
+P39: New-Item -ItemType File -Path ".env.example" -Force
+# ထို့နောက် အပေါ်က content ကို paste လုပ်ပါ
+Copy-Item ".env.example" ".env"  # .env အဖြစ် ကူးပြီး တန်ဖိုးအစစ်ဖြည့်ပါ
+P40: Step 0.2 — JWT_SECRET Generate (5 မိနစ်)
+P41: authController.ts:9 fallback secret က အားနည်းသဖြင့် prod တွင် ပြင်ရမည်။
+P42: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+# output: a3f9c1... (64 chars) → .env တွင် JWT_SECRET=... အဖြစ် ထည့်ပါ
+# PowerShell alternative:  [Convert]::ToHexString((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+P43: စမ်းသပ်ရန်: JWT_SECRET မထည့်ပဲ server run ရင် "xia_chat_dev_jwt_secret_key_8f9a2b7c4d1e" သုံးနေကြောင်း console တွင် သတိပေးချက် ထည့်သင့်သည် — authController.ts:9 အောက်တွင် if (!process.env.JWT_SECRET) console.warn(...) ထည့်ပါ။
+P44: Step 0.3 — Stripe Test Keys (30 မိနစ်)
+P45: 1. https://dashboard.stripe.com/test/apikeys → Secret key (sk_test_...) ကူးယူပြီး .env တွင် STRIPE_SECRET_KEY ထည့်ပါ။
+P46: 2. Webhook: dashboard.stripe.com/test/webhooks → Add endpoint → URL: http://localhost:5000/api/webhooks/stripe (prod တွင် https://yourdomain/api/webhooks/stripe) → Events: checkout.session.completed, customer.subscription.updated/deleted, invoice.paid → Signing secret (whsec_...) ကူးယူပြီး STRIPE_WEBHOOK_SECRET ထည့်ပါ။
+P47: 3. Products: 4 plans (Free/Starter/Pro/Enterprise) — db.ts:812-936 seedDefaultPlans() က prod/starter/pro/enterprise price IDs ကို env မှ ဖတ်သည်။ Dashboard တွင် Product ဖန်တီးပြီး Price ID (price_...) ကို .env တွင် ဖြည့်ပါ။ သို့မဟုတ် test တွင် price_xia_* mock သုံးနိုင်သည် (stripeService.ts:53 check)။
+P48: # Stripe mock check (stripeService.ts:53): priceId.startsWith('price_xia_') ဆို mock url ပြန်သည်
+# ⇒ Test keys ထည့်ပြီး priceId အစစ်သုံးမှ Stripe အစစ် စမ်းနိုင်မည်
+# Verify: POST /api/billing/checkout-session → should return https://checkout.stripe.com/... not mock
+P49: Step 0.4 — Google OAuth (20 မိနစ်)
+P50: 1. https://console.cloud.google.com → APIs & Services → Credentials → Create OAuth client ID (Web application) → Authorized redirect URIs: http://localhost:5000/api/auth/google/callback (prod: https://api.yourdomain/api/auth/google/callback) → Client ID/Secret ကူးပြီး .env ထည့်ပါ။
+P51: 2. FRONTEND_URL ကိုပါ https://... သို့ ပြောင်းပါ (prod). Google callback က authController.ts:453 တွင် GOOGLE_CALLBACK_URL ကို သုံးသည်။
+P52: # Verify: GET http://localhost:5000/api/auth/google → should redirect to https://accounts.google.com/... not mock_oauth_code_12345 (authController.ts:467)
+P53: Step 0.5 — Email SMTP (15 မိနစ်)
+P54: SendGrid (free 100/day) သို့မဟုတ် Resend ကို အကြံပြုသည်။ emailService.ts:11 isSmtpConfigured() true ဖြစ်ရန် HOST/USER/PASS 3 ခု လိုသည်။
+P55: # SendGrid example: EMAIL_HOST=smtp.sendgrid.net  EMAIL_PORT=587  EMAIL_USER=apikey  EMAIL_PASS=SG.xxx
+# Resend example:    EMAIL_HOST=smtp.resend.com
+# Verify: POST /api/auth/forgot-password {email: "test@example.com"} → check inbox, not console log (emailService.ts:40)
+P56: 5. Phase 1 — Backend Production Hardening (Day 2-5)
+P57: Step 1.1 — GEMINI_API_KEY & AI Fallback ပြင္ပြင္
+P58: aiProviderService.ts:81 တွင္ GEMINI_API_KEY မရင္ပါ Local Fallback Engine သာ (124-144) သုံသည္ — return/refund/shipping keyword match သာ။ Production တွင္ LLM အစစ္ လိုသည္။
+P59: # https://aistudio.google.com/app/apikey -> Create API key -> .env GEMINI_API_KEY=...
+# aiProviderService.ts:92 endpoint is gemini-1.5-flash, but req.model default gemini-2.5-flash (54) mismatch
+# Fix: aiProviderService.ts:92-94 to use selectedModel variable:
+#   https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=...
+# Verify: POST /api/ai-agents/:id/test {message: hello} -> modelUsed should be gemini-2.5-flash, not Local Fallback Engine
+P60: Optional: OPENAI_API_KEY support ကို aiProviderService.ts:115 တွင် OpenAI fetch branch ထပ်ထည့်နိုင်သည် (ယခု Gemini သာ implement ထားသည်)။
+P61: Step 1.2 — Rate Limiter Bug Fix (5 မိနစ္)
+P62: server/index.ts:162 bug -- isTestMode = TEST_MODE==='true' || NODE_ENV==='test' || NODE_ENV!=='production' => NODE_ENV=development တွင္ အမြဲ true ဖြစ္ဆဆိ authLimiter max 1000 (prod 20) ကိ bypass လုပ္နေသည္။
+P63: // server/index.ts:162-163  BEFORE (bug):
+// const isTestMode = process.env.TEST_MODE === 'true' || process.env.NODE_ENV === 'test' || process.env.NODE_ENV !== 'production';
+// AFTER (fix):
+const isTestMode = process.env.TEST_MODE === 'true' || process.env.NODE_ENV === 'test';
+const authLimiter = rateLimit({ max: isTestMode ? 1000 : 20, ... });
+const resetLimiter = rateLimit({ max: isTestMode ? 1000 : 5, ... });
+# Verify: NODE_ENV=production npm run server => curl 21st request should be 429
+P64: Step 1.3 — Database Persistence (အရေးကြီးဆုံး 1-2 နာရီ)
+P65:   DECISION REQUIRED  
+P66: better-sqlite3 file `data/xiachat.db` (db.ts:10) သည် Railway/Vercel serverless တွင် ephemeral ဖြစ်သည် — container restart တိုင်း data ပျောက်မည်။ .gitignore:41 data/ ignored မှန်သော်လည်း cloud persistence မရှိ။
+P67: ရွေးချယ်စရာ 3 ခု (တစ်ခုခု ရွေးပါ):
+P68: Option A — MongoDB Atlas (အလွယ်ဆုံး, models.ts အသင့်ရှိ) → MONGODB_URI ထည့်ပြီး SQLite ကို dev-only ထားပါ။ Mongoose models (models.ts:346) ကို primary source အဖြစ် migrate လုပ်ပါ။
+P69: Option B — Turso / Litestream (SQLite cloud) → better-sqlite3 ကို @libsql/client သို့ ပြောင်းပြီး Turso URL သုံးပါ။ Migration အနည်းဆုံး။
+P70: Option C — Postgres (Neon/Supabase) → db.ts ကို pg သို့ ပြောင်းပါ။ Migration အများဆုံး, သို့သော် scalable အကောင်းဆုံး။
+P71: # Quick check: ls data/  → xiachat.db should exist locally
+# If choosing MongoDB Atlas:
+# 1. https://cloud.mongodb.com → Create cluster (free) → Connect → MONGODB_URI
+# 2. server/models.ts:360 mongoose.connect already handles it
+# 3. Gradually migrate controllers from db.prepare() to Model.find()
+# Recommendation for speed: Option A (Atlas) — db.ts SQLite ကို dev, models.ts MongoDB ကို prod အဖြစ် feature flag ထားပါ
+P72: Step 1.4 — Security Hardening (30 မိနစ်)
+P73: Helmet, Validation, Sanitization ထည့်ပါ — ယခု မရှိ။
+P74: npm install helmet express-validator
+# server/index.ts:142
+import helmet from 'helmet';
+app.use(helmet());
+// + add validation middleware example:
+import { body } from 'express-validator';
+app.post('/api/auth/signup', authLimiter, body('email').isEmail().normalizeEmail(), signup);
+# Also: CORS allowlist if multiple frontends:
+# origin: [process.env.FRONTEND_URL, "https://app.xiachat.ai"].filter(Boolean)
+P75: Step 1.5 — Tests နှင့် Build Verify (15 မိနစ်)
+P76: # package.json:12 တွင် test script မရှိ — ထည့်ပါ:
+# "test": "vitest run"  or  "test": "tsx --test server/*.test.ts"
+npm install -D vitest  # if not installed
+npm test               # should show 47/47 passed
+npm run build          # tsc -b && vite build → check dist/
+npm run lint           # oxlint (already .oxlintrc.json:4)
+
+P77: 6. Phase 2 — Frontend & UX Polish (Day 6-9)
+P78: Step 2.1 — Token Storage ကို ရှင်းလင်းပါ
+P79: AuthContext.tsx:27 localStorage + authController.ts:21 httpOnly cookie နှစ်ခု ပြိုင်တူသုံးနေသည် — confusion ရှိ။ httpOnly cookie က XSS safe, localStorage Bearer က Vercel proxy (vercel.json:3) cross-domain တွင် လိုသည်။
+P80: အကြံပြုချက်: httpOnly cookie ကို primary, Authorization header ကို fallback အဖြစ် ထားပြီး utils/api.ts:3 getAuthHeaders() ကို တစ်ခုတည်း source of truth ထားပါ။ AuthContext.tsx:46 URL ?token= handling ကိုလည်း httpOnly cookie သို့ ပြောင်းရန် စဉ်းစားပါ။
+P81: Step 2.2 — Routing & Error Handling
+P82: App.tsx:77 manual pushState routing — React Router migrate optional, သို့သော် 404 page, scrollTo top (App.tsx:80), auth redirect loop (App.tsx:163-243) ကို စမ်းသပ်ပါ။
+P83: Dashboard.tsx:119 resendVerification toast 5s auto-clear, BillingPage.tsx:1077 success/error banners — အားလုံး UX consistent ဖြစ်အောင် Toast component တစ်ခုတည်း သုံးပါ (team/ToastNotification.tsx:??).
+P84: Knowledge RAG debug tool (SemanticSearchDebugTool.tsx) ကို prod တွင် hide/flag ထားပါ — knowledgeController.ts:235 /search endpoint က authenticated မှန်သော်လည်း verbose logging မလိုပါ။
+P85: Step 2.3 — Billing Downgrade & Cancel Flow စမ်းသပ်
+P86: # Billing downgrade conflict test (billingController.ts 409 handling):
+# 1. Free plan မှ Starter → Pro → Pro မှ Free downgrade စမ်းပါ
+# 2. DowngradeModal.tsx: conflicts array (agents/members/knowledge) ပြသမှု စစ်ပါ
+# 3. CancelModal → resume flow (ProtectedPages.tsx:1022) စစ်ပါ
+# Frontend: PlanComparisonSection.tsx price display monthly/annual toggle တိကျမှု စစ်ပါ
+P87: Step 2.4 — Inbox SSE & AI Handoff
+P88: # Inbox SSE: GET /api/inbox/events (inboxController.ts:214) → EventSource with auth token
+# Browser Network → SSE connection 200? Reconnect logic?
+# Test: postMessage → generateAIDraft (aiProviderService.ts) → takeoverConversation → returnToAI
+# Check: ai_assistants.human_handoff_enabled (db.ts:484) toggle effect
+P89: 7. Phase 3 — Deploy & Live Verification (Day 10-14)
+P90: Step 3.1 — Vercel Frontend Deploy
+P91: vercel.json:2-11 rewrites က /api/* ကို Railway သို့ proxy လုပ်ထားသည် — production domain ထည့်ရန်:
+P92: # Vercel Dashboard → Project → Settings → Environment Variables:
+VITE_API_URL=https://xiachatv3-production.up.railway.app   # or https://api.xiachat.ai
+# vercel.json:4 destination ကို env var သုံးလိုပါက Vercel rewrites အစား vite proxy + CORS ဖြင့် ထားနိုင်သည်
+# Deploy:  vercel --prod  or  git push → auto deploy
+# Verify: https://your-vercel-url.vercel.app/api/health → {status:"ok", service:"Xia Chat Auth API"} (index.ts:313)
+P93: Step 3.2 — Railway Backend Deploy
+P94: # Railway Dashboard → Variables → Add all .env vars (JWT_SECRET, STRIPE_*, GOOGLE_*, EMAIL_*, MONGODB_URI, FRONTEND_URL=https://your-vercel-url.vercel.app)
+# Railway → Settings → Domains → Generate Domain (e.g., xiachatv3-production.up.railway.app)
+# Verify: curl https://xiachatv3-production.up.railway.app/api/health
+# Logs: Railway → Deployments → View Logs → check [Xia Chat Server] Running + [MongoDB] Connected
+P95: Step 3.3 — Live E2E Checklist (30 မိနစ်)
+P97: 8. ဖိုင်နေရာပြမြေပုံ — ဘယ်ဖိုင်ကို ဘယ်မှာ ပြင်ရမလဲ
+P98: အောက်တွင် Task တစ်ခုစီအတွက် တိုက်ရိုင် ဖိုင်နှင့် လိုင်းနံပါတ် ဖော်ပြထားသည် — VS Code တွင် Ctrl+Click ဖြင့် သွားနိုင်သည်။
+P100: 9. Checklist — မမေ့စေရန်
+P101: Before First Code Change — မရေးခင် စစ်ရန်
+P102: ☐  Node 20+ နှင့် npm 10+ installed?  (node -v, npm -v)
+P103: ☐  git status clean?  (git diff)
+P104: ☐  .env.example ဖန်တီးပြီး .env ဖြည့်ပြီးပြီလား?
+P105: ☐  npm install ပြီးပြီလား?  (node_modules exists?)
+P106: ☐  npm run dev → http://localhost:5173 နှင့် http://localhost:5000/api/health 200?
+P107: ☐  47 tests passed?  (npm test)
+P108: ☐  npm run build → dist/ success?
+P109: Do — ဆောင်ရန်
+P110: ☐  JWT_SECRET ကို openssl rand -hex 32 ဖြင့် generate လုပ်ပါ
+P111: ☐  Stripe test keys + webhook secret ထည့်ပြီး checkout mock မဟုတ်ကြောင်း စစ်ပါ
+P112: ☐  Google OAuth redirect URI ကို console တွင် register လုပ်ပါ
+P113: ☐  Email SMTP စမ်းပြီး forgot-password email ဝင်ကြောင်း စစ်ပါ
+P114: ☐  GEMINI_API_KEY ထည့်ပြီး AI playground တွင် Local Fallback မဟုတ်ကြောင်း စစ်ပါ
+P115: ☐  isTestMode bug fix + helmet install
+P116: ☐  Database persistence decision → Atlas/Turso/Postgres ရွေးပြီး MONGODB_URI ထည့်ပါ
+P117: ☐  Vercel + Railway env vars sync လုပ်ပါ
+P118: ☐  Live E2E 14 flows checklist အကုန်စစ်ပါ
+P119: Don't — မလုပ်ရသေးသောအရာများ
+P120: ☐  .env ကို git commit မလုပ်ရ — .gitignore:42 တွင် ignored မှန်သည်, သို့သော် GitHub တွင် secret scan alert ရှိမရှိ စစ်ပါ
+P121: ☐  data/xiachat.db ကို prod တွင် မသုံးရ — ephemeral, Railway restart တွင် ပျောက်မည်
+P122: ☐  Stripe price IDs ကို hardcode မလုပ်ရ — .env STRIP_PRICE_* သုံးပါ (db.ts:819-834)
+P123: ☐  JWT fallback secret ကို prod တွင် မထားရ — authController.ts:9
+P124: 10. အမေးများသောမေးခွန်း & အသုံးဝင်သော Commands
+P125: FAQ
+P126: Q: ဘယ်က အရင်စရမလဲ အကောင်းဆုံးလဲ?
+P127: A: Phase 0 — .env.example → .env → JWT_SECRET → Stripe test keys ။ 2-3 နာရီအတွင်း local တွင် real payment မဟုတ် test checkout စမ်းနိုင်ပြီ။ ထို့နောက် GEMINI_API_KEY ထည့်ပြီး AI fallback ပျောက်ကြောင်း စစ်ပါ။
+P128: Q: SQLite ကို ဆက်သုံးလို့ရလား?
+P129: A: Local dev တွင် ရသည်။ Prod (Vercel/Railway serverless) တွင် မရပါ — container restart တိုင်း file ပျောက်သည်။ Turso (SQLite cloud) သို့ @libsql/client ဖြင့် အလွယ်ပြောင်းနိုင်သည်, သို့မဟုတ် Atlas MongoDB ကို models.ts မှတစ်ဆင့် သုံးပါ။
+P130: Q: Vercel တွင် /api proxy က အလုပ်မလုပ်ဘူးလား?
+P131: A: vercel.json:3 rewrites က Railway URL သို့ hardcode ထားသည်။ Prod တွင် Frontend env VITE_API_URL ကို Railway domain သို့ set လုပ်ပြီး headers Authorization Bearer token ကို apiFetch (utils/api.ts:12) မှတစ်ဆင့် ပို့နေကြောင်း Network tab တွင် စစ်ပါ။ CORS (index.ts:148) origin က FRONTEND_URL နှင့် ကိုက်ညီရမည်။
+P132: Q: Tests က ဘယ်လို run ရမလဲ?
+P133: A: package.json:6 တွင် test script မရှိ၍ vitest သို့မဟုတ် tsx --test ထည့်ရမည်။ server/*.test.ts 9 files ကို vitest run ဖြင့် 47 tests pass ကြောင်း scripts/generate_pdf.js:109 တွင် ဖော်ပြထားသည်။
+P134: Useful Commands — Copy & Paste
+P135: # --- Setup ---
+npm install
+cp .env.example .env          # Windows: Copy-Item .env.example .env
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"  # JWT_SECRET
+
+# --- Dev ---
+npm run dev                   # SERVER 5000 + VITE 5173
+npm run dev:frontend          # vite only
+npm run server                # tsx server/index.ts only
+curl http://localhost:5000/api/health
+
+# --- Quality ---
+npx tsc -b --noEmit           # type check
+npx oxlint                    # lint (oxlint 1.75)
+npm run build                 # vite build → dist/
+npm test                      # after adding vitest
+
+# --- DB ---
+ls data/                      # check xiachat.db exists
+npx tsx server/db.ts          # seed plans (auto on import)
+
+# --- Stripe CLI (local webhook test) ---
+stripe listen --forward-to localhost:5000/api/webhooks/stripe
+stripe trigger checkout.session.completed
+
+# --- Deploy ---
+vercel --prod
+railway up  # or git push → Railway auto deploy
+
+P136: ဆက်သွယ်ရန် & နောက်တစ်ဆင့်
+P137: ဒီ guide အတိုင်း Phase 0 ကို Day 1 တွင် အပြီးလုပ်ပြီး, git commit "chore: add .env.example and fix isTestMode" ဖြင့် စတင်ရန် အကြံပြုပါသည်။ Phase 1 DATABASE decision (MongoDB Atlas vs Turso) ကို team နှင့် တိုင်ပင်ပြီး ဆုံးဖြတ်ပြီးမှ code ထပ်ရေးပါ — DB ရွေးချယ်မှု ကျန်အရာအားလုံး (migrations, controllers, deploy) ကို သက်ရောက်သည်။
+P138: အကူအညီလိုပါက — server/*.test.ts တွင် expected behavior များရှိပြီး, Xia_Chat_Status_Report.pdf (root) တွင် 99/100 audit လည်း ဖတ်နိုင်သည်။
+
+--- Table 0 ---
+['ဘာတွေလိုသလဲ — ဘယ်ကစရေးရမလဲ Before You Code — Implementation Guide Complete Gap Analysis  •  Production Checklist  •  Step-by-Step Roadmap']
+
+--- Table 1 ---
+['Project', 'xia-chat v0.0.0 — React 19 + Vite + Express 5 + SQLite + MongoDB']
+['Workspace', 'C:\\Users\\User\\Downloads\\xiachatv3-main\\xiachatv3-main']
+['Frontend', 'http://localhost:5173  →  API proxy → http://localhost:5000']
+['Deploy Target', 'Vercel (frontend) + Railway (api) — vercel.json:3 rewrites']
+['Generated', '30 August 2026, 13:58  •  Muse Spark']
+
+--- Table 2 ---
+['#', 'Module', 'အဓိက အင်္ဂါရပ်များ', 'အဓိက ဖိုင်များ']
+['1', 'Landing Page', 'Hero, Features, Pricing (3 tiers), FAQ accordion, LeadModal + FeedbackWidget', 'App.tsx:287-347, components/HeroSection.tsx etc.']
+['2', 'Auth System', 'Signup/Login (email or username), bcrypt 10 rounds, JWT 7d httpOnly cookie, Email verification 24h', 'authController.ts:99, db.ts:18, AuthContext.tsx:86']
+['3', 'Google OAuth 2.0', 'JWT state (no cookie), nonce+intent, mock fallback, pending_signups 15m', 'authController.ts:440-684']
+['4', 'Onboarding (3 steps)', 'Step1 Workspace+slug, Step2 businessType/channels, Step3 AI Assistant, onboarding_step tracking', 'authController.ts:732, OnboardingPage.tsx']
+['5', 'Dashboard', '4 MetricCards, Conversation Activity Chart, AI Performance, RecentConversations, NeedsAttention, period filter 7d/30d', 'Dashboard.tsx:225, dashboardController.ts']
+['6', 'Unified Inbox', 'SSE stream /api/inbox/events, AI auto-reply, human takeover/return, assign/status, draft, confidence/sentiment', 'inboxController.ts, InboxLayout.tsx']
+['7', 'AI Agents', 'CRUD, tone/style, custom_instructions, handoff_conditions, knowledge_source_ids, channel_ids, playground test', 'aiAgentController.ts, aiProviderService.ts']
+['8', 'Knowledge Base & RAG', 'Text/FAQ/URL/Document ingestion, chunking, performRagSearch() 3 chunks, embedding JSON, status ready/processing', 'knowledgeController.ts, aiProviderService.ts:59']
+['9', 'Customer CRM', 'CRUD, tags[], notes, block/merge, status new/active/returning/blocked, last_active_at', 'customerController.ts, db.ts:144']
+['10', 'Channels', 'Website widget (public-widget/:siteKey), Facebook/Instagram/WhatsApp config, webhook verify/handle, test/disconnect', 'channelController.ts:249-261']
+['11', 'Analytics', 'Date preset 7d/30d/90d/custom, channel/agent filter, channelPerformance/agentPerformance, CSV export', 'analyticsController.ts, ProtectedPages.tsx:304']
+['12', 'Team Mgmt', 'Invite (token_hash expiry), resend/cancel, role owner/admin/member, status active/suspended, audit_logs', 'teamController.ts, db.ts:204-231']
+['13', 'Settings', 'Profile (name/jobTitle/phone), notifications, change-password, AI defaults (style/tone/handoff), export JSON, delete account', 'settingsController.ts:116-123']
+['14', 'Billing', '4 Plans (Free/Starter/Pro/Enterprise), Stripe Checkout/Portal, limits middleware, invoices, cancel/resume, webhook', 'billingController.ts, stripeService.ts, db.ts:252-289']
+
+--- Table 3 ---
+['#', 'လိုအပ်ချက်', 'အကြောင်းရင်း & ဖိုင်နေရာ', 'လက်ရှိ Mock/Fallback']
+['1', 'STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PRICE_ID_*', 'stripeService.ts:4 isStripeConfigured=false ဆို mock customer cus_mock_* နှင့် cs_mock_* url သာပြန်သည် (85-90). Billing အစစ် မရ။', 'cus_mock_, cs_mock_']
+['2', 'GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_CALLBACK_URL', 'authController.ts:11, 448 mock_google_client_id_dev ဆို mock profile google_user_sub_998... (551) သာရ။ Login အစစ် မရ။', 'mock_oauth_code_12345']
+['3', 'EMAIL_HOST/PORT/USER/ PASS/FROM', 'emailService.ts:11 isSmtpConfigured()=false ဆို console.log သာ (40-44). Verification/reset email ပို့မရ။', 'Dev console log']
+['4', 'JWT_SECRET (strong 32+ chars)', "authController.ts:9 fallback 'xia_chat_dev_jwt_secret_key...' — Production မှာ အားနည်း, token forge နိုင်သည်။", 'Hardcoded dev secret']
+['5', 'FRONTEND_URL + HTTPS', 'authController.ts:10, emailService.ts:8 default localhost:5173. Cookie sameSite none/secure (22) က HTTPS မှသာ အလုပ်လုပ်သည်။', 'http localhost']
+['6', '.env ဖိုင် လုံးဝ မရှိ', 'Project root တွင် .env / .env.example မရှိ (ls .env* → False). .gitignore:37-43 တွင် .env ignored မှန်, သို့သော် example မရှိ၍ setup ခက်သည်။', 'N/A']
+
+--- Table 4 ---
+['#', 'လိုအပ်ချက်', 'ပြဿနာနေရာ', 'ပြင်ရမည့်နည်းလမ်း']
+['7', 'GEMINI_API_KEY (or OPENAI_API_KEY)', 'aiProviderService.ts:81 fallback engine သာ (124-144) — "Our return policy..." hardcoded reply. RAG မပါရင် 0.94 confidence သာ။', 'Gemini 1.5-flash API key ထည့်, aiProviderService.ts:92-94 endpoint စမ်းပါ']
+['8', 'META_APP_SECRET & WHATSAPP_TOKEN', 'channelController.ts verifyWebhookChallenge / handleIncomingWebhook — secret မရှိက webhook 401။', 'Meta Developers → App Secret + WhatsApp Cloud Token']
+['9', 'Rate Limiter Bug', "server/index.ts:162 isTestMode = TEST_MODE || NODE_ENV==='test' || NODE_ENV!=='production' → dev တွင် အမြဲ 1000, prod check မဖြစ်။", "isTestMode ကို process.env.NODE_ENV==='production' ? 20 : 1000 သို့ ပြင်ပါ"]
+['10', 'SQLite Persistence (Railway/Vercel)', '.gitignore:41 data/ ignored, better-sqlite3 file xiachat.db — serverless တွင် ephemeral, restart တိုင်း data ပျောက်။', 'Postgres (Neon/Supabase) သို့မဟုတ် MongoDB Atlas သို့ migrate; db.ts:10 dataDir ပြင်ပါ']
+['11', 'MONGODB_URI', 'models.ts:361 fallback mongodb://localhost:27017/xiachat — localhost prod တွင် မရှိ, SQLite နှင့် schema sync လွဲတတ်သည်။', 'Atlas URI ထည့်, dual-write သို့မဟုတ် single source ရွေးပါ']
+['12', 'CORS + Helmet + Validation', 'index.ts:148 origin single FRONTEND_URL သာ, helmet, express-validator, sanitization မရှိ။', 'helmet, zod/joi validation, CORS allowlist array ထည့်ပါ']
+
+--- Table 5 ---
+['#', 'လိုအပ်ချက်', 'လက်ရှိ အခြေအနေ', 'အကြံပြုချက်']
+['13', 'Auth token dual storage', 'AuthContext.tsx:27 localStorage + httpOnly cookie (authController.ts:21) — XSS vs CSRF trade-off ရှုပ်ထွေးသည်။', 'httpOnly cookie primary, localStorage Bearer fallback ရှင်းလင်းစွာ သတ်မှတ်ပါ']
+['14', 'Manual routing', 'App.tsx:77 pushState, useEffect popstate — ไม่มี React Router, deep link, 404 handling အားနည်း။', 'react-router-dom migrate (optional) သို့မဟုတ် 404 fallback ပြင်ပါ']
+['15', 'Error logging & Monitoring', 'console.log/error သာ (emailService.ts:59, aiProviderService:66) — Sentry/Logtail မရှိ။', 'Sentry + pino/winston logger ထည့်ပါ']
+['16', 'Tests run in CI', 'server/*.test.ts 9 files ရှိ, သို့သော် package.json:6 scripts တွင် test script မရှိ။', '"test": "vitest --run" ထည့်ပြီး GitHub Actions CI ထည့်ပါ']
+['17', 'Vercel → Railway URL hardcode', 'vercel.json:4 rewrites destination hardcoded railway.app URL — env var မဟုတ်။', 'Vercel env variable သို့ ရွှေ့ပါ']
+
+--- Table 6 ---
+['Category', 'Score', 'အခြေအနေ']
+['Code Completeness (14 modules)', '14/14 ✓', '99/100']
+['Env & Secrets', '0/6', 'P0 Blocker']
+['Production Infra', '2/6', 'P1 Fix needed']
+['Quality & Polish', '3/5', 'P2 Nice to have']
+
+--- Table 7 ---
+['Phase', 'ကြာချိန်', 'လုပ်ရမည့်အရာ', 'ရလဒ်']
+['Phase 0 ENV & Security', 'Day 1 (2-3h)', '.env.example ဖန်တီး, .env ဖြည့်, JWT_SECRET generate, Stripe/Google/Email key စမ်းသပ်', 'Local တွင် mock မဟုတ် real flow စမ်းနိုင်ပြီ']
+['Phase 1 Backend Hardening', 'Day 2-5', 'AI key, Meta webhook, rate limiter fix, DB persistence ရွေးချယ်, helmet/validation, tests run', 'API production-ready, data မပျောက်တော့ပါ']
+['Phase 2 Frontend Polish', 'Day 6-9', 'Token storage unify, routing polish, error toasts, loading skeletons, billing downgrade modal test', 'UX stable, edge case handle']
+['Phase 3 Deploy & Verify', 'Day 10-14', 'Vercel+Railway deploy, env vars, Stripe webhook test, Google OAuth prod URL, CSV export verify', 'Live https://app.xiachat.ai ready']
+
+--- Table 8 ---
+['#', 'Flow', 'Expected', 'Status ☐']
+['1', 'Signup (email+password)', '201 + verification email received', '☐']
+['2', 'Verify email link', 'email_verified=1, redirect dashboard', '☐']
+['3', 'Login (email / username)', 'JWT cookie + Bearer token, onboarding or dashboard', '☐']
+['4', 'Google OAuth signup', 'Redirect /set-password?auth=google_success', '☐']
+['5', 'Onboarding 3 steps', 'Workspace + channels + AI assistant created', '☐']
+['6', 'Dashboard metrics', 'TotalConversations, AI Resolved, etc. real DB numbers', '☐']
+['7', 'Inbox SSE + AI reply', 'SSE 200, AI draft generated (not fallback)', '☐']
+['8', 'Knowledge upload + RAG search', 'Chunk count >0, /knowledge-base/search returns chunks', '☐']
+['9', 'Billing Checkout', 'Redirect https://checkout.stripe.com/... (not mock)', '☐']
+['10', 'Stripe webhook', 'Railway logs: webhook_events inserted, subscription updated', '☐']
+['11', 'Customer portal', 'Redirect https://billing.stripe.com/...', '☐']
+['12', 'Analytics CSV export', 'GET /api/analytics/export.csv downloads xiachat_analytics_30d.csv', '☐']
+['13', 'Team invite', 'Invitation email (or console if SMTP not prod)', '☐']
+['14', 'Forgot password', '6-digit code + reset link email, 15m expiry', '☐']
+
+--- Table 9 ---
+['Task', 'ဖိုင်နေရာ', 'လိုင်းနံပါတ်', 'ပြင်ရမည့်အရာ']
+['.env setup', '.env.example (အသစ်) .env (gitignored)', '—', 'ဖန်တီး, .env.example မှ ကူးပြီး values ဖြည့်ပါ']
+['JWT fix', 'server/authController.ts', '9, 17-30', 'JWT_SECRET fallback remove, warn if missing']
+['Stripe', 'server/stripeService.ts', '4-11, 53, 84', 'isStripeConfigured, price_xia_ mock check']
+['Stripe webhook', 'server/index.ts', '155', 'express.raw before json, handleStripeWebhook']
+['Google OAuth', 'server/authController.ts', '440-627', 'GOOGLE_CLIENT_ID check, state JWT, mock fallback']
+['Email', 'server/emailService.ts', '11-46', 'isSmtpConfigured, createTransporter, dev log']
+['AI Provider', 'server/aiProviderService.ts', '54,81,92,124', 'selectedModel mismatch, fallback engine']
+['Rate limiter', 'server/index.ts', '162-178', 'isTestMode bug → fix']
+['DB SQLite', 'server/db.ts', '10,14,412-507', 'dataDir, WAL mode, migrations, seed plans']
+['DB Mongo', 'server/models.ts', '360-369', 'connectMongoDB, fallback URI']
+['CORS/Helmet', 'server/index.ts', '147-152', 'cors origin, add helmet']
+['Frontend API', 'src/utils/api.ts', '3-26', 'getAuthHeaders, apiFetch token inject']
+['Auth Context', 'src/context/AuthContext.tsx', '27,46,59,86', 'localStorage + cookie dual handling']
+['Routing', 'src/App.tsx', '37-61,77,163', 'PROTECTED_ROUTES, pushState, guards']
+['Vite proxy', 'vite.config.ts', '8-17', 'proxy /api → localhost:5000']
+['Vercel', 'vercel.json', '3-9', 'rewrites destination hardcoded']
+['Types', 'src/types/*.ts', 'auth.ts:1, billing.ts', 'User, BillingOverview etc.']
+['Styles', 'src/index.css', '3-13', 'theme colors, Inter font']

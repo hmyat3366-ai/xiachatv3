@@ -1,5 +1,5 @@
-import React from 'react';
-import { Search, Plus, MessageSquare, Users } from 'lucide-react';
+import React, { useState } from 'react';
+import { Search, Plus, MessageSquare, Users, User, Hash } from 'lucide-react';
 
 export interface TeamConversationItem {
   id: string;
@@ -56,127 +56,148 @@ export const ConversationList: React.FC<ConversationListProps> = ({
   searchQuery,
   onSearchChange,
 }) => {
-  const filteredConversations = conversations.filter(
-    (c) =>
-      c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const [activeFilter, setActiveFilter] = useState<'all' | 'direct' | 'group'>('all');
+
+  const filteredConversations = conversations.filter((c) => {
+    const isDirect = c.type === 'direct';
+    const displayTitle = isDirect ? c.otherUser?.name || c.title : c.title;
+    const matchesSearch =
+      (displayTitle || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.lastMessage || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesType = activeFilter === 'all' || c.type === activeFilter;
+    return matchesSearch && matchesType;
+  });
 
   return (
-    <div className="w-full md:w-80 border-r border-[#E8E8E5] bg-white flex flex-col h-full shrink-0">
-      {/* Top Header & New Conversation Button */}
-      <div className="p-4 border-b border-[#E8E8E5] space-y-3 bg-[#FAF9F6]">
+    <div className="w-full md:w-80 lg:w-96 border-r border-[#E8E8E5] bg-white flex flex-col h-full shrink-0 select-none">
+      {/* Top Header */}
+      <div className="p-3.5 border-b border-[#E8E8E5] space-y-3 bg-[#FAF9F6]/60">
         <div className="flex items-center justify-between">
-          <div>
-            <h2 className="font-extrabold text-base text-[#171717]">Team Chat</h2>
-            <p className="text-[11px] text-[#6B6B6B]">Internal team communication</p>
+          <div className="flex items-center gap-2">
+            <h2 className="font-black text-base text-[#171717]">Internal Team Chat</h2>
+            <span className="px-2 py-0.2 rounded-full bg-[#FFF0E5] text-[#D96512] text-[10px] font-black">
+              {conversations.length}
+            </span>
           </div>
+
           <button
             onClick={onOpenNewConversation}
-            className="p-2 rounded-xl bg-[#FF8A2A] text-white hover:bg-[#e0771e] transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs text-xs font-bold"
-            title="New Conversation"
+            className="p-1.5 rounded-xl bg-[#FF8A2A] hover:bg-[#D96512] text-white cursor-pointer transition-colors shadow-2xs"
+            title="Start new direct message or group"
           >
             <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">New</span>
           </button>
         </div>
 
-        {/* Search Input */}
+        {/* Search */}
         <div className="relative">
-          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search conversations..."
+            placeholder="Search team conversations..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-9 pr-3.5 py-1.5 rounded-xl border border-[#E8E8E5] text-xs focus:outline-none focus:border-[#FF8A2A] bg-white"
+            className="w-full pl-9 pr-3 py-1.5 rounded-xl text-xs bg-white border border-[#E8E8E5] text-[#171717] placeholder:text-gray-400 focus:outline-none focus:border-[#FF8A2A]"
           />
+        </div>
+
+        {/* Type Filter Pills */}
+        <div className="flex items-center gap-1">
+          {[
+            { id: 'all', label: 'All Chats' },
+            { id: 'direct', label: 'Direct Messages' },
+            { id: 'group', label: 'Groups' },
+          ].map((f) => {
+            const isSelected = activeFilter === f.id;
+            return (
+              <button
+                key={f.id}
+                onClick={() => setActiveFilter(f.id as any)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-[#171717] text-white shadow-2xs'
+                    : 'bg-white border border-[#E8E8E5] text-[#6B6B6B] hover:text-[#171717]'
+                }`}
+              >
+                {f.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Conversations Scroll Area */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-white">
+      {/* Conversation List Stream */}
+      <div className="flex-1 overflow-y-auto divide-y divide-[#E8E8E5]/70">
         {isLoading ? (
-          // Skeleton Loader
-          <div className="space-y-2 p-2">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="p-3 rounded-xl border border-gray-100 animate-pulse space-y-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-gray-200" />
-                  <div className="flex-1 space-y-1.5">
-                    <div className="w-24 h-3 bg-gray-200 rounded" />
-                    <div className="w-36 h-2.5 bg-gray-100 rounded" />
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="p-8 text-center space-y-2">
+            <div className="w-5 h-5 border-2 border-[#FF8A2A] border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-xs text-[#6B6B6B]">Loading chats...</p>
           </div>
         ) : filteredConversations.length === 0 ? (
-          // Empty State
-          <div className="h-64 flex flex-col items-center justify-center p-6 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-[#FFF0E5] text-[#FF8A2A] flex items-center justify-center mb-3">
-              <MessageSquare className="w-6 h-6" />
+          <div className="p-8 text-center space-y-3">
+            <div className="w-10 h-10 rounded-2xl bg-[#FFF0E5] text-[#FF8A2A] flex items-center justify-center mx-auto shadow-2xs">
+              <MessageSquare className="w-5 h-5" />
             </div>
-            <h3 className="text-xs font-bold text-[#171717] mb-1">No conversations yet</h3>
-            <p className="text-[11px] text-[#6B6B6B] mb-4">
-              Start a conversation with someone on your team.
-            </p>
+            <p className="text-xs text-[#6B6B6B]">No team conversations found.</p>
             <button
               onClick={onOpenNewConversation}
-              className="px-4 py-2 rounded-xl bg-[#FF8A2A] text-white text-xs font-bold hover:bg-[#e0771e] transition-colors cursor-pointer flex items-center gap-2"
+              className="text-xs font-bold text-[#FF8A2A] hover:underline cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
-              New conversation
+              + Start a new conversation
             </button>
           </div>
         ) : (
           filteredConversations.map((conv) => {
             const isSelected = selectedConversationId === conv.id;
+            const isDirect = conv.type === 'direct';
+            const displayTitle = isDirect ? conv.otherUser?.name || conv.title : conv.title;
+            const hasUnread = conv.unreadCount > 0;
+
             return (
               <button
                 key={conv.id}
                 onClick={() => onSelectConversation(conv.id)}
-                className={`w-full text-left p-3 rounded-xl transition-all duration-150 cursor-pointer border ${
+                className={`w-full text-left p-3.5 transition-colors relative cursor-pointer block border-l-4 ${
                   isSelected
-                    ? 'bg-[#FFF0E5] border-[#FF8A2A]/40 shadow-xs'
-                    : 'bg-white hover:bg-[#FAF9F6] border-transparent'
+                    ? 'bg-[#FFF5ED] border-l-[#FF8A2A]'
+                    : 'hover:bg-[#FAF9F6] border-l-transparent'
                 }`}
               >
-                <div className="flex items-start gap-3">
-                  {/* Avatar / Icon */}
-                  <div className="relative shrink-0">
-                    {conv.type === 'group' ? (
-                      <div className="w-9 h-9 rounded-full bg-purple-600 text-white font-bold text-xs flex items-center justify-center">
-                        <Users className="w-4 h-4" />
-                      </div>
-                    ) : (
-                      <div className="w-9 h-9 rounded-full bg-[#171717] text-white font-bold text-xs flex items-center justify-center">
-                        {conv.otherUser?.avatar || conv.title.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Conversation Title & Preview */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-1 mb-0.5">
-                      <p className="text-xs font-bold text-[#171717] truncate">{conv.title}</p>
-                      <span className="text-[10px] text-[#6B6B6B] shrink-0">
-                        {formatTimeAgo(conv.lastMessageAt || conv.createdAt)}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[11px] text-[#6B6B6B] truncate">
-                        {conv.lastMessage || 'No messages yet'}
-                      </p>
-                      {conv.unreadCount > 0 && (
-                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#FF8A2A] text-white shrink-0">
-                          {conv.unreadCount}
-                        </span>
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`w-8 h-8 rounded-xl font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs ${
+                        isDirect
+                          ? 'bg-[#171717] text-white'
+                          : 'bg-gradient-to-tr from-[#FF8A2A] to-[#FFA85C] text-white'
+                      }`}
+                    >
+                      {isDirect ? (
+                        displayTitle.charAt(0).toUpperCase()
+                      ) : (
+                        <Hash className="w-4 h-4" />
                       )}
                     </div>
+
+                    <div className="min-w-0">
+                      <p className={`text-xs truncate ${hasUnread ? 'font-black text-black' : 'font-bold text-[#171717]'}`}>
+                        {displayTitle}
+                      </p>
+                      <p className="text-[10px] text-gray-400 font-medium truncate">
+                        {isDirect ? 'Direct Message' : `${conv.participants?.length || 2} members`}
+                      </p>
+                    </div>
                   </div>
+
+                  <span className="text-[10px] text-gray-400 font-mono shrink-0">
+                    {formatTimeAgo(conv.lastMessageAt || conv.createdAt)}
+                  </span>
                 </div>
+
+                {/* Message Preview */}
+                <p className={`text-xs line-clamp-1 mt-1 ${hasUnread ? 'font-semibold text-[#171717]' : 'text-[#6B6B6B]'}`}>
+                  {conv.lastMessage || 'No messages yet'}
+                </p>
               </button>
             );
           })

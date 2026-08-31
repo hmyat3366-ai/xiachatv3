@@ -11,8 +11,11 @@ import {
   Check,
   AlertCircle,
   Loader2,
-  ShieldCheck,
+  Sparkles,
+  File,
+  X,
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 interface AddKnowledgeWizardProps {
   onBack: () => void;
@@ -33,26 +36,27 @@ export const AddKnowledgeWizard: React.FC<AddKnowledgeWizardProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'text' | 'faq' | 'url' | 'document'>('text');
 
-  // Text state
+  // Text State
   const [textName, setTextName] = useState('');
   const [textContent, setTextContent] = useState('');
 
-  // FAQ state
+  // FAQ State
   const [faqName, setFaqName] = useState('');
   const [faqPairs, setFaqPairs] = useState<FaqPair[]>([
-    { question: 'What is your return policy?', answer: 'Customers can return unused products within 30 days.' },
-    { question: 'How do I track my order?', answer: 'Order tracking links are sent via email automatically upon dispatch.' },
+    { question: 'What is your return & refund policy?', answer: 'Customers can return unused items in original packaging within 30 days for a full refund.' },
+    { question: 'How do I track my order delivery?', answer: 'Order tracking links are emailed upon dispatch. You can also ask Xia Assistant with your order number.' },
   ]);
 
-  // URL state
+  // URL State
   const [urlInput, setUrlInput] = useState('');
   const [urlName, setUrlName] = useState('');
 
-  // Document state
+  // Document State
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [docName, setDocName] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
 
-  // Error state
+  // Error State
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleAddFaqPair = () => {
@@ -73,7 +77,7 @@ export const AddKnowledgeWizard: React.FC<AddKnowledgeWizardProps> = ({
     e.preventDefault();
     setErrorMessage(null);
     if (!textName.trim()) {
-      setErrorMessage('Knowledge name is required.');
+      setErrorMessage('Please enter a name for this knowledge source.');
       return;
     }
     if (!textContent.trim()) {
@@ -91,7 +95,7 @@ export const AddKnowledgeWizard: React.FC<AddKnowledgeWizardProps> = ({
     e.preventDefault();
     setErrorMessage(null);
     if (!faqName.trim()) {
-      setErrorMessage('Knowledge name is required.');
+      setErrorMessage('Please enter a name for this FAQ collection.');
       return;
     }
     const validFaqs = faqPairs.filter((f) => f.question.trim() && f.answer.trim());
@@ -110,350 +114,345 @@ export const AddKnowledgeWizard: React.FC<AddKnowledgeWizardProps> = ({
     e.preventDefault();
     setErrorMessage(null);
     if (!urlInput.trim()) {
-      setErrorMessage('Website URL is required.');
+      setErrorMessage('Please enter a valid URL.');
       return;
     }
     try {
-      await onSaveUrl(urlInput.trim(), urlName.trim() || undefined);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to import URL.');
+      const generatedName = urlName.trim() || new URL(urlInput).hostname;
+      await onSaveUrl(urlInput.trim(), generatedName);
+    } catch {
+      setErrorMessage('Please enter a valid web URL (e.g. https://company.com/help).');
     }
   };
 
   const handleSubmitDocument = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
-    if (!uploadedFile && !docName.trim()) {
-      setErrorMessage('Please select a file or enter a document name.');
+    if (!uploadedFile) {
+      setErrorMessage('Please select or drop a file to upload.');
       return;
     }
     try {
-      const nameToUse = uploadedFile ? uploadedFile.name : docName.trim();
-      const ext = nameToUse.split('.').pop() || 'txt';
-      await onSaveDocument(nameToUse, ext, `Extracted content from uploaded file ${nameToUse}.`);
+      const nameToUse = docName.trim() || uploadedFile.name;
+      const fileExt = uploadedFile.name.split('.').pop() || 'txt';
+      await onSaveDocument(nameToUse, fileExt, `Document content extracted from ${uploadedFile.name}`);
     } catch {
-      setErrorMessage('Failed to process document upload.');
+      setErrorMessage('Failed to upload and vectorize document.');
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
-      {/* Top Header Bar */}
-      <div className="flex items-center justify-between border-b border-[#E8E8E5] pb-4">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="p-2 hover:bg-white rounded-2xl border border-[#E8E8E5] text-[#6B6B6B] hover:text-[#171717] transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-extrabold text-[#171717]">Add Knowledge Source</h1>
-            <p className="text-xs text-[#6B6B6B]">
-              Provide business information, FAQs, policies, or web links for AI retrieval.
-            </p>
-          </div>
+    <div className="space-y-6">
+      {/* Top Header */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onBack}
+          className="p-2 rounded-xl border border-[#E8E8E5] bg-white hover:bg-[#FAF9F6] text-gray-600 transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        <div>
+          <h1 className="text-2xl font-black text-[#171717]">Add Knowledge Source</h1>
+          <p className="text-xs text-[#6B6B6B]">
+            Ingest structured information to enable semantic RAG search for your AI assistants.
+          </p>
         </div>
       </div>
 
-      {errorMessage && (
-        <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{errorMessage}</span>
-        </div>
-      )}
-
-      {/* Source Type Selection Tabs */}
+      {/* Tabs Selector */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { id: 'text', label: 'Add Text', icon: FileText, desc: 'Paste raw guidelines or policy' },
-          { id: 'faq', label: 'Add FAQ', icon: HelpCircle, desc: 'Question & answer pairs' },
-          { id: 'url', label: 'Import URL', icon: Globe, desc: 'Scrape website webpage' },
-          { id: 'document', label: 'Upload Document', icon: UploadCloud, desc: 'PDF, TXT, or DOCX files' },
+          { id: 'text', label: 'Manual Text', desc: 'Articles & Policies', icon: FileText },
+          { id: 'faq', label: 'FAQ Pairs', desc: 'Questions & Answers', icon: HelpCircle },
+          { id: 'url', label: 'Website Scraping', desc: 'Crawl Help Center', icon: Globe },
+          { id: 'document', label: 'Upload Document', desc: 'PDF, DOCX, TXT', icon: UploadCloud },
         ].map((tab) => {
           const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
+          const isSelected = activeTab === tab.id;
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`p-4 rounded-3xl border text-left transition-all cursor-pointer space-y-2 ${
-                isActive
-                  ? 'bg-[#171717] text-white border-[#171717] shadow-sm'
-                  : 'bg-white border-[#E8E8E5] text-[#171717] hover:border-[#FF8A2A]/50'
+              onClick={() => {
+                setActiveTab(tab.id as any);
+                setErrorMessage(null);
+              }}
+              className={`p-4 rounded-2xl border text-left flex flex-col gap-2 transition-all cursor-pointer ${
+                isSelected
+                  ? 'bg-[#FFF0E5] border-[#FF8A2A] text-[#171717] ring-2 ring-[#FF8A2A]/30 shadow-2xs'
+                  : 'bg-white border-[#E8E8E5] text-[#6B6B6B] hover:bg-[#FAF9F6]'
               }`}
             >
-              <div
-                className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold ${
-                  isActive ? 'bg-[#FF8A2A] text-white' : 'bg-[#FFF0E5] text-[#FF8A2A]'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-              </div>
+              <Icon className={`w-5 h-5 ${isSelected ? 'text-[#FF8A2A]' : 'text-gray-400'}`} />
               <div>
-                <p className="font-extrabold text-xs">{tab.label}</p>
-                <p className={`text-[10px] ${isActive ? 'text-gray-300' : 'text-[#6B6B6B]'}`}>{tab.desc}</p>
+                <p className="text-xs font-bold text-[#171717]">{tab.label}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">{tab.desc}</p>
               </div>
             </button>
           );
         })}
       </div>
 
-      {/* OPTION 1 — ADD TEXT */}
-      {activeTab === 'text' && (
-        <form onSubmit={handleSubmitText} className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
-          <h2 className="font-extrabold text-base text-[#171717]">Add Raw Text Knowledge</h2>
-
-          <div className="space-y-1">
-            <label className="block text-xs font-bold text-[#171717]">Knowledge Name *</label>
-            <input
-              type="text"
-              placeholder="e.g. Shipping & Delivery Policy"
-              value={textName}
-              onChange={(e) => setTextName(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A]"
-              required
-            />
+      {/* Form Container */}
+      <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 sm:p-8 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+        {errorMessage && (
+          <div className="mb-5 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+            <span>{errorMessage}</span>
           </div>
+        )}
 
-          <div className="space-y-1">
-            <label className="block text-xs font-bold text-[#171717]">Content *</label>
-            <textarea
-              rows={8}
-              placeholder="Our standard delivery time is 3–5 business days. International delivery may take 7–14 business days..."
-              value={textContent}
-              onChange={(e) => setTextContent(e.target.value)}
-              className="w-full p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A] leading-relaxed font-mono"
-              required
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-2 border-t border-[#E8E8E5]">
-            <button
-              type="button"
-              onClick={onBack}
-              className="px-4 py-2.5 rounded-2xl border border-[#E8E8E5] text-xs font-bold text-[#171717] cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="px-5 py-2.5 rounded-2xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-2xs disabled:opacity-50"
-            >
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-              <span>{isSaving ? 'Processing...' : 'Save & Process'}</span>
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* OPTION 2 — ADD FAQ */}
-      {activeTab === 'faq' && (
-        <form onSubmit={handleSubmitFaq} className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
-          <h2 className="font-extrabold text-base text-[#171717]">Add Question & Answer Pairs</h2>
-
-          <div className="space-y-1">
-            <label className="block text-xs font-bold text-[#171717]">FAQ Knowledge Name *</label>
-            <input
-              type="text"
-              placeholder="e.g. Return & Refund FAQ"
-              value={faqName}
-              onChange={(e) => setFaqName(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A]"
-              required
-            />
-          </div>
-
-          <div className="space-y-4 pt-2">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-bold text-[#171717]">FAQ Pairs ({faqPairs.length})</label>
-              <button
-                type="button"
-                onClick={handleAddFaqPair}
-                className="px-3 py-1.5 rounded-xl bg-[#FFF0E5] text-[#FF8A2A] text-xs font-bold flex items-center gap-1 hover:bg-[#FFE4D0] cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add Question
-              </button>
+        {/* 1. MANUAL TEXT INGESTION */}
+        {activeTab === 'text' && (
+          <form onSubmit={handleSubmitText} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-[#171717] mb-1.5">Knowledge Source Title</label>
+              <input
+                type="text"
+                placeholder="e.g. Return & Warranty Guidelines"
+                value={textName}
+                onChange={(e) => setTextName(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-[#E8E8E5] text-xs font-semibold focus:outline-none focus:border-[#FF8A2A]"
+                autoFocus
+              />
             </div>
 
-            {faqPairs.map((pair, idx) => (
-              <div key={idx} className="p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] space-y-3 relative">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-extrabold text-[#FF8A2A]">Pair #{idx + 1}</span>
-                  {faqPairs.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveFaqPair(idx)}
-                      className="p-1 text-gray-400 hover:text-red-600 rounded-lg cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
+            <div>
+              <label className="block text-xs font-bold text-[#171717] mb-1.5">Text Body & Instructions</label>
+              <textarea
+                rows={7}
+                placeholder="Paste internal documentation, product specs, or terms of service..."
+                value={textContent}
+                onChange={(e) => setTextContent(e.target.value)}
+                className="w-full p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs font-mono text-[#171717] placeholder:text-gray-400 focus:outline-none focus:border-[#FF8A2A] resize-none leading-relaxed"
+              />
+            </div>
 
-                <div className="space-y-1">
-                  <label className="block text-[11px] font-semibold text-[#6B6B6B]">Question</label>
+            <div className="flex justify-end pt-2">
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="px-6 py-2.5 rounded-xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-60 flex items-center gap-2"
+              >
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                <span>{isSaving ? 'Vectorizing...' : 'Save & Vectorize'}</span>
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* 2. FAQ INGESTION */}
+        {activeTab === 'faq' && (
+          <form onSubmit={handleSubmitFaq} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-[#171717] mb-1.5">FAQ Collection Title</label>
+              <input
+                type="text"
+                placeholder="e.g. Customer Support FAQs"
+                value={faqName}
+                onChange={(e) => setFaqName(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-[#E8E8E5] text-xs font-semibold focus:outline-none focus:border-[#FF8A2A]"
+                autoFocus
+              />
+            </div>
+
+            <div className="space-y-3 pt-1">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-[#171717]">Q&A Pairs ({faqPairs.length})</label>
+                <button
+                  type="button"
+                  onClick={handleAddFaqPair}
+                  className="text-xs font-bold text-[#FF8A2A] hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Another Q&A
+                </button>
+              </div>
+
+              {faqPairs.map((faq, idx) => (
+                <div key={idx} className="p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] space-y-2 relative">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-[#FF8A2A]">Question #{idx + 1}</span>
+                    {faqPairs.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFaqPair(idx)}
+                        className="text-gray-400 hover:text-red-600 p-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="text"
-                    placeholder="What is your return policy?"
-                    value={pair.question}
+                    placeholder="e.g. What payment methods are accepted?"
+                    value={faq.question}
                     onChange={(e) => handleFaqChange(idx, 'question', e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A]"
+                    className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#E8E8E5] text-xs font-semibold focus:outline-none focus:border-[#FF8A2A]"
                   />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[11px] font-semibold text-[#6B6B6B]">Answer</label>
                   <textarea
                     rows={2}
-                    placeholder="Customers can return unused products within 30 days."
-                    value={pair.answer}
+                    placeholder="Answer text..."
+                    value={faq.answer}
                     onChange={(e) => handleFaqChange(idx, 'answer', e.target.value)}
-                    className="w-full p-3 rounded-xl bg-white border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A]"
+                    className="w-full p-3 rounded-xl bg-white border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A] resize-none"
                   />
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-[#E8E8E5]">
-            <button
-              type="button"
-              onClick={onBack}
-              className="px-4 py-2.5 rounded-2xl border border-[#E8E8E5] text-xs font-bold text-[#171717] cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="px-5 py-2.5 rounded-2xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-2xs disabled:opacity-50"
-            >
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-              <span>{isSaving ? 'Processing...' : 'Save & Process'}</span>
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* OPTION 3 — IMPORT URL */}
-      {activeTab === 'url' && (
-        <form onSubmit={handleSubmitUrl} className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
-          <h2 className="font-extrabold text-base text-[#171717]">Import Webpage Content</h2>
-
-          <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 text-blue-900 text-xs flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
-            <span>SSRF Protection Active: Internal network IPs and loopback addresses are blocked automatically.</span>
-          </div>
-
-          <div className="space-y-1">
-            <label className="block text-xs font-bold text-[#171717]">Source Name (Optional)</label>
-            <input
-              type="text"
-              placeholder="e.g. Return Policy Webpage"
-              value={urlName}
-              onChange={(e) => setUrlName(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A]"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="block text-xs font-bold text-[#171717]">Website URL *</label>
-            <input
-              type="url"
-              placeholder="https://example.com/returns"
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A]"
-              required
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-2 border-t border-[#E8E8E5]">
-            <button
-              type="button"
-              onClick={onBack}
-              className="px-4 py-2.5 rounded-2xl border border-[#E8E8E5] text-xs font-bold text-[#171717] cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="px-5 py-2.5 rounded-2xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-2xs disabled:opacity-50"
-            >
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
-              <span>{isSaving ? 'Importing...' : 'Import & Process'}</span>
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* OPTION 4 — UPLOAD DOCUMENT */}
-      {activeTab === 'document' && (
-        <form onSubmit={handleSubmitDocument} className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
-          <h2 className="font-extrabold text-base text-[#171717]">Upload Document File</h2>
-
-          <div className="border-2 border-dashed border-[#E8E8E5] hover:border-[#FF8A2A] rounded-3xl p-8 text-center bg-[#FAF9F6] transition-colors cursor-pointer space-y-2">
-            <UploadCloud className="w-10 h-10 text-[#FF8A2A] mx-auto" />
-            <h3 className="text-xs font-bold text-[#171717]">Drop PDF, TXT, or DOCX document here</h3>
-            <p className="text-[10px] text-[#6B6B6B]">Maximum file size: 10MB</p>
-            <input
-              type="file"
-              accept=".pdf,.txt,.docx"
-              onChange={(e) => {
-                if (e.target.files && e.target.files[0]) {
-                  setUploadedFile(e.target.files[0]);
-                }
-              }}
-              className="mt-2 text-xs text-[#6B6B6B] mx-auto block cursor-pointer"
-            />
-          </div>
-
-          {uploadedFile && (
-            <div className="p-3 rounded-2xl bg-[#FFF0E5] border border-[#FF8A2A]/40 flex items-center justify-between text-xs font-bold text-[#171717]">
-              <span>Selected: {uploadedFile.name} ({(uploadedFile.size / 1024).toFixed(1)} KB)</span>
+            <div className="flex justify-end pt-2">
               <button
-                type="button"
-                onClick={() => setUploadedFile(null)}
-                className="text-red-600 text-xs hover:underline cursor-pointer"
+                type="submit"
+                disabled={isSaving}
+                className="px-6 py-2.5 rounded-xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-60 flex items-center gap-2"
               >
-                Remove
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                <span>{isSaving ? 'Vectorizing...' : 'Save & Vectorize FAQs'}</span>
               </button>
             </div>
-          )}
+          </form>
+        )}
 
-          <div className="space-y-1 pt-2">
-            <label className="block text-xs font-bold text-[#171717]">Knowledge Source Title</label>
-            <input
-              type="text"
-              placeholder="e.g. Terms of Service Guide"
-              value={docName}
-              onChange={(e) => setDocName(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A]"
-            />
-          </div>
+        {/* 3. WEBSITE URL INGESTION */}
+        {activeTab === 'url' && (
+          <form onSubmit={handleSubmitUrl} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-[#171717] mb-1.5">Website or Help Center URL</label>
+              <div className="relative">
+                <Globe className="w-4 h-4 absolute left-3.5 top-3 text-gray-400" />
+                <input
+                  type="url"
+                  placeholder="https://acme.com/help or https://docs.yourcompany.com"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#E8E8E5] text-xs font-semibold focus:outline-none focus:border-[#FF8A2A]"
+                  autoFocus
+                />
+              </div>
+            </div>
 
-          <div className="flex justify-end gap-3 pt-2 border-t border-[#E8E8E5]">
-            <button
-              type="button"
-              onClick={onBack}
-              className="px-4 py-2.5 rounded-2xl border border-[#E8E8E5] text-xs font-bold text-[#171717] cursor-pointer"
+            <div>
+              <label className="block text-xs font-bold text-[#171717] mb-1.5">Custom Title (Optional)</label>
+              <input
+                type="text"
+                placeholder="e.g. Official Documentation"
+                value={urlName}
+                onChange={(e) => setUrlName(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-[#E8E8E5] text-xs font-semibold focus:outline-none focus:border-[#FF8A2A]"
+              />
+            </div>
+
+            <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-200 text-xs text-blue-800 space-y-1">
+              <p className="font-bold flex items-center gap-1.5">
+                <Globe className="w-4 h-4 text-blue-600" /> Autonomous Web Crawler
+              </p>
+              <p className="text-[11px] text-blue-700 leading-relaxed">
+                Xia Chat will fetch public web pages, strip navigation boilerplate, extract readable text, and generate vector embeddings automatically.
+              </p>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="px-6 py-2.5 rounded-xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-60 flex items-center gap-2"
+              >
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                <span>{isSaving ? 'Crawling & Indexing...' : 'Crawl & Ingest Website'}</span>
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* 4. DOCUMENT UPLOAD */}
+        {activeTab === 'document' && (
+          <form onSubmit={handleSubmitDocument} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-[#171717] mb-1.5">Document Title</label>
+              <input
+                type="text"
+                placeholder="e.g. Employee Support Handbook 2026"
+                value={docName}
+                onChange={(e) => setDocName(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-[#E8E8E5] text-xs font-semibold focus:outline-none focus:border-[#FF8A2A]"
+              />
+            </div>
+
+            {/* Drag and drop zone */}
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                  setUploadedFile(e.dataTransfer.files[0]);
+                  if (!docName) setDocName(e.dataTransfer.files[0].name.replace(/\.[^/.]+$/, ''));
+                }
+              }}
+              className={`p-8 rounded-3xl border-2 border-dashed text-center transition-all cursor-pointer ${
+                isDragging
+                  ? 'border-[#FF8A2A] bg-[#FFF0E5]/50'
+                  : 'border-[#E8E8E5] bg-[#FAF9F6] hover:bg-white hover:border-gray-300'
+              }`}
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="px-5 py-2.5 rounded-2xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-2xs disabled:opacity-50"
-            >
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
-              <span>{isSaving ? 'Uploading...' : 'Upload & Process'}</span>
-            </button>
-          </div>
-        </form>
-      )}
+              <input
+                type="file"
+                id="doc-upload"
+                className="hidden"
+                accept=".pdf,.docx,.txt,.csv,.md"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    setUploadedFile(e.target.files[0]);
+                    if (!docName) setDocName(e.target.files[0].name.replace(/\.[^/.]+$/, ''));
+                  }
+                }}
+              />
+
+              <label htmlFor="doc-upload" className="cursor-pointer block space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-white border border-[#E8E8E5] text-[#FF8A2A] flex items-center justify-center mx-auto shadow-2xs">
+                  <UploadCloud className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-[#171717]">
+                    {uploadedFile ? uploadedFile.name : 'Click to upload or drag and drop'}
+                  </p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">PDF, DOCX, TXT, CSV or Markdown (up to 25MB)</p>
+                </div>
+              </label>
+            </div>
+
+            {uploadedFile && (
+              <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800">
+                <div className="flex items-center gap-2">
+                  <File className="w-4 h-4 text-emerald-600" />
+                  <span className="font-semibold">{uploadedFile.name}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setUploadedFile(null)}
+                  className="text-gray-400 hover:text-red-600 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="submit"
+                disabled={isSaving || !uploadedFile}
+                className="px-6 py-2.5 rounded-xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-2"
+              >
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                <span>{isSaving ? 'Extracting & Vectorizing...' : 'Upload & Vectorize'}</span>
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   );
 };
