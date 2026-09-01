@@ -92,7 +92,7 @@ export const OtpInput: React.FC<OtpInputProps> = ({
         return (
           <input
             key={index}
-            ref={(el) => (inputRefs.current[index] = el)}
+          ref={(el) => { inputRefs.current[index] = el; }}
             type="text"
             inputMode="numeric"
             pattern="[0-9]*"

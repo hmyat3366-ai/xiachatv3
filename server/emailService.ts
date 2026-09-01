@@ -1,5 +1,13 @@
+/**
+ * Xia Chat v3 — Email Service
+ * Supports two transports, selected by environment configuration:
+ *   1. Resend HTTP API  (RESEND_API_KEY set)          ← preferred, simpler
+ *   2. Nodemailer SMTP  (EMAIL_HOST + EMAIL_USER set)  ← fallback / self-hosted
+ *   3. Console log dev  (neither configured)           ← local dev
+ */
 import nodemailer from 'nodemailer';
 
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const EMAIL_HOST = process.env.EMAIL_HOST || '';
 const EMAIL_PORT = parseInt(process.env.EMAIL_PORT || '587', 10);
 const EMAIL_USER = process.env.EMAIL_USER || '';
@@ -7,58 +15,75 @@ const EMAIL_PASS = process.env.EMAIL_PASS || '';
 const EMAIL_FROM = process.env.EMAIL_FROM || 'Xia Chat <noreply@xiachat.ai>';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
-// Determine if SMTP is properly configured
-function isSmtpConfigured(): boolean {
-  return Boolean(EMAIL_HOST && EMAIL_USER && EMAIL_PASS);
-}
+type EmailPayload = { to: string; subject: string; html: string; text: string };
 
-// Create transporter only when configured
-function createTransporter() {
-  if (!isSmtpConfigured()) return null;
-
-  return nodemailer.createTransport({
-    host: EMAIL_HOST,
-    port: EMAIL_PORT,
-    secure: EMAIL_PORT === 465,
-    auth: {
-      user: EMAIL_USER,
-      pass: EMAIL_PASS,
-    },
-  });
-}
-
-async function sendEmail(options: {
-  to: string;
-  subject: string;
-  html: string;
-  text: string;
-}): Promise<boolean> {
-  const transporter = createTransporter();
-
-  if (!transporter) {
-    // Graceful dev fallback: log to console
-    console.log('\n📧 [Xia Chat Email Service — Dev Mode / SMTP Not Configured]');
-    console.log(`   To:      ${options.to}`);
-    console.log(`   Subject: ${options.subject}`);
-    console.log(`   Body:\n${options.text}`);
-    console.log('─────────────────────────────────────────────────────────\n');
-    return true;
-  }
-
+/** Send via Resend HTTP API */
+async function sendViaResend(opts: EmailPayload): Promise<boolean> {
   try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: EMAIL_FROM,
+        to: [opts.to],
+        subject: opts.subject,
+        html: opts.html,
+        text: opts.text,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      console.error('[Resend] Failed to send email:', body);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[Resend] Network error:', (err as Error).message);
+    return false;
+  }
+}
+
+/** Send via Nodemailer SMTP */
+async function sendViaSmtp(opts: EmailPayload): Promise<boolean> {
+  try {
+    const transporter = nodemailer.createTransport({
+      host: EMAIL_HOST,
+      port: EMAIL_PORT,
+      secure: EMAIL_PORT === 465,
+      auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+    });
     await transporter.sendMail({
       from: EMAIL_FROM,
-      to: options.to,
-      subject: options.subject,
-      html: options.html,
-      text: options.text,
+      to: opts.to,
+      subject: opts.subject,
+      html: opts.html,
+      text: opts.text,
     });
     return true;
   } catch (err) {
-    // Never log sensitive email content — just log the failure
-    console.error('[Xia Chat Email Service] Failed to send email:', (err as Error).message);
+    console.error('[SMTP] Failed to send email:', (err as Error).message);
     return false;
   }
+}
+
+/** Master send function — picks best available transport */
+async function sendEmail(opts: EmailPayload): Promise<boolean> {
+  if (RESEND_API_KEY) {
+    return sendViaResend(opts);
+  }
+  if (EMAIL_HOST && EMAIL_USER && EMAIL_PASS) {
+    return sendViaSmtp(opts);
+  }
+  // Dev console fallback
+  console.log('\n📧 [Xia Chat Email — Dev Mode / No Transport Configured]');
+  console.log(`   To:      ${opts.to}`);
+  console.log(`   Subject: ${opts.subject}`);
+  console.log(`   Body:\n${opts.text}`);
+  console.log('─────────────────────────────────────────────────────────\n');
+  return true;
 }
 
 // ─── PASSWORD RESET EMAIL ────────────────────────────────────────────────────
@@ -69,6 +94,7 @@ export async function sendPasswordResetEmail(
   resetToken: string
 ): Promise<boolean> {
   const resetUrl = `${FRONTEND_URL}?token=${resetToken}`;
+  const firstName = name.split(' ')[0];
 
   const html = `
 <!DOCTYPE html>
@@ -80,78 +106,43 @@ export async function sendPasswordResetEmail(
 </head>
 <body style="margin:0;padding:0;background:#F7F7F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#F7F7F5;padding:40px 20px;">
-    <tr>
-      <td align="center">
-        <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:24px;border:1px solid #E8E8E5;overflow:hidden;">
-          <!-- Header -->
-          <tr>
-            <td style="background:#171717;padding:32px 40px;text-align:center;">
-              <div style="display:inline-flex;align-items:center;gap:10px;">
-                <div style="width:40px;height:40px;background:#FF8A2A;border-radius:12px;display:inline-block;"></div>
-                <span style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:-0.5px;">Xia<span style="color:#FF8A2A;">Chat</span></span>
-              </div>
-            </td>
-          </tr>
-          <!-- Body -->
-          <tr>
-            <td style="padding:40px;">
-              <h1 style="margin:0 0 8px;font-size:24px;font-weight:800;color:#171717;">Reset your password</h1>
-              <p style="margin:0 0 24px;color:#6B6B6B;font-size:15px;line-height:1.6;">
-                Hi ${name.split(' ')[0]}, we received a request to reset your Xia Chat password. Click the button below to choose a new password. This link expires in <strong>15 minutes</strong>.
-              </p>
-              <div style="text-align:center;margin:32px 0;">
-                <a href="${resetUrl}" style="display:inline-block;background:#FF8A2A;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 32px;border-radius:100px;">
-                  Reset Password →
-                </a>
-              </div>
-              <p style="margin:24px 0 0;color:#8E8E93;font-size:13px;line-height:1.6;">
-                If you didn't request a password reset, you can safely ignore this email. Your password will not change.
-              </p>
-              <p style="margin:8px 0 0;color:#8E8E93;font-size:13px;">
-                For security, never share this link with anyone.
-              </p>
-            </td>
-          </tr>
-          <!-- Footer -->
-          <tr>
-            <td style="background:#FAF9F6;padding:20px 40px;border-top:1px solid #E8E8E5;">
-              <p style="margin:0;color:#8E8E93;font-size:12px;text-align:center;">
-                © ${new Date().getFullYear()} Xia Chat · Automated email, please do not reply.
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:24px;border:1px solid #E8E8E5;overflow:hidden;">
+        <tr><td style="background:#171717;padding:32px 40px;text-align:center;">
+          <span style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:-0.5px;">Xia<span style="color:#FF8A2A;">Chat</span></span>
+        </td></tr>
+        <tr><td style="padding:40px;">
+          <h1 style="margin:0 0 8px;font-size:24px;font-weight:800;color:#171717;">Reset your password</h1>
+          <p style="margin:0 0 24px;color:#6B6B6B;font-size:15px;line-height:1.6;">
+            Hi ${firstName}, we received a request to reset your Xia Chat password. Click the button below to choose a new password. This link expires in <strong>15 minutes</strong>.
+          </p>
+          <div style="text-align:center;margin:32px 0;">
+            <a href="${resetUrl}" style="display:inline-block;background:#FF8A2A;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 32px;border-radius:100px;">
+              Reset Password →
+            </a>
+          </div>
+          <p style="margin:24px 0 0;color:#8E8E93;font-size:13px;line-height:1.6;">
+            If you didn't request a password reset, you can safely ignore this email. Your password will not change.
+          </p>
+          <p style="margin:8px 0 0;color:#8E8E93;font-size:13px;">For security, never share this link with anyone.</p>
+        </td></tr>
+        <tr><td style="background:#FAF9F6;padding:20px 40px;border-top:1px solid #E8E8E5;">
+          <p style="margin:0;color:#8E8E93;font-size:12px;text-align:center;">
+            © ${new Date().getFullYear()} Xia Chat · Automated email, please do not reply.
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
   </table>
 </body>
-</html>
-  `.trim();
+</html>`.trim();
 
-  const text = `
-Reset your Xia Chat password
+  const text = `Reset your Xia Chat password\n\nHi ${firstName},\n\nWe received a request to reset your Xia Chat password.\nClick the link below to choose a new password (expires in 15 minutes):\n\n${resetUrl}\n\nIf you didn't request this, you can safely ignore this email.\n\n— The Xia Chat Team`;
 
-Hi ${name.split(' ')[0]},
-
-We received a request to reset your Xia Chat password.
-Click the link below to choose a new password (expires in 15 minutes):
-
-${resetUrl}
-
-If you didn't request this, you can safely ignore this email.
-
-— The Xia Chat Team
-  `.trim();
-
-  return sendEmail({
-    to,
-    subject: 'Reset your Xia Chat password',
-    html,
-    text,
-  });
+  return sendEmail({ to, subject: 'Reset your Xia Chat password', html, text });
 }
 
-// ─── EMAIL VERIFICATION EMAIL ────────────────────────────────────────────────
+// ─── EMAIL VERIFICATION ──────────────────────────────────────────────────────
 
 export async function sendVerificationEmail(
   to: string,
@@ -159,6 +150,7 @@ export async function sendVerificationEmail(
   verificationToken: string
 ): Promise<boolean> {
   const verifyUrl = `${FRONTEND_URL}/api/auth/verify-email?token=${verificationToken}`;
+  const firstName = name.split(' ')[0];
 
   const html = `
 <!DOCTYPE html>
@@ -170,69 +162,93 @@ export async function sendVerificationEmail(
 </head>
 <body style="margin:0;padding:0;background:#F7F7F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#F7F7F5;padding:40px 20px;">
-    <tr>
-      <td align="center">
-        <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:24px;border:1px solid #E8E8E5;overflow:hidden;">
-          <!-- Header -->
-          <tr>
-            <td style="background:#171717;padding:32px 40px;text-align:center;">
-              <div style="display:inline-flex;align-items:center;gap:10px;">
-                <div style="width:40px;height:40px;background:#FF8A2A;border-radius:12px;display:inline-block;"></div>
-                <span style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:-0.5px;">Xia<span style="color:#FF8A2A;">Chat</span></span>
-              </div>
-            </td>
-          </tr>
-          <!-- Body -->
-          <tr>
-            <td style="padding:40px;">
-              <h1 style="margin:0 0 8px;font-size:24px;font-weight:800;color:#171717;">Welcome to Xia Chat! 🎉</h1>
-              <p style="margin:0 0 24px;color:#6B6B6B;font-size:15px;line-height:1.6;">
-                Hi ${name.split(' ')[0]}, thanks for signing up. Please verify your email address to unlock full access to your Xia Chat dashboard and AI email reporting features.
-              </p>
-              <div style="text-align:center;margin:32px 0;">
-                <a href="${verifyUrl}" style="display:inline-block;background:#FF8A2A;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 32px;border-radius:100px;">
-                  Verify Email Address →
-                </a>
-              </div>
-              <p style="margin:24px 0 0;color:#8E8E93;font-size:13px;line-height:1.6;">
-                This link expires in <strong>24 hours</strong>. If you didn't create an account, you can safely ignore this email.
-              </p>
-            </td>
-          </tr>
-          <!-- Footer -->
-          <tr>
-            <td style="background:#FAF9F6;padding:20px 40px;border-top:1px solid #E8E8E5;">
-              <p style="margin:0;color:#8E8E93;font-size:12px;text-align:center;">
-                © ${new Date().getFullYear()} Xia Chat · Automated email, please do not reply.
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:24px;border:1px solid #E8E8E5;overflow:hidden;">
+        <tr><td style="background:#171717;padding:32px 40px;text-align:center;">
+          <span style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:-0.5px;">Xia<span style="color:#FF8A2A;">Chat</span></span>
+        </td></tr>
+        <tr><td style="padding:40px;">
+          <h1 style="margin:0 0 8px;font-size:24px;font-weight:800;color:#171717;">Welcome to Xia Chat! 🎉</h1>
+          <p style="margin:0 0 24px;color:#6B6B6B;font-size:15px;line-height:1.6;">
+            Hi ${firstName}, thanks for signing up. Please verify your email address to unlock full access to your Xia Chat dashboard.
+          </p>
+          <div style="text-align:center;margin:32px 0;">
+            <a href="${verifyUrl}" style="display:inline-block;background:#FF8A2A;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 32px;border-radius:100px;">
+              Verify Email Address →
+            </a>
+          </div>
+          <p style="margin:24px 0 0;color:#8E8E93;font-size:13px;line-height:1.6;">
+            This link expires in <strong>24 hours</strong>. If you didn't create an account, you can safely ignore this email.
+          </p>
+        </td></tr>
+        <tr><td style="background:#FAF9F6;padding:20px 40px;border-top:1px solid #E8E8E5;">
+          <p style="margin:0;color:#8E8E93;font-size:12px;text-align:center;">
+            © ${new Date().getFullYear()} Xia Chat · Automated email, please do not reply.
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
   </table>
 </body>
-</html>
-  `.trim();
+</html>`.trim();
 
-  const text = `
-Welcome to Xia Chat!
+  const text = `Welcome to Xia Chat!\n\nHi ${firstName},\n\nPlease verify your email address to unlock full access:\n\n${verifyUrl}\n\nThis link expires in 24 hours.\n\n— The Xia Chat Team`;
 
-Hi ${name.split(' ')[0]},
+  return sendEmail({ to, subject: 'Verify your Xia Chat email address', html, text });
+}
 
-Please verify your email address to unlock full access:
+// ─── TEAM INVITATION EMAIL ───────────────────────────────────────────────────
 
-${verifyUrl}
+export async function sendTeamInvitationEmail(
+  to: string,
+  invitedByName: string,
+  workspaceName: string,
+  role: string,
+  inviteToken: string
+): Promise<boolean> {
+  const inviteUrl = `${FRONTEND_URL}/login?invite=${inviteToken}`;
 
-This link expires in 24 hours.
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>You're invited to join ${workspaceName} on Xia Chat</title>
+</head>
+<body style="margin:0;padding:0;background:#F7F7F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F7F7F5;padding:40px 20px;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:24px;border:1px solid #E8E8E5;overflow:hidden;">
+        <tr><td style="background:#171717;padding:32px 40px;text-align:center;">
+          <span style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:-0.5px;">Xia<span style="color:#FF8A2A;">Chat</span></span>
+        </td></tr>
+        <tr><td style="padding:40px;">
+          <h1 style="margin:0 0 8px;font-size:24px;font-weight:800;color:#171717;">You're invited! 🚀</h1>
+          <p style="margin:0 0 24px;color:#6B6B6B;font-size:15px;line-height:1.6;">
+            <strong>${invitedByName}</strong> has invited you to join <strong>${workspaceName}</strong> on Xia Chat as a <strong>${role}</strong>.
+          </p>
+          <div style="text-align:center;margin:32px 0;">
+            <a href="${inviteUrl}" style="display:inline-block;background:#FF8A2A;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 32px;border-radius:100px;">
+              Accept Invitation →
+            </a>
+          </div>
+          <p style="margin:24px 0 0;color:#8E8E93;font-size:13px;line-height:1.6;">
+            This invitation expires in <strong>7 days</strong>. If you weren't expecting this, you can safely ignore this email.
+          </p>
+        </td></tr>
+        <tr><td style="background:#FAF9F6;padding:20px 40px;border-top:1px solid #E8E8E5;">
+          <p style="margin:0;color:#8E8E93;font-size:12px;text-align:center;">
+            © ${new Date().getFullYear()} Xia Chat · Automated email, please do not reply.
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`.trim();
 
-— The Xia Chat Team
-  `.trim();
+  const text = `You're invited to join ${workspaceName} on Xia Chat!\n\n${invitedByName} invited you as ${role}.\n\nAccept your invitation:\n${inviteUrl}\n\nExpires in 7 days.\n\n— The Xia Chat Team`;
 
-  return sendEmail({
-    to,
-    subject: 'Verify your Xia Chat email address',
-    html,
-    text,
-  });
+  return sendEmail({ to, subject: `${invitedByName} invited you to ${workspaceName} on Xia Chat`, html, text });
 }

@@ -1333,7 +1333,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           defaultEmail={pendingGoogleEmail}
           onClose={() => setPendingTempToken(null)}
           onConfirm={async (token, chosenUsername, chosenName) => {
-            const res = await confirmGoogleSignup(token, chosenUsername, chosenName);
+            const res = await confirmGoogleSignup(token);
             if (res.success) {
               setPendingTempToken(null);
               onNavigate('/set-password');

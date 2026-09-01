@@ -448,13 +448,63 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
   try {
     const provider = req.params.provider; // 'website' | 'meta' | 'whatsapp'
 
-    // Reject unverified signature requests if Meta app secret configured
-    if (provider === 'meta' && process.env.META_APP_SECRET) {
-      const signature = req.headers['x-hub-signature-256'] as string;
+    // ── HMAC-SHA256 Signature Verification (Meta / Facebook / WhatsApp) ──────
+    if ((provider === 'meta' || provider === 'whatsapp') && process.env.META_APP_SECRET) {
+      const signature = req.headers['x-hub-signature-256'] as string | undefined;
+
       if (!signature) {
-        return res.status(401).json({ error: 'Missing webhook signature.' });
+        return res.status(401).json({ error: 'Missing X-Hub-Signature-256 header.' });
+      }
+
+      const rawBody = JSON.stringify(req.body);
+      const expectedSig = `sha256=${crypto
+        .createHmac('sha256', process.env.META_APP_SECRET)
+        .update(rawBody, 'utf8')
+        .digest('hex')}`;
+
+      // Constant-time comparison to prevent timing attacks
+      const sigBuffer = Buffer.from(signature, 'utf8');
+      const expectedBuffer = Buffer.from(expectedSig, 'utf8');
+
+      if (
+        sigBuffer.length !== expectedBuffer.length ||
+        !crypto.timingSafeEqual(sigBuffer, expectedBuffer)
+      ) {
+        console.warn(`[Webhook] HMAC signature mismatch from provider: ${provider}`);
+        return res.status(401).json({ error: 'Invalid webhook signature.' });
       }
     }
+
+    // ── Idempotency Deduplication ─────────────────────────────────────────────
+    // Prevent reprocessing the same event if Meta sends duplicates or retries
+    const eventId: string | undefined =
+      req.body?.entry?.[0]?.id ||
+      req.body?.event_id ||
+      req.body?.id;
+
+    if (eventId) {
+      const existingEvent = db.prepare(
+        'SELECT id FROM webhook_events WHERE id = ? AND event_type = ?'
+      ).get(eventId, provider);
+
+      if (existingEvent) {
+        // Already processed — return 200 to acknowledge without reprocessing
+        return res.status(200).json({ status: 'ALREADY_PROCESSED', provider });
+      }
+
+      // Record event for deduplication
+      const now = new Date().toISOString();
+      try {
+        db.prepare(
+          'INSERT INTO webhook_events (id, event_type, processed_at, payload) VALUES (?, ?, ?, ?)'
+        ).run(eventId, provider, now, JSON.stringify(req.body).substring(0, 4096));
+      } catch {
+        // Duplicate insert race condition — still safe to proceed
+      }
+    }
+
+    // ── Route to appropriate handler (future: channel-specific processing) ────
+    console.log(`[Webhook] Received ${provider} event${eventId ? ` (id: ${eventId})` : ''}`);
 
     return res.status(200).json({ status: 'EVENT_RECEIVED', provider });
   } catch (err) {
@@ -462,3 +512,4 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
     return res.status(500).json({ error: 'Webhook processing failed.' });
   }
 };
+

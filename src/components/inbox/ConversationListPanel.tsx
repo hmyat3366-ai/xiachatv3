@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { ConversationItem, FilterState, InboxStats } from '../../types/inbox';
+import type { SSEStatus } from '../../utils/useSSE';
 import {
   Search,
   SlidersHorizontal,
@@ -17,6 +18,8 @@ import {
   Flame,
   Check,
   RotateCcw,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -28,6 +31,8 @@ interface ConversationListPanelProps {
   onFilterChange: (newFilters: Partial<FilterState>) => void;
   stats: InboxStats;
   isLoading: boolean;
+  /** SSE realtime connection status — for live indicator badge */
+  sseStatus?: SSEStatus;
 }
 
 // Format relative time helper
@@ -131,6 +136,7 @@ export const ConversationListPanel: React.FC<ConversationListPanelProps> = ({
   onFilterChange,
   stats,
   isLoading,
+  sseStatus = 'disconnected',
 }) => {
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 
@@ -168,6 +174,31 @@ export const ConversationListPanel: React.FC<ConversationListPanelProps> = ({
             <h2 className="font-black text-base text-[#171717] tracking-tight">Unified Inbox</h2>
             <span className="px-2 py-0.5 rounded-full bg-[#FFF0E5] text-[#D96512] text-[11px] font-black">
               {stats.total}
+            </span>
+            {/* SSE Realtime Connection Status Indicator */}
+            <span
+              title={
+                sseStatus === 'connected'
+                  ? 'Live — Realtime updates active'
+                  : sseStatus === 'connecting'
+                  ? 'Connecting to realtime...'
+                  : 'Disconnected — Reconnecting...'
+              }
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                sseStatus === 'connected'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : sseStatus === 'connecting'
+                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                  : 'bg-gray-100 text-gray-500 border-gray-200'
+              }`}
+            >
+              {sseStatus === 'connected' ? (
+                <><Wifi className="w-2.5 h-2.5" /> Live</>
+              ) : sseStatus === 'connecting' ? (
+                <><span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" /> Connecting…</>
+              ) : (
+                <><WifiOff className="w-2.5 h-2.5" /> Offline</>
+              )}
             </span>
           </div>
 

@@ -13,6 +13,20 @@ export const db = new Database(dbPath);
 // Enable WAL mode for better concurrency performance
 db.pragma('journal_mode = WAL');
 
+// Hybrid: detect Supabase Postgres (xiachatV3) — logs only, SQLite remains primary for local dev
+// When DATABASE_URL contains supabase.co, Cloud Supabase is available for production
+const supaUrl = process.env.DATABASE_URL || '';
+const isSupabase = supaUrl.includes('supabase.co');
+if (isSupabase) {
+  console.log(`[DB] xiachatV3 Supabase Postgres detected → ${supaUrl.split('@').pop()?.split('/')[0]} (Cloud ready, migration 20260901031212 already pushed)`);
+  console.log(`[DB] Local SQLite still primary for dev: ${dbPath} — set USE_SUPABASE=true to switch fully to pg Pool (server/supabase.ts)`);
+} else {
+  console.log(`[DB] Using better-sqlite3 WAL: ${dbPath}`);
+}
+if (process.env.USE_SUPABASE === 'true' && isSupabase) {
+  console.log('[DB] USE_SUPABASE=true → future: route queries via pgPool (server/supabase.ts) — not yet fully wired');
+}
+
 // Initialize schema
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (

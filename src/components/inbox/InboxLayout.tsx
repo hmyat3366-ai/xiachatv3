@@ -8,6 +8,7 @@ import { CustomerDetailsPanel } from './CustomerDetailsPanel';
 import type { ConversationItem, MessageItem, CustomerProfile, FilterState, TeamMember, InboxStats } from '../../types/inbox';
 import type { WorkspaceItem } from '../../types/dashboard';
 import { apiFetch } from '../../utils/api';
+import { useSSE } from '../../utils/useSSE';
 
 interface InboxLayoutProps {
   currentPath: string;
@@ -125,49 +126,30 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
     }
   }, [selectedId, fetchThreadMessages, currentWorkspace?.id]);
 
-  // Server-Sent Events (SSE) Real-Time Stream Listener
-  useEffect(() => {
-    if (!currentWorkspace?.id) return;
+  // Server-Sent Events (SSE) Real-Time Stream — using useSSE hook with auto-reconnect
+  const API_BASE = import.meta.env.VITE_API_URL || '';
+  const sseUrl = currentWorkspace?.id
+    ? `${API_BASE}/api/inbox/events?workspaceId=${currentWorkspace.id}`
+    : null;
 
-    const API_BASE = import.meta.env.VITE_API_URL || '';
-    const token = localStorage.getItem('xia_auth_token');
-    const sseUrl = `${API_BASE}/api/inbox/events?workspaceId=${currentWorkspace.id}${token ? `&token=${token}` : ''}`;
-
-    const eventSource = new EventSource(sseUrl, {
-      withCredentials: true,
-    });
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'new_message') {
-          const { conversationId, message } = data.payload;
-
-          // If message belongs to active thread, append it instantly
-          if (conversationId === selectedId) {
-            setActiveMessages((prev) => [...prev, message]);
-          }
-
-          // Refresh conversation list to update last message preview
-          fetchConversations(currentWorkspace.id, filters);
-        } else if (data.type === 'status_change' || data.type === 'assignment_update') {
-          const { conversationId, systemMessage } = data.payload;
-
-          if (conversationId === selectedId && systemMessage) {
-            setActiveMessages((prev) => [...prev, systemMessage]);
-          }
-
-          fetchConversations(currentWorkspace.id, filters);
+  const sseStatus = useSSE(sseUrl, {
+    enabled: !!currentWorkspace?.id,
+    onEvent: (event) => {
+      if (event.type === 'new_message') {
+        const { conversationId, message } = event.payload as { conversationId: string; message: MessageItem };
+        if (conversationId === selectedId) {
+          setActiveMessages((prev) => [...prev, message]);
         }
-      } catch {
-        // Heartbeat or malformed JSON
+        fetchConversations(currentWorkspace?.id, filters);
+      } else if (event.type === 'status_change' || event.type === 'assignment_update') {
+        const { conversationId, systemMessage } = event.payload as { conversationId: string; systemMessage?: MessageItem };
+        if (conversationId === selectedId && systemMessage) {
+          setActiveMessages((prev) => [...prev, systemMessage]);
+        }
+        fetchConversations(currentWorkspace?.id, filters);
       }
-    };
-
-    return () => {
-      eventSource.close();
-    };
-  }, [currentWorkspace?.id, selectedId, fetchConversations, filters]);
+    },
+  });
 
   // Handle Workspace Switch
   const handleSelectWorkspace = (workspaceId: string) => {
@@ -360,6 +342,7 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
               onFilterChange={handleFilterChange}
               stats={stats}
               isLoading={isLoadingList}
+              sseStatus={sseStatus}
             />
           </div>
 

@@ -22,6 +22,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
+// Dev-mode safety check: warn if VITE_API_URL is not set
+if (import.meta.env.DEV && !import.meta.env.VITE_API_URL) {
+  console.warn(
+    '[AuthContext] VITE_API_URL is not set. API calls will use relative paths.\n' +
+    'Add VITE_API_URL=http://localhost:5000 to your .env file to avoid CORS issues in dev.'
+  );
+}
+
 // Helper: get stored auth token
 function getStoredToken(): string | null {
   return localStorage.getItem('xia_auth_token');
@@ -265,10 +273,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resendVerification = async () => {
     try {
+      // FIX: Added authHeaders() — this endpoint requires authentication
       const res = await fetch(`${API_BASE}/api/auth/resend-verification`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
       });
 
       const data = await res.json();
@@ -284,10 +293,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const saveOnboardingStep1 = async (workspaceName: string, workspaceSlug?: string) => {
     try {
+      // FIX: Added authHeaders() — onboarding requires auth token
       const res = await fetch(`${API_BASE}/api/onboarding/step-1`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({ workspaceName, workspaceSlug }),
       });
 
@@ -305,10 +315,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const saveOnboardingStep2 = async (businessType?: string, customerChannels?: string[]) => {
     try {
+      // FIX: Added authHeaders() — onboarding requires auth token
       const res = await fetch(`${API_BASE}/api/onboarding/step-2`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({ businessType, customerChannels }),
       });
 
@@ -326,10 +337,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const completeOnboarding = async (assistantName?: string, assistantInstructions?: string) => {
     try {
+      // FIX: Added authHeaders() — onboarding requires auth token
       const res = await fetch(`${API_BASE}/api/onboarding/complete`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({ assistantName, assistantInstructions }),
       });
 
