@@ -358,13 +358,16 @@ export const SubscriptionModel = mongoose.models.Subscription || mongoose.model<
 
 // MongoDB Connect Helper Function
 export async function connectMongoDB() {
-  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/xiachat';
+  if (!process.env.MONGODB_URI) {
+    return;
+  }
+  const mongoUri = process.env.MONGODB_URI;
   try {
     if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(mongoUri);
-      console.log(`[Xia Chat MongoDB] Connected successfully to ${mongoUri}`);
+      await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 3000 });
+      console.log(`[Xia Chat MongoDB] Connected successfully`);
     }
   } catch (err) {
-    console.warn(`[Xia Chat MongoDB Warning] Local MongoDB connection offline (using SQLite fallback database):`, err);
+    console.warn(`[Xia Chat MongoDB Warning] MongoDB connection offline (using SQLite fallback database):`, err);
   }
 }

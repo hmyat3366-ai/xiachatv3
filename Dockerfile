@@ -2,10 +2,13 @@
 # Xia Chat v3 — Production Dockerfile for Fly.io / Container Deployments
 # ============================================================
 
-FROM node:20-alpine AS base
+FROM node:20-slim AS base
 
 # Install build dependencies for native Node packages (better-sqlite3)
-RUN apk add --no-cache python3 make g++ gcc libc-dev
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
