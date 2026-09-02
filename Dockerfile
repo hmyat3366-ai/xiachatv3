@@ -1,5 +1,5 @@
 # ============================================================
-# Xia Chat v3 — Production Dockerfile for Fly.io / Container Deployments
+# Xia Chat v3 — Production Dockerfile for Render Deployments
 # ============================================================
 
 FROM node:20-slim AS base
@@ -18,18 +18,24 @@ COPY package*.json ./
 # Install all dependencies (including devDependencies for TypeScript build)
 RUN npm install
 
+# Rebuild native modules to ensure they are compiled for the correct platform
+RUN npm rebuild better-sqlite3
+
 # Copy application source code
 COPY . .
 
-# Build the Vite React Frontend -> outputs to dist/
+# 1. Build the Vite React Frontend -> outputs to dist/
 RUN npm run build
+
+# 2. Compile server TypeScript -> JavaScript (outputs to dist-server/)
+RUN npx tsc -p tsconfig.server.json
 
 # Set production environment
 ENV NODE_ENV=production
 ENV PORT=10000
 
-# Expose port for Render / Container deployments
-EXPOSE 10000 5000
+# Expose port for Render
+EXPOSE 10000
 
-# Run the Express server (serves API and built static frontend)
-CMD ["npx", "tsx", "server/index.ts"]
+# Run compiled plain JavaScript with node (no tsx at runtime = no SIGSEGV)
+CMD ["node", "dist-server/index.js"]

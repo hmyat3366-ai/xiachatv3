@@ -145,7 +145,7 @@ import {
 import { authenticateToken } from './authMiddleware.js';
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = Number(process.env.PORT) || 10000;
 const FRONTEND_URL = process.env.FRONTEND_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:5173';
 
 // CORS configuration
@@ -340,6 +340,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Production: Serve frontend static assets from dist/
+// Supports both tsx runtime (server/index.ts -> __dirname = server/) and compiled JS (dist-server/index.js -> __dirname = dist-server/)
 const distPath = path.resolve(__dirname, '../dist');
 app.use(express.static(distPath));
 
