@@ -1,0 +1,46 @@
+# ============================================================
+# Xia Chat v3 — Render.com Blueprint Deployment Configuration
+# https://render.com/docs/blueprint-spec
+# ============================================================
+
+services:
+  - type: web
+    name: xiachatv3
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: Xia Chat <noreply@xiachat.ai>
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: CLOUDFLARE_TURNSTILE_SECRET
+        sync: false
+      - key: WEBHOOK_VERIFY_TOKEN
+        generateValue: true

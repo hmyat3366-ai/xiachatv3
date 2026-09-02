@@ -23,10 +23,10 @@ RUN npm run build
 
 # Set production environment
 ENV NODE_ENV=production
-ENV PORT=5000
+ENV PORT=10000
 
-# Expose port 5000 for Fly.io proxy
-EXPOSE 5000
+# Expose port for Render / Container deployments
+EXPOSE 10000 5000
 
 # Run the Express server (serves API and built static frontend)
 CMD ["npx", "tsx", "server/index.ts"]
