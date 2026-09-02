@@ -7,10 +7,32 @@ import { AuthRequest, sanitizeUser } from './authMiddleware.js';
 import { sendPasswordResetEmail, sendVerificationEmail } from './emailService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'xia_chat_dev_jwt_secret_key_8f9a2b7c4d1e';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
-const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/api/auth/google/callback';
+
+// Dynamic URL helpers: detect Vercel frontend or Render backend domain dynamically
+export function getFrontendUrl(req: Request): string {
+  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL.replace(/\/$/, '');
+  const referer = req.headers.referer || '';
+  if (referer) {
+    try {
+      const url = new URL(referer);
+      return `${url.protocol}//${url.host}`;
+    } catch {}
+  }
+  const origin = (req.headers.origin as string) || '';
+  if (origin) return origin.replace(/\/$/, '');
+  return 'https://xiachatv3.vercel.app';
+}
+
+export function getGoogleCallbackUrl(req: Request): string {
+  if (process.env.GOOGLE_CALLBACK_URL && !process.env.GOOGLE_CALLBACK_URL.includes('localhost')) {
+    return process.env.GOOGLE_CALLBACK_URL;
+  }
+  const protocol = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
+  const host = (req.headers['x-forwarded-host'] as string) || req.headers.host || 'xiachatv3.onrender.com';
+  return `${protocol}://${host}/api/auth/google/callback`;
+}
 
 // SECURITY: Warn if using default JWT_SECRET in production
 if (process.env.NODE_ENV === 'production' && JWT_SECRET === 'xia_chat_dev_jwt_secret_key_8f9a2b7c4d1e') {
@@ -22,7 +44,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function generateTokenCookie(res: Response, userId: string) {
   const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
-  const isCrossSite = process.env.NODE_ENV === 'production' || (FRONTEND_URL && FRONTEND_URL.startsWith('https://'));
+  const isCrossSite = process.env.NODE_ENV === 'production' || Boolean(process.env.FRONTEND_URL?.startsWith('https://'));
 
   res.cookie('auth_token', token, {
     httpOnly: true,
@@ -439,24 +461,24 @@ export const verifyEmail = async (req: Request, res: Response) => {
 };
 
 // 8. GOOGLE OAUTH REDIRECT INITIATION
-// NOTE: We embed both the nonce and intent inside a short-lived signed JWT passed as the OAuth
-// `state` parameter. This avoids all cross-domain cookie issues that arise when the frontend is
-// hosted on a different domain (e.g. Vercel) from the backend (e.g. Railway) and the Vercel proxy
-// forwards the request — meaning any state cookies would be scoped to the wrong domain.
+// NOTE: We embed nonce, intent, and frontend origin URL inside a short-lived signed JWT passed as the OAuth `state` parameter.
 export const googleAuth = async (req: Request, res: Response) => {
   const nonce = crypto.randomBytes(16).toString('hex');
   const intent = (req.query.intent as string) || (req.query.prompt === 'signup' ? 'signup' : 'login');
   const isMockNew = req.query.mock_new === 'true';
 
-  // Sign a short-lived JWT that encodes both nonce and intent — no cookies needed
-  const signedState = jwt.sign({ nonce, intent, mockNew: isMockNew }, JWT_SECRET, { expiresIn: '10m' });
+  const callbackUrl = getGoogleCallbackUrl(req);
+  const frontendUrl = getFrontendUrl(req);
+
+  // Sign a short-lived JWT that encodes nonce, intent, and origin frontend URL — no cookies needed
+  const signedState = jwt.sign({ nonce, intent, mockNew: isMockNew, frontendUrl }, JWT_SECRET, { expiresIn: '10m' });
 
   const isConfigured = GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID !== 'mock_google_client_id_dev';
 
   if (isConfigured) {
     const params = new URLSearchParams({
       client_id: GOOGLE_CLIENT_ID,
-      redirect_uri: GOOGLE_CALLBACK_URL,
+      redirect_uri: callbackUrl,
       response_type: 'code',
       scope: 'openid email profile',
       state: signedState,
@@ -465,40 +487,42 @@ export const googleAuth = async (req: Request, res: Response) => {
     return res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
   }
 
-  // Developer / Local testing mock flow if real Google credentials are not yet configured in .env
+  // Developer / Mock testing flow
   const referer = req.headers.referer || '';
   const isSignupPrompt = intent === 'signup' || req.query.prompt === 'signup' || isMockNew || referer.includes('signup');
   const mockFlag = isSignupPrompt ? '&mock_new=true' : '';
-  const mockRedirectUrl = `${GOOGLE_CALLBACK_URL}?code=mock_oauth_code_12345&state=${encodeURIComponent(signedState)}&intent=${intent}${mockFlag}`;
+  const mockRedirectUrl = `${callbackUrl}?code=mock_oauth_code_12345&state=${encodeURIComponent(signedState)}&intent=${intent}${mockFlag}`;
   return res.redirect(mockRedirectUrl);
 };
 
 // 9. GOOGLE OAUTH CALLBACK HANDLER
 export const googleCallback = async (req: Request, res: Response) => {
+  const defaultFrontend = getFrontendUrl(req);
   try {
     const { code, state, error } = req.query;
 
     // Handle user cancellation or provider failure
     if (error) {
-      return res.redirect(`${FRONTEND_URL}/login?auth_error=oauth_cancelled`);
+      return res.redirect(`${defaultFrontend}/login?auth_error=oauth_cancelled`);
     }
 
     // State validation: verify the signed JWT state parameter (no cookies required)
     if (!state || typeof state !== 'string') {
-      return res.redirect(`${FRONTEND_URL}/login?auth_error=invalid_state`);
+      return res.redirect(`${defaultFrontend}/login?auth_error=invalid_state`);
     }
 
-    let statePayload: { nonce: string; intent: string; mockNew?: boolean };
+    let statePayload: { nonce: string; intent: string; mockNew?: boolean; frontendUrl?: string };
     try {
-      statePayload = jwt.verify(state, JWT_SECRET) as { nonce: string; intent: string; mockNew?: boolean };
+      statePayload = jwt.verify(state, JWT_SECRET) as { nonce: string; intent: string; mockNew?: boolean; frontendUrl?: string };
     } catch {
-      return res.redirect(`${FRONTEND_URL}/login?auth_error=invalid_state`);
+      return res.redirect(`${defaultFrontend}/login?auth_error=invalid_state`);
     }
 
+    const frontendBase = statePayload.frontendUrl || defaultFrontend;
     const intent = (req.query.intent as string) || statePayload.intent || 'login';
 
     if (!code || typeof code !== 'string') {
-      return res.redirect(`${FRONTEND_URL}/login?auth_error=invalid_code`);
+      return res.redirect(`${frontendBase}/login?auth_error=invalid_code`);
     }
 
     let googleProfile: { id: string; email: string; name: string; email_verified: boolean };
@@ -515,18 +539,18 @@ export const googleCallback = async (req: Request, res: Response) => {
           code,
           client_id: GOOGLE_CLIENT_ID,
           client_secret: GOOGLE_CLIENT_SECRET,
-          redirect_uri: GOOGLE_CALLBACK_URL,
+          redirect_uri: getGoogleCallbackUrl(req),
           grant_type: 'authorization_code',
         }),
       });
 
       if (!tokenRes.ok) {
-        return res.redirect(`${FRONTEND_URL}?auth_error=token_exchange_failed`);
+        return res.redirect(`${frontendBase}?auth_error=token_exchange_failed`);
       }
 
       const tokenData = (await tokenRes.json()) as { access_token?: string; id_token?: string };
       if (!tokenData.access_token) {
-        return res.redirect(`${FRONTEND_URL}?auth_error=token_missing`);
+        return res.redirect(`${frontendBase}?auth_error=token_missing`);
       }
 
       const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
@@ -534,7 +558,7 @@ export const googleCallback = async (req: Request, res: Response) => {
       });
 
       if (!userRes.ok) {
-        return res.redirect(`${FRONTEND_URL}?auth_error=userinfo_failed`);
+        return res.redirect(`${frontendBase}?auth_error=userinfo_failed`);
       }
 
       const googleData = (await userRes.json()) as { id: string; email: string; name: string; verified_email?: boolean };
@@ -579,7 +603,7 @@ export const googleCallback = async (req: Request, res: Response) => {
       // 1. User clicked "Continue with Google" on Signup Page
       if (user) {
         // User already exists -> Do NOT create duplicate account! Show warning banner.
-        return res.redirect(`${FRONTEND_URL}/signup?google_account_exists=true&email=${encodeURIComponent(googleProfile.email)}`);
+        return res.redirect(`${frontendBase}/signup?google_account_exists=true&email=${encodeURIComponent(googleProfile.email)}`);
       }
 
       // New user -> Create account atomically with Workspace & WorkspaceMember
@@ -597,7 +621,7 @@ export const googleCallback = async (req: Request, res: Response) => {
       });
 
       const token = generateTokenCookie(res, user.id);
-      return res.redirect(`${FRONTEND_URL}/set-password?auth=google_success&token=${token}`);
+      return res.redirect(`${frontendBase}/set-password?auth=google_success&token=${token}`);
     } else {
       // 2. User clicked "Continue with Google" on Login Page (intent === 'login')
       if (user) {
@@ -614,7 +638,7 @@ export const googleCallback = async (req: Request, res: Response) => {
         const token = generateTokenCookie(res, user.id);
         const hasLocalPassword = Boolean(user.password_hash);
         const redirectTarget = hasLocalPassword ? (user.onboarding_completed ? '/dashboard' : '/onboarding') : '/set-password';
-        return res.redirect(`${FRONTEND_URL}${redirectTarget}?auth=google_success&token=${token}`);
+        return res.redirect(`${frontendBase}${redirectTarget}?auth=google_success&token=${token}`);
       }
 
       // New Google User from Login page -> DO NOT immediately create account! Show Signup Confirmation Modal!
@@ -625,10 +649,10 @@ export const googleCallback = async (req: Request, res: Response) => {
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `).run(crypto.randomUUID(), tempToken, googleProfile.id, googleProfile.email, googleProfile.name, expiresAt, now);
 
-      return res.redirect(`${FRONTEND_URL}/login?google_signup_pending=true&temp_token=${tempToken}&email=${encodeURIComponent(googleProfile.email)}&name=${encodeURIComponent(googleProfile.name)}`);
+      return res.redirect(`${frontendBase}/login?google_signup_pending=true&temp_token=${tempToken}&email=${encodeURIComponent(googleProfile.email)}&name=${encodeURIComponent(googleProfile.name)}`);
     }
   } catch {
-    return res.redirect(`${FRONTEND_URL}?auth_error=server_error`);
+    return res.redirect(`${defaultFrontend}?auth_error=server_error`);
   }
 };
 
