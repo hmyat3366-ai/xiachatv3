@@ -58,7 +58,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleGoogleAuth = () => {
     setIsGoogleLoading(true);
-    const apiBase = import.meta.env.VITE_API_URL || 'https://xiachatv3-production.up.railway.app';
+    const apiBase = import.meta.env.VITE_API_URL || 'https://xiachatv3.onrender.com';
     window.location.href = `${apiBase}/api/auth/google`;
   };
 

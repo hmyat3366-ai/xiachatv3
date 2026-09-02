@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://xiachatv3-production.up.railway.app/api/:path*"
+      "destination": "https://xiachatv3.onrender.com/api/:path*"
     },
     {
       "source": "/((?!api/).*)",
