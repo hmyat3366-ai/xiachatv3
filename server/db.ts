@@ -1,34 +1,48 @@
-import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { createRequire } from 'module';
 
-const dataDir = path.join(process.cwd(), 'data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+// ─── Database Selection ───────────────────────────────────────────────────────
+// If DATABASE_URL (Supabase/Postgres) is set → skip SQLite entirely (prevents SIGSEGV on Render)
+// If no DATABASE_URL → use better-sqlite3 (local dev only)
+const USE_PG = Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.length > 10);
+
+// No-op db stub for production (when using Postgres via authController / pg pool)
+function createNoOpDb() {
+  const noop = (..._args: any[]) => null;
+  const noopStmt = { get: noop, all: () => [], run: noop };
+  return {
+    prepare: (_sql: string) => noopStmt,
+    exec: noop,
+    pragma: noop,
+    close: noop,
+  };
 }
 
-const dbPath = path.join(dataDir, 'xiachat.db');
-export const db = new Database(dbPath);
+let _db: any = null;
 
-// Enable WAL mode for better concurrency performance
-db.pragma('journal_mode = WAL');
-
-// Hybrid: detect Supabase Postgres (xiachatV3) — logs only, SQLite remains primary for local dev
-// When DATABASE_URL contains supabase.co, Cloud Supabase is available for production
-const supaUrl = process.env.DATABASE_URL || '';
-const isSupabase = supaUrl.includes('supabase.co');
-if (isSupabase) {
-  console.log(`[DB] xiachatV3 Supabase Postgres detected → ${supaUrl.split('@').pop()?.split('/')[0]} (Cloud ready, migration 20260901031212 already pushed)`);
-  console.log(`[DB] Local SQLite still primary for dev: ${dbPath} — set USE_SUPABASE=true to switch fully to pg Pool (server/supabase.ts)`);
+if (!USE_PG) {
+  const dataDir = path.join(process.cwd(), 'data');
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+  try {
+    const _require = createRequire(import.meta.url);
+    const BetterSqlite3 = _require('better-sqlite3');
+    _db = new BetterSqlite3(path.join(dataDir, 'xiachat.db'));
+    _db.pragma('journal_mode = WAL');
+    console.log('[DB] Using better-sqlite3 WAL (local dev)');
+  } catch (e) {
+    console.warn('[DB] better-sqlite3 failed to load, using no-op db (pg mode):', e);
+  }
 } else {
-  console.log(`[DB] Using better-sqlite3 WAL: ${dbPath}`);
-}
-if (process.env.USE_SUPABASE === 'true' && isSupabase) {
-  console.log('[DB] USE_SUPABASE=true → future: route queries via pgPool (server/supabase.ts) — not yet fully wired');
+  console.log('[DB] DATABASE_URL detected → pg Pool mode (Supabase). SQLite not loaded.');
 }
 
-// Initialize schema
-db.exec(`
+export const db: any = _db ?? createNoOpDb();
+
+// Initialize schema (SQLite only — skipped in pg mode)
+if (!USE_PG && _db) db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -425,54 +439,22 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_workspace_members_user_status ON workspace_members(user_id, status);
 `);
 
-// Safe column migrations for existing SQLite databases
-try {
+// Safe column migrations for existing SQLite databases (local dev only)
+if (!USE_PG && _db) try {
   db.exec(`ALTER TABLE users ADD COLUMN job_title TEXT;`);
 } catch {
   // Column already exists
 }
 
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN phone TEXT;`);
-} catch {
-  // Column already exists
-}
-
-// Safe column migrations for existing SQLite databases
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0;`);
-} catch {
-  // Column already exists
-}
-
-try {
-  db.exec(`ALTER TABLE workspaces ADD COLUMN description TEXT;`);
-} catch {
-  // Column already exists
-}
-
-try {
-  db.exec(`ALTER TABLE workspaces ADD COLUMN logo_url TEXT;`);
-} catch {
-  // Column already exists
-}
-
-try {
-  db.exec(`ALTER TABLE workspaces ADD COLUMN timezone TEXT DEFAULT 'Asia/Yangon';`);
-} catch {
-  // Column already exists
-}
-
-try {
-  db.exec(`ALTER TABLE workspaces ADD COLUMN language TEXT DEFAULT 'English';`);
-} catch {
-  // Column already exists
-}
-
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN onboarding_step INTEGER NOT NULL DEFAULT 1;`);
-} catch {
-  // Column already exists
+// Remaining migrations (SQLite local dev only)
+if (!USE_PG && _db) {
+  try { db.exec(`ALTER TABLE users ADD COLUMN phone TEXT;`); } catch {}
+  try { db.exec(`ALTER TABLE users ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0;`); } catch {}
+  try { db.exec(`ALTER TABLE workspaces ADD COLUMN description TEXT;`); } catch {}
+  try { db.exec(`ALTER TABLE workspaces ADD COLUMN logo_url TEXT;`); } catch {}
+  try { db.exec(`ALTER TABLE workspaces ADD COLUMN timezone TEXT DEFAULT 'Asia/Yangon';`); } catch {}
+  try { db.exec(`ALTER TABLE workspaces ADD COLUMN language TEXT DEFAULT 'English';`); } catch {}
+  try { db.exec(`ALTER TABLE users ADD COLUMN onboarding_step INTEGER NOT NULL DEFAULT 1;`); } catch {}
 }
 
 // Inbox and AI Agent column migrations
@@ -511,11 +493,13 @@ const authMigrations = [
   'ALTER TABLE password_resets ADD COLUMN code_hash TEXT;',
 ];
 
-for (const sql of [...inboxMigrations, ...authMigrations]) {
-  try {
-    db.exec(sql);
-  } catch {
-    // Column already exists or index exists
+if (!USE_PG && _db) {
+  for (const sql of [...inboxMigrations, ...authMigrations]) {
+    try {
+      db.exec(sql);
+    } catch {
+      // Column already exists or index exists
+    }
   }
 }
 
