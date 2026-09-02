@@ -31,7 +31,14 @@ interface OnboardingPageProps {
 }
 
 export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onNavigate }) => {
-  const { user, saveOnboardingStep1, saveOnboardingStep2, completeOnboarding, fetchOnboardingData } = useAuth();
+  const { user, isAuthenticated, isLoading, saveOnboardingStep1, saveOnboardingStep2, completeOnboarding, fetchOnboardingData } = useAuth();
+
+  // If not authenticated and not loading, redirect to login
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      onNavigate('/login');
+    }
+  }, [isLoading, isAuthenticated, onNavigate]);
 
   // Current Step (1, 2, 3)
   const [currentStep, setCurrentStep] = useState<number>(user?.onboardingStep || 1);
@@ -108,7 +115,12 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onNavigate }) =>
     if (result.success) {
       setCurrentStep(2);
     } else {
-      setErrorMsg(result.error || 'Failed to save workspace.');
+      if (result.error?.includes('Authentication') || result.error?.includes('session')) {
+        setErrorMsg('Your session has expired. Redirecting to sign in...');
+        setTimeout(() => onNavigate('/login'), 1500);
+      } else {
+        setErrorMsg(result.error || 'Failed to save workspace.');
+      }
     }
   };
 
