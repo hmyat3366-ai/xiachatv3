@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Search, Users, User, Loader2, Check } from 'lucide-react';
+import { apiFetch } from '../../utils/api';
 
 interface TeamMemberItem {
   id: string; // userId
@@ -49,7 +50,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
         let url = '/api/team-chat/workspace-members';
         if (workspaceId) url += `?workspaceId=${workspaceId}`;
 
-        const res = await fetch(url, { credentials: 'include' });
+        const res = await apiFetch(url);
         if (!res.ok) {
           const errData = await res.json();
           throw new Error(errData.error || 'Failed to load team members.');

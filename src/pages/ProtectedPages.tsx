@@ -217,10 +217,9 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
         }
       }}
       onCreateWorkspace={async (name) => {
-        const res = await fetch('/api/dashboard/workspaces', {
+        const res = await apiFetch('/api/dashboard/workspaces', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({ name }),
         });
         if (res.ok) {
@@ -388,10 +387,9 @@ export const AnalyticsPage: React.FC<{ onNavigate: (path: string) => void }> = (
         }
       }}
       onCreateWorkspace={async (name) => {
-        const res = await fetch('/api/dashboard/workspaces', {
+        const res = await apiFetch('/api/dashboard/workspaces', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({ name }),
         });
         if (res.ok) {
@@ -707,10 +705,9 @@ export const TeamPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onN
         }
       }}
       onCreateWorkspace={async (name) => {
-        const res = await fetch('/api/dashboard/workspaces', {
+        const res = await apiFetch('/api/dashboard/workspaces', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({ name }),
         });
         if (res.ok) {
@@ -850,7 +847,7 @@ export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ 
       let url = '/api/billing/overview';
       if (wsId) url += `?workspaceId=${wsId}`;
 
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await apiFetch(url);
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || 'Failed to load billing details.');
@@ -861,7 +858,7 @@ export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ 
       // Fetch user's workspaces for WorkspaceSwitcher context
       let teamUrl = '/api/team/members';
       if (wsId) teamUrl += `?workspaceId=${wsId}`;
-      const wsRes = await fetch(teamUrl, { credentials: 'include' });
+      const wsRes = await apiFetch(teamUrl);
       if (wsRes.ok) {
         const wsData = await wsRes.json();
         if (wsData.workspaces) setWorkspaces(wsData.workspaces);
@@ -900,10 +897,9 @@ export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ 
       let portalUrl = '/api/billing/customer-portal';
       if (billingWsId) portalUrl += `?workspaceId=${billingWsId}`;
 
-      const res = await fetch(portalUrl, {
+      const res = await apiFetch(portalUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to generate billing portal link.');
@@ -926,10 +922,9 @@ export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ 
       let checkoutUrl = '/api/billing/checkout-session';
       if (billingWsId) checkoutUrl += `?workspaceId=${billingWsId}`;
 
-      const res = await fetch(checkoutUrl, {
+      const res = await apiFetch(checkoutUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ planId, interval }),
       });
       const data = await res.json();
@@ -970,10 +965,9 @@ export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ 
       let changePlanUrl = '/api/billing/change-plan';
       if (billingWsId) changePlanUrl += `?workspaceId=${billingWsId}`;
 
-      const res = await fetch(changePlanUrl, {
+      const res = await apiFetch(changePlanUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           planId: targetDowngradePlan.id,
           interval: targetDowngradePlan.interval,
@@ -1000,10 +994,9 @@ export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ 
       let cancelUrl = '/api/billing/cancel';
       if (billingWsId) cancelUrl += `?workspaceId=${billingWsId}`;
 
-      const res = await fetch(cancelUrl, {
+      const res = await apiFetch(cancelUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ reason }),
       });
       const data = await res.json();
@@ -1026,10 +1019,9 @@ export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ 
       let resumeUrl = '/api/billing/resume';
       if (billingWsId) resumeUrl += `?workspaceId=${billingWsId}`;
 
-      const res = await fetch(resumeUrl, {
+      const res = await apiFetch(resumeUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to resume subscription.');
@@ -1057,10 +1049,9 @@ export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ 
         }
       }}
       onCreateWorkspace={async (name) => {
-        const res = await fetch('/api/dashboard/workspaces', {
+        const res = await apiFetch('/api/dashboard/workspaces', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({ name }),
         });
         if (res.ok) {
@@ -1226,7 +1217,7 @@ export const WorkspaceSettingsPage: React.FC<{ onNavigate: (path: string) => voi
       let url = `/api/settings/workspace`;
       if (wsId) url += `?workspaceId=${wsId}`;
 
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await apiFetch(url);
       if (res.ok) {
         const data = await res.json();
         setSettings(data.workspace);
@@ -1252,10 +1243,9 @@ export const WorkspaceSettingsPage: React.FC<{ onNavigate: (path: string) => voi
       let url = `/api/settings/workspace`;
       if (settingsWsId) url += `?workspaceId=${settingsWsId}`;
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(updated),
       });
 
@@ -1287,10 +1277,9 @@ export const WorkspaceSettingsPage: React.FC<{ onNavigate: (path: string) => voi
         }
       }}
       onCreateWorkspace={async (name) => {
-        const res = await fetch('/api/dashboard/workspaces', {
+        const res = await apiFetch('/api/dashboard/workspaces', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({ name }),
         });
         if (res.ok) {
@@ -1338,7 +1327,7 @@ export const SettingsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
       let url = `/api/settings/me`;
       if (wsId) url += `?workspaceId=${wsId}`;
 
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await apiFetch(url);
       if (res.ok) {
         const data = await res.json();
         setOverviewData(data);
@@ -1364,10 +1353,9 @@ export const SettingsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
   const handleSaveProfile = async (name: string, jobTitle: string, phone: string) => {
     setIsSaving(true);
     try {
-      const res = await fetch('/api/settings/profile', {
+      const res = await apiFetch('/api/settings/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ name, jobTitle, phone }),
       });
       if (res.ok) {
@@ -1386,10 +1374,9 @@ export const SettingsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
   const handleSaveNotifications = async (prefs: NotificationPreferences) => {
     setIsSaving(true);
     try {
-      const res = await fetch('/api/settings/notifications', {
+      const res = await apiFetch('/api/settings/notifications', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(prefs),
       });
       if (res.ok) {
@@ -1408,10 +1395,9 @@ export const SettingsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
   const handleChangePassword = async (curr: string, next: string) => {
     setIsSaving(true);
     try {
-      const res = await fetch('/api/settings/change-password', {
+      const res = await apiFetch('/api/settings/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ currentPassword: curr, newPassword: next }),
       });
       const data = await res.json();
@@ -1432,10 +1418,9 @@ export const SettingsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
       let url = `/api/settings/ai-defaults`;
       if (centralWsId) url += `?workspaceId=${centralWsId}`;
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(defaults),
       });
       if (res.ok) {
@@ -1460,10 +1445,9 @@ export const SettingsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
   const handleDeleteAccount = async (confirmText: string, password?: string) => {
     setIsSaving(true);
     try {
-      const res = await fetch('/api/settings/account', {
+      const res = await apiFetch('/api/settings/account', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ confirmText, currentPassword: password }),
       });
       const data = await res.json();
@@ -1493,10 +1477,9 @@ export const SettingsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
         }
       }}
       onCreateWorkspace={async (name) => {
-        const res = await fetch('/api/dashboard/workspaces', {
+        const res = await apiFetch('/api/dashboard/workspaces', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({ name }),
         });
         if (res.ok) {
@@ -1779,10 +1762,9 @@ export const CustomersPage: React.FC<{ onNavigate: (path: string) => void }> = (
         }
       }}
       onCreateWorkspace={async (name) => {
-        const res = await fetch('/api/dashboard/workspaces', {
+        const res = await apiFetch('/api/dashboard/workspaces', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({ name }),
         });
         if (res.ok) {
@@ -2069,10 +2051,9 @@ export const AIAgentsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
         }
       }}
       onCreateWorkspace={async (name) => {
-        const res = await fetch('/api/dashboard/workspaces', {
+        const res = await apiFetch('/api/dashboard/workspaces', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({ name }),
         });
         if (res.ok) {
@@ -2292,10 +2273,9 @@ export const ChannelsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
         }
       }}
       onCreateWorkspace={async (name) => {
-        const res = await fetch('/api/dashboard/workspaces', {
+        const res = await apiFetch('/api/dashboard/workspaces', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({ name }),
         });
         if (res.ok) {

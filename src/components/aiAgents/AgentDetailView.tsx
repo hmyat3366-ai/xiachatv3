@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiFetch } from '../../utils/api';
 import type { AIAgent, TestChatMessage, AIAgentTone, ResponseStyle } from '../../types/aiAgent';
 import {
   ArrowLeft,
@@ -122,10 +123,9 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
 
     try {
       // Direct playground API test route
-      const res = await fetch(`/api/ai-agents/${agent.id}/test`, {
+      const res = await apiFetch(`/api/ai-agents/${agent.id}/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ message: promptToSend.trim() }),
       });
 

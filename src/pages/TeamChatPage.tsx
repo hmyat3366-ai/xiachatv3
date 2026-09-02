@@ -185,10 +185,9 @@ export const TeamChatPage: React.FC<TeamChatPageProps> = ({ onNavigate }) => {
         }
       }}
       onCreateWorkspace={async (name) => {
-        const res = await fetch('/api/dashboard/workspaces', {
+        const res = await apiFetch('/api/dashboard/workspaces', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({ name }),
         });
         if (res.ok) {

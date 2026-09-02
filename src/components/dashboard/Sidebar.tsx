@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { apiFetch } from '../../utils/api';
 import type { WorkspaceItem } from '../../types/dashboard';
 import { Logo } from '../Logo';
 import {
@@ -43,7 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     let isMounted = true;
     const fetchUnreadCount = async () => {
       try {
-        const res = await fetch('/api/team-chat/unread-count', { credentials: 'include' });
+        const res = await apiFetch('/api/team-chat/unread-count');
         if (res.ok) {
           const data = await res.json();
           if (isMounted && typeof data.unreadCount === 'number') {
