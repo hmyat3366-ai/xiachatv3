@@ -345,7 +345,7 @@ const distPath = path.resolve(__dirname, '../dist');
 app.use(express.static(distPath));
 
 // Fallback to index.html for client-side React router routes (non-API)
-app.get('*', (req, res, next) => {
+app.use((req, res, next) => {
   if (req.path.startsWith('/api')) {
     return next();
   }
