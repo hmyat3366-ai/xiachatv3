@@ -447,7 +447,8 @@ export const createCustomer = async (req: AuthRequest, res: Response) => {
       now
     );
 
-    return res.status(201).json({ success: true, id: customerId });
+    const createdCustomer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
+    return res.status(201).json({ success: true, id: customerId, customer: createdCustomer });
   } catch (err) {
     console.error('Error creating customer:', err);
     return res.status(500).json({ error: 'Failed to create customer.' });

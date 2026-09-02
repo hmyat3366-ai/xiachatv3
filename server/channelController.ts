@@ -222,7 +222,8 @@ export const updateWebsiteChannelConfig = async (req: AuthRequest, res: Response
       WHERE id = ? AND workspace_id = ?
     `).run(updatedConfig, defaultAgentId || channel.default_agent_id, now, channel.id, workspace.id);
 
-    return res.status(200).json({ success: true });
+    const updatedChannel = db.prepare('SELECT * FROM channels WHERE id = ?').get(channel.id);
+    return res.status(200).json({ success: true, channel: updatedChannel });
   } catch (err) {
     console.error('Error updating website channel config:', err);
     return res.status(500).json({ error: 'Failed to update website widget configuration.' });
