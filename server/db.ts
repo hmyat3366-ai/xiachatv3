@@ -2,47 +2,27 @@ import path from 'path';
 import fs from 'fs';
 import { createRequire } from 'module';
 
-// ─── Database Selection ───────────────────────────────────────────────────────
-// If DATABASE_URL (Supabase/Postgres) is set → skip SQLite entirely (prevents SIGSEGV on Render)
-// If no DATABASE_URL → use better-sqlite3 (local dev only)
-const USE_PG = Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.length > 10);
-
-// No-op db stub for production (when using Postgres via authController / pg pool)
-function createNoOpDb() {
-  const noop = (..._args: any[]) => null;
-  const noopStmt = { get: noop, all: () => [], run: noop };
-  return {
-    prepare: (_sql: string) => noopStmt,
-    exec: noop,
-    pragma: noop,
-    close: noop,
-  };
+const dataDir = path.join(process.cwd(), 'data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
 }
 
 let _db: any = null;
 
-if (!USE_PG) {
-  const dataDir = path.join(process.cwd(), 'data');
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-  try {
-    const _require = createRequire(import.meta.url);
-    const BetterSqlite3 = _require('better-sqlite3');
-    _db = new BetterSqlite3(path.join(dataDir, 'xiachat.db'));
-    _db.pragma('journal_mode = WAL');
-    console.log('[DB] Using better-sqlite3 WAL (local dev)');
-  } catch (e) {
-    console.warn('[DB] better-sqlite3 failed to load, using no-op db (pg mode):', e);
-  }
-} else {
-  console.log('[DB] DATABASE_URL detected → pg Pool mode (Supabase). SQLite not loaded.');
+try {
+  const _require = createRequire(import.meta.url);
+  const BetterSqlite3 = _require('better-sqlite3');
+  _db = new BetterSqlite3(path.join(dataDir, 'xiachat.db'));
+  _db.pragma('journal_mode = WAL');
+  console.log('[DB] Using better-sqlite3 WAL database');
+} catch (e) {
+  console.error('[DB] Failed to load better-sqlite3:', e);
 }
 
-export const db: any = _db ?? createNoOpDb();
+export const db: any = _db;
 
-// Initialize schema (SQLite only — skipped in pg mode)
-if (!USE_PG && _db) db.exec(`
+// Initialize schema
+if (_db) db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -439,15 +419,9 @@ if (!USE_PG && _db) db.exec(`
   CREATE INDEX IF NOT EXISTS idx_workspace_members_user_status ON workspace_members(user_id, status);
 `);
 
-// Safe column migrations for existing SQLite databases (local dev only)
-if (!USE_PG && _db) try {
-  db.exec(`ALTER TABLE users ADD COLUMN job_title TEXT;`);
-} catch {
-  // Column already exists
-}
-
-// Remaining migrations (SQLite local dev only)
-if (!USE_PG && _db) {
+// Safe column migrations for existing SQLite databases
+if (_db) {
+  try { db.exec(`ALTER TABLE users ADD COLUMN job_title TEXT;`); } catch {}
   try { db.exec(`ALTER TABLE users ADD COLUMN phone TEXT;`); } catch {}
   try { db.exec(`ALTER TABLE users ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0;`); } catch {}
   try { db.exec(`ALTER TABLE workspaces ADD COLUMN description TEXT;`); } catch {}
@@ -493,7 +467,7 @@ const authMigrations = [
   'ALTER TABLE password_resets ADD COLUMN code_hash TEXT;',
 ];
 
-if (!USE_PG && _db) {
+if (_db) {
   for (const sql of [...inboxMigrations, ...authMigrations]) {
     try {
       db.exec(sql);
