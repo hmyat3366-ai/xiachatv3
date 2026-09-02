@@ -4,22 +4,13 @@
 
 FROM node:20-slim AS base
 
-# Install build dependencies for native Node packages (better-sqlite3)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
 # Copy package descriptors
 COPY package*.json ./
 
-# Install all dependencies (including devDependencies for TypeScript build)
+# Install all dependencies
 RUN npm install
-
-# Rebuild native modules to ensure they are compiled for the correct platform
-RUN npm rebuild better-sqlite3
 
 # Copy application source code
 COPY . .

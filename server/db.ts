@@ -1,28 +1,87 @@
 import path from 'path';
 import fs from 'fs';
-import { createRequire } from 'module';
+import initSqlJs from 'sql.js';
 
 const dataDir = path.join(process.cwd(), 'data');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-let _db: any = null;
+const dbPath = path.join(dataDir, 'xiachat.db');
+const SQL = await initSqlJs();
 
-try {
-  const _require = createRequire(import.meta.url);
-  const BetterSqlite3 = _require('better-sqlite3');
-  _db = new BetterSqlite3(path.join(dataDir, 'xiachat.db'));
-  _db.pragma('journal_mode = WAL');
-  console.log('[DB] Using better-sqlite3 WAL database');
-} catch (e) {
-  console.error('[DB] Failed to load better-sqlite3:', e);
+let buffer: Buffer | null = null;
+if (fs.existsSync(dbPath)) {
+  try {
+    buffer = fs.readFileSync(dbPath);
+  } catch (err) {
+    console.warn('[DB] Could not read existing db file:', err);
+  }
 }
 
-export const db: any = _db;
+const rawDb = buffer && buffer.length > 0 ? new SQL.Database(buffer) : new SQL.Database();
+console.log('[DB] Pure WebAssembly SQLite engine initialized successfully with persistence.');
+
+function persistToDisk() {
+  try {
+    const data = rawDb.export();
+    fs.writeFileSync(dbPath, Buffer.from(data));
+  } catch (err) {
+    console.warn('[DB] Failed to persist SQLite to disk:', err);
+  }
+}
+
+export const db = {
+  prepare(sql: string) {
+    return {
+      get(...params: any[]) {
+        const flatParams = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
+        const stmt = rawDb.prepare(sql);
+        if (flatParams.length > 0) stmt.bind(flatParams);
+        let res: any = undefined;
+        if (stmt.step()) {
+          res = stmt.getAsObject();
+        }
+        stmt.free();
+        return res;
+      },
+      all(...params: any[]) {
+        const flatParams = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
+        const stmt = rawDb.prepare(sql);
+        if (flatParams.length > 0) stmt.bind(flatParams);
+        const rows: any[] = [];
+        while (stmt.step()) {
+          rows.push(stmt.getAsObject());
+        }
+        stmt.free();
+        return rows;
+      },
+      run(...params: any[]) {
+        const flatParams = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
+        rawDb.run(sql, flatParams);
+        persistToDisk();
+        return { changes: 1, lastInsertRowid: 1 };
+      },
+    };
+  },
+  exec(sql: string) {
+    rawDb.exec(sql);
+    persistToDisk();
+  },
+  pragma(_sql: string) {
+    // no-op in WASM
+  },
+  transaction(fn: Function) {
+    return (...args: any[]) => {
+      const res = fn(...args);
+      persistToDisk();
+      return res;
+    };
+  },
+};
 
 // Initialize schema
-if (_db) db.exec(`
+db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -420,16 +479,14 @@ if (_db) db.exec(`
 `);
 
 // Safe column migrations for existing SQLite databases
-if (_db) {
-  try { db.exec(`ALTER TABLE users ADD COLUMN job_title TEXT;`); } catch {}
-  try { db.exec(`ALTER TABLE users ADD COLUMN phone TEXT;`); } catch {}
-  try { db.exec(`ALTER TABLE users ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0;`); } catch {}
-  try { db.exec(`ALTER TABLE workspaces ADD COLUMN description TEXT;`); } catch {}
-  try { db.exec(`ALTER TABLE workspaces ADD COLUMN logo_url TEXT;`); } catch {}
-  try { db.exec(`ALTER TABLE workspaces ADD COLUMN timezone TEXT DEFAULT 'Asia/Yangon';`); } catch {}
-  try { db.exec(`ALTER TABLE workspaces ADD COLUMN language TEXT DEFAULT 'English';`); } catch {}
-  try { db.exec(`ALTER TABLE users ADD COLUMN onboarding_step INTEGER NOT NULL DEFAULT 1;`); } catch {}
-}
+try { db.exec(`ALTER TABLE users ADD COLUMN job_title TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN phone TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0;`); } catch {}
+try { db.exec(`ALTER TABLE workspaces ADD COLUMN description TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE workspaces ADD COLUMN logo_url TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE workspaces ADD COLUMN timezone TEXT DEFAULT 'Asia/Yangon';`); } catch {}
+try { db.exec(`ALTER TABLE workspaces ADD COLUMN language TEXT DEFAULT 'English';`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN onboarding_step INTEGER NOT NULL DEFAULT 1;`); } catch {}
 
 // Inbox and AI Agent column migrations
 const inboxMigrations = [
@@ -467,13 +524,11 @@ const authMigrations = [
   'ALTER TABLE password_resets ADD COLUMN code_hash TEXT;',
 ];
 
-if (_db) {
-  for (const sql of [...inboxMigrations, ...authMigrations]) {
-    try {
-      db.exec(sql);
-    } catch {
-      // Column already exists or index exists
-    }
+for (const sql of [...inboxMigrations, ...authMigrations]) {
+  try {
+    db.exec(sql);
+  } catch {
+    // Column already exists or index exists
   }
 }
 
