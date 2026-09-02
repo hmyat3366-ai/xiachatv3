@@ -57,9 +57,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const validateEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());
 
   const handleGoogleAuth = () => {
-    setIsGoogleLoading(true);
-    const apiBase = import.meta.env.VITE_API_URL || 'https://xiachatv3.onrender.com';
-    window.location.href = `${apiBase}/api/auth/google`;
+    setFormError('Google Sign-In is coming soon.');
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {

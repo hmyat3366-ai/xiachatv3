@@ -145,6 +145,7 @@ db.exec(`
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     token_hash TEXT NOT NULL,
+    code_hash TEXT,
     expires_at TEXT NOT NULL,
     verified_at TEXT,
     created_at TEXT NOT NULL,
@@ -522,6 +523,7 @@ const authMigrations = [
   'ALTER TABLE users ADD COLUMN username TEXT;',
   'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);',
   'ALTER TABLE password_resets ADD COLUMN code_hash TEXT;',
+  'ALTER TABLE email_verifications ADD COLUMN code_hash TEXT;',
 ];
 
 for (const sql of [...inboxMigrations, ...authMigrations]) {

@@ -91,10 +91,9 @@ async function sendEmail(opts: EmailPayload): Promise<boolean> {
 export async function sendPasswordResetEmail(
   to: string,
   name: string,
-  resetToken: string
+  codeOrToken: string
 ): Promise<boolean> {
-  const resetUrl = `${FRONTEND_URL}?token=${resetToken}`;
-  const firstName = name.split(' ')[0];
+  const firstName = name.split(' ')[0] || 'there';
 
   const html = `
 <!DOCTYPE html>
@@ -113,18 +112,17 @@ export async function sendPasswordResetEmail(
         </td></tr>
         <tr><td style="padding:40px;">
           <h1 style="margin:0 0 8px;font-size:24px;font-weight:800;color:#171717;">Reset your password</h1>
-          <p style="margin:0 0 24px;color:#6B6B6B;font-size:15px;line-height:1.6;">
-            Hi ${firstName}, we received a request to reset your Xia Chat password. Click the button below to choose a new password. This link expires in <strong>15 minutes</strong>.
+          <p style="margin:0 0 20px;color:#6B6B6B;font-size:15px;line-height:1.6;">
+            Hi ${firstName}, we received a request to reset your Xia Chat password. Use the 6-digit verification code below to set a new password.
           </p>
-          <div style="text-align:center;margin:32px 0;">
-            <a href="${resetUrl}" style="display:inline-block;background:#FF8A2A;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 32px;border-radius:100px;">
-              Reset Password →
-            </a>
+          <div style="background:#FAF9F6;border:2px dashed #FF8A2A;border-radius:16px;padding:24px;text-align:center;margin:28px 0;">
+            <div style="font-size:12px;font-weight:700;color:#8E8E93;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;">Your 6-Digit Verification Code</div>
+            <span style="font-family:monospace,Courier,monospace;font-size:36px;font-weight:900;letter-spacing:10px;color:#171717;">${codeOrToken}</span>
           </div>
           <p style="margin:24px 0 0;color:#8E8E93;font-size:13px;line-height:1.6;">
-            If you didn't request a password reset, you can safely ignore this email. Your password will not change.
+            This verification code expires in <strong>15 minutes</strong>. If you didn't request a password reset, you can safely ignore this email.
           </p>
-          <p style="margin:8px 0 0;color:#8E8E93;font-size:13px;">For security, never share this link with anyone.</p>
+          <p style="margin:8px 0 0;color:#8E8E93;font-size:13px;">For security, never share this code with anyone.</p>
         </td></tr>
         <tr><td style="background:#FAF9F6;padding:20px 40px;border-top:1px solid #E8E8E5;">
           <p style="margin:0;color:#8E8E93;font-size:12px;text-align:center;">
@@ -137,9 +135,9 @@ export async function sendPasswordResetEmail(
 </body>
 </html>`.trim();
 
-  const text = `Reset your Xia Chat password\n\nHi ${firstName},\n\nWe received a request to reset your Xia Chat password.\nClick the link below to choose a new password (expires in 15 minutes):\n\n${resetUrl}\n\nIf you didn't request this, you can safely ignore this email.\n\n— The Xia Chat Team`;
+  const text = `Reset your Xia Chat password\n\nHi ${firstName},\n\nYour 6-digit verification code is: ${codeOrToken}\n\nThis code expires in 15 minutes.\n\n— The Xia Chat Team`;
 
-  return sendEmail({ to, subject: 'Reset your Xia Chat password', html, text });
+  return sendEmail({ to, subject: `${codeOrToken} is your Xia Chat password reset code`, html, text });
 }
 
 // ─── EMAIL VERIFICATION ──────────────────────────────────────────────────────
@@ -147,10 +145,9 @@ export async function sendPasswordResetEmail(
 export async function sendVerificationEmail(
   to: string,
   name: string,
-  verificationToken: string
+  codeOrToken: string
 ): Promise<boolean> {
-  const verifyUrl = `${FRONTEND_URL}/api/auth/verify-email?token=${verificationToken}`;
-  const firstName = name.split(' ')[0];
+  const firstName = name.split(' ')[0] || 'there';
 
   const html = `
 <!DOCTYPE html>
@@ -169,16 +166,15 @@ export async function sendVerificationEmail(
         </td></tr>
         <tr><td style="padding:40px;">
           <h1 style="margin:0 0 8px;font-size:24px;font-weight:800;color:#171717;">Welcome to Xia Chat! 🎉</h1>
-          <p style="margin:0 0 24px;color:#6B6B6B;font-size:15px;line-height:1.6;">
-            Hi ${firstName}, thanks for signing up. Please verify your email address to unlock full access to your Xia Chat dashboard.
+          <p style="margin:0 0 20px;color:#6B6B6B;font-size:15px;line-height:1.6;">
+            Hi ${firstName}, thanks for signing up. Please enter this 6-digit code to verify your account and set up your workspace:
           </p>
-          <div style="text-align:center;margin:32px 0;">
-            <a href="${verifyUrl}" style="display:inline-block;background:#FF8A2A;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 32px;border-radius:100px;">
-              Verify Email Address →
-            </a>
+          <div style="background:#FAF9F6;border:2px dashed #FF8A2A;border-radius:16px;padding:24px;text-align:center;margin:28px 0;">
+            <div style="font-size:12px;font-weight:700;color:#8E8E93;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;">Your 6-Digit Verification Code</div>
+            <span style="font-family:monospace,Courier,monospace;font-size:36px;font-weight:900;letter-spacing:10px;color:#171717;">${codeOrToken}</span>
           </div>
           <p style="margin:24px 0 0;color:#8E8E93;font-size:13px;line-height:1.6;">
-            This link expires in <strong>24 hours</strong>. If you didn't create an account, you can safely ignore this email.
+            This code expires in <strong>24 hours</strong>. If you didn't create an account, you can safely ignore this email.
           </p>
         </td></tr>
         <tr><td style="background:#FAF9F6;padding:20px 40px;border-top:1px solid #E8E8E5;">
@@ -192,9 +188,9 @@ export async function sendVerificationEmail(
 </body>
 </html>`.trim();
 
-  const text = `Welcome to Xia Chat!\n\nHi ${firstName},\n\nPlease verify your email address to unlock full access:\n\n${verifyUrl}\n\nThis link expires in 24 hours.\n\n— The Xia Chat Team`;
+  const text = `Welcome to Xia Chat!\n\nHi ${firstName},\n\nYour 6-digit verification code is: ${codeOrToken}\n\nThis code expires in 24 hours.\n\n— The Xia Chat Team`;
 
-  return sendEmail({ to, subject: 'Verify your Xia Chat email address', html, text });
+  return sendEmail({ to, subject: `${codeOrToken} is your Xia Chat verification code`, html, text });
 }
 
 // ─── TEAM INVITATION EMAIL ───────────────────────────────────────────────────

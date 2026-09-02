@@ -209,24 +209,27 @@ export const signup = async (req: Request, res: Response) => {
       emailVerified: false,
     });
 
-    // Generate Verification Token
+    // Generate 6-digit Verification Code & Token
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const codeHash = crypto.createHash('sha256').update(code).digest('hex');
     const verifyToken = crypto.randomBytes(32).toString('hex');
     const verifyTokenHash = crypto.createHash('sha256').update(verifyToken).digest('hex');
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
 
     const insertVerifyStmt = db.prepare(`
-      INSERT INTO email_verifications (id, user_id, token_hash, expires_at, created_at)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO email_verifications (id, user_id, token_hash, code_hash, expires_at, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
-    insertVerifyStmt.run(crypto.randomUUID(), userId, verifyTokenHash, expiresAt, now);
+    insertVerifyStmt.run(crypto.randomUUID(), userId, verifyTokenHash, codeHash, expiresAt, now);
 
-    sendVerificationEmail(normalizedEmail, name.trim(), verifyToken).catch(() => {});
+    sendVerificationEmail(normalizedEmail, name.trim(), code).catch(() => {});
 
     const token = generateTokenCookie(res, newUser.id);
 
     return res.status(201).json({
-      message: 'Account created successfully.',
+      message: 'Account created. Please enter the 6-digit verification code sent to your email.',
       user: sanitizeUser(newUser),
+      codeDev: code,
       token,
     });
   } catch {
@@ -457,6 +460,55 @@ export const verifyEmail = async (req: Request, res: Response) => {
     return res.status(200).json({ message: 'Email address verified successfully.' });
   } catch {
     return res.status(500).json({ error: 'Failed to verify email.' });
+  }
+};
+
+// 7b. VERIFY SIGNUP 6-DIGIT CODE
+export const verifySignupCode = async (req: Request, res: Response) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code || typeof code !== 'string') {
+      return res.status(400).json({ error: 'Email and 6-digit verification code are required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanCode = code.trim();
+
+    const userStmt = db.prepare('SELECT * FROM users WHERE email = ?');
+    const user = userStmt.get(cleanEmail) as DbUser | undefined;
+
+    if (!user) {
+      return res.status(400).json({ error: 'No account found with this email.' });
+    }
+
+    const codeHash = crypto.createHash('sha256').update(cleanCode).digest('hex');
+    const recordStmt = db.prepare(`
+      SELECT * FROM email_verifications
+      WHERE user_id = ? AND (code_hash = ? OR token_hash = ?) AND verified_at IS NULL
+      ORDER BY created_at DESC LIMIT 1
+    `);
+    const record = recordStmt.get(user.id, codeHash, cleanCode) as { id: string; expires_at: string } | undefined;
+
+    if (!record) {
+      return res.status(400).json({ error: 'Invalid or expired verification code.' });
+    }
+
+    if (Date.now() > new Date(record.expires_at).getTime()) {
+      return res.status(400).json({ error: 'Verification code has expired.' });
+    }
+
+    const now = new Date().toISOString();
+    db.prepare('UPDATE users SET email_verified = 1, updated_at = ? WHERE id = ?').run(now, user.id);
+    db.prepare('UPDATE email_verifications SET verified_at = ? WHERE id = ?').run(now, record.id);
+
+    const token = generateTokenCookie(res, user.id);
+    return res.status(200).json({
+      message: 'Email verified successfully.',
+      user: sanitizeUser(user),
+      token,
+    });
+  } catch {
+    return res.status(500).json({ error: 'Failed to verify signup code.' });
   }
 };
 

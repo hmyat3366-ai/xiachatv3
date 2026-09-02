@@ -3,7 +3,8 @@ import type { User, AuthState, OnboardingData } from '../types/auth';
 
 interface AuthContextType extends AuthState {
   login: (identifier: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signup: (name: string, username: string, email: string, password: string, confirmPassword: string) => Promise<{ success: boolean; error?: string }>;
+  signup: (name: string, username: string, email: string, password: string, confirmPassword: string) => Promise<{ success: boolean; message?: string; codeDev?: string; error?: string }>;
+  verifySignupCode: (email: string, code: string) => Promise<{ success: boolean; user?: User; error?: string }>;
   logout: () => Promise<void>;
   confirmGoogleSignup: (tempToken: string) => Promise<{ success: boolean; user?: User; error?: string }>;
   forgotPassword: (email: string) => Promise<{ success: boolean; message?: string; codeDev?: string; error?: string }>;
@@ -139,9 +140,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       setUser(data.user);
-      return { success: true };
+      return { success: true, message: data.message, codeDev: data.codeDev };
     } catch {
       const errMessage = 'Network connection error. Please try again.';
+      setError(errMessage);
+      return { success: false, error: errMessage };
+    }
+  };
+
+  const verifySignupCode = async (email: string, code: string) => {
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/verify-signup-code`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code }),
+      });
+
+      const data = await res.json();
+      if (data.token) localStorage.setItem('xia_auth_token', data.token);
+
+      if (!res.ok) {
+        const errMessage = data.error || 'Invalid or expired verification code.';
+        setError(errMessage);
+        return { success: false, error: errMessage };
+      }
+
+      setUser(data.user);
+      return { success: true, user: data.user };
+    } catch {
+      const errMessage = 'Network error verifying code. Please try again.';
       setError(errMessage);
       return { success: false, error: errMessage };
     }
@@ -390,6 +419,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error,
         login,
         signup,
+        verifySignupCode,
         logout,
         confirmGoogleSignup,
         forgotPassword,

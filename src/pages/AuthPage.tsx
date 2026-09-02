@@ -24,7 +24,7 @@ import { GoogleAuthButton } from '../components/auth/GoogleAuthButton';
 import { AuthBrandShowcase } from '../components/auth/AuthBrandShowcase';
 import { PendingGoogleModal } from '../components/auth/PendingGoogleModal';
 
-export type AuthPageMode = 'login' | 'signup' | 'forgot_password' | 'reset_password' | 'set_password';
+export type AuthPageMode = 'login' | 'signup' | 'signup_verify' | 'forgot_password' | 'reset_password' | 'set_password';
 
 interface AuthPageProps {
   initialMode?: AuthPageMode;
@@ -41,6 +41,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     user,
     login,
     signup,
+    verifySignupCode,
     confirmGoogleSignup,
     forgotPassword,
     verifyResetCode,
@@ -159,9 +160,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
   const validateEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());
 
-  const handleGoogleAuth = (intent: 'login' | 'signup' = 'login') => {
-    setIsGoogleLoading(true);
-    window.location.href = `/api/auth/google?intent=${intent}`;
+  const handleGoogleAuth = (_intent: 'login' | 'signup' = 'login') => {
+    setFormError('Google Sign-In is coming soon.');
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -245,12 +245,43 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setIsSubmitting(false);
 
     if (result.success) {
-      setFormSuccess('Account created! Setting up your workspace...');
+      if (result.codeDev) {
+        setCodeDevHint(result.codeDev);
+      }
+      setVerificationCode('');
+      setFormSuccess(result.message || 'Account created! Verification code sent to your email.');
+      setMode('signup_verify');
+      setResendCooldown(60);
+    } else {
+      setFormError(result.error || 'Failed to create account.');
+    }
+  };
+
+  const handleVerifySignupCodeSubmit = async (e?: React.FormEvent, customCode?: string) => {
+    if (e) e.preventDefault();
+    setFormError(null);
+    setFormSuccess(null);
+
+    const codeToVerify = customCode || verificationCode;
+
+    if (!codeToVerify.trim() || codeToVerify.trim().length !== 6) {
+      setFieldErrors({ code: 'Please enter the 6-digit verification code.' });
+      return;
+    }
+
+    setFieldErrors({});
+    setIsSubmitting(true);
+
+    const result = await verifySignupCode(email, codeToVerify);
+    setIsSubmitting(false);
+
+    if (result.success) {
+      setFormSuccess('Email verified successfully! Setting up your workspace...');
       setTimeout(() => {
         onNavigate('/onboarding');
       }, 400);
     } else {
-      setFormError(result.error || 'Failed to create account.');
+      setFormError(result.error || 'Invalid or expired verification code.');
     }
   };
 
@@ -456,6 +487,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               <h2 className="text-2xl font-black text-[#171717] tracking-tight">
                 {mode === 'login' && 'Welcome Back'}
                 {mode === 'signup' && 'Create Your Account'}
+                {mode === 'signup_verify' && 'Verify Your Email'}
                 {mode === 'forgot_password' && (
                   forgotStep === 1
                     ? 'Forgot Password?'
@@ -470,6 +502,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               <p className="text-xs text-[#6B6B6B] mt-1.5 font-normal leading-relaxed">
                 {mode === 'login' && 'Sign in to access your unified inbox, knowledge base & AI agents.'}
                 {mode === 'signup' && 'Get started with a 14-day free trial. No credit card required.'}
+                {mode === 'signup_verify' && `Enter the 6-digit verification code sent to ${email || 'your email'}.`}
                 {mode === 'forgot_password' && (
                   forgotStep === 1
                     ? 'Enter your registered email to receive a 6-digit verification code.'
@@ -861,6 +894,101 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     className="text-xs font-bold text-[#FF8A2A] hover:underline cursor-pointer"
                   >
                     Sign in
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════
+                MODE 2b: SIGNUP 6-DIGIT CODE VERIFICATION (CODE GMAIL)
+               ══════════════════════════════════════════════════════════ */}
+            {mode === 'signup_verify' && (
+              <form onSubmit={handleVerifySignupCodeSubmit} className="space-y-4" noValidate>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#171717] uppercase tracking-wider text-center mb-1">
+                    Enter 6-Digit Verification Code
+                  </label>
+                  <p className="text-[11px] text-gray-500 text-center mb-2">
+                    We sent a 6-digit code to <span className="font-semibold text-[#171717]">{email}</span>
+                  </p>
+
+                  <OtpInput
+                    value={verificationCode}
+                    onChange={(val) => {
+                      setVerificationCode(val);
+                      setFieldErrors((prev) => ({ ...prev, code: '' }));
+                    }}
+                    hasError={Boolean(fieldErrors.code)}
+                    onComplete={(val) => handleVerifySignupCodeSubmit(undefined, val)}
+                    disabled={isSubmitting}
+                  />
+
+                  {fieldErrors.code && (
+                    <p className="mt-1 text-[11px] text-red-600 text-center font-medium">{fieldErrors.code}</p>
+                  )}
+
+                  {/* Dev Hint */}
+                  {codeDevHint && (
+                    <div className="mt-2 p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px] text-center">
+                      ⚡ <strong>Dev Hint:</strong> Code is <span className="font-mono font-bold tracking-widest">{codeDevHint}</span>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting || verificationCode.length !== 6}
+                  className="w-full py-3 rounded-xl bg-[#FF8A2A] hover:bg-[#D96512] text-white font-bold text-xs shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Verifying Code...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Verify & Create Workspace</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+
+                <div className="flex items-center justify-between pt-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('signup');
+                      setFormError(null);
+                      setFormSuccess(null);
+                    }}
+                    className="text-gray-500 hover:text-[#171717] font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Change Details</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={resendCooldown > 0 || isSubmitting}
+                    onClick={async () => {
+                      if (!email) return;
+                      setIsSubmitting(true);
+                      const res = await signup(name, username, email, password, confirmPassword);
+                      setIsSubmitting(false);
+                      if (res.success) {
+                        if (res.codeDev) setCodeDevHint(res.codeDev);
+                        setFormSuccess('New 6-digit verification code sent!');
+                        setResendCooldown(60);
+                      } else {
+                        setFormError(res.error || 'Failed to resend code.');
+                      }
+                    }}
+                    className="text-[#FF8A2A] hover:underline font-bold disabled:text-gray-400 disabled:no-underline cursor-pointer flex items-center gap-1"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isSubmitting ? 'animate-spin' : ''}`} />
+                    <span>
+                      {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+                    </span>
                   </button>
                 </div>
               </form>

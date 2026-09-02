@@ -26,6 +26,7 @@ import {
   resetPassword,
   setupPassword,
   verifyEmail,
+  verifySignupCode,
   googleAuth,
   googleCallback,
   confirmGoogleSignup,
@@ -211,6 +212,7 @@ app.get('/api/auth/me', authenticateToken, getMe);
 app.post('/api/auth/google/confirm-signup', confirmGoogleSignup);
 app.post('/api/auth/forgot-password', resetLimiter, forgotPassword);
 app.post('/api/auth/verify-reset-code', verifyPasswordResetCode);
+app.post('/api/auth/verify-signup-code', verifySignupCode);
 app.post('/api/auth/reset-password', resetLimiter, resetPassword);
 app.post('/api/auth/set-password', authenticateToken, setupPassword);
 app.get('/api/auth/verify-email', verifyEmail);
