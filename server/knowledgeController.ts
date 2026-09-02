@@ -514,7 +514,7 @@ export const updateKnowledgeSource = async (req: AuthRequest, res: Response) => 
   try {
     if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
 
-    const sourceId = req.params.id;
+    const sourceId = req.params.id as string;
     const requestedWsId = req.query.workspaceId as string | undefined;
     const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
     if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
@@ -547,7 +547,7 @@ export const updateKnowledgeSource = async (req: AuthRequest, res: Response) => 
       }
     }
 
-    const count = createTextChunks(sourceId, workspace.id, newName, source.type, textToChunk);
+    const count = createTextChunks(sourceId, workspace.id, newName, String(source.type), String(textToChunk));
     db.prepare('UPDATE knowledge_sources SET chunk_count = ? WHERE id = ?').run(count, sourceId);
 
     return res.status(200).json({ success: true, message: 'Knowledge source updated and re-indexed.', chunkCount: count });

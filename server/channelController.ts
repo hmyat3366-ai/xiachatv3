@@ -364,7 +364,7 @@ export const connectChannel = async (req: AuthRequest, res: Response) => {
     const now = new Date().toISOString();
     // Securely reference/hash secret credentials without storing raw token
     const credentialsRef = accessToken ? crypto.createHash('sha256').update(accessToken).digest('hex') : null;
-    const channelName = name && name.trim() ? name.trim() : `${typeKey.toUpperCase()} Channel (${accountId.slice(0, 10)})`;
+    const channelName = name && name.trim() ? name.trim() : `${String(typeKey).toUpperCase()} Channel (${accountId.slice(0, 10)})`;
 
     let channelId: string;
 

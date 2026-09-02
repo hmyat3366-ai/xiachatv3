@@ -555,6 +555,10 @@ export interface DbWorkspace {
   slug: string;
   business_type: string | null;
   customer_channels: string | null; // JSON string
+  description?: string | null;
+  logo_url?: string | null;
+  timezone?: string | null;
+  language?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -308,7 +308,7 @@ export const updateMemberRole = async (req: AuthRequest, res: Response) => {
     }
 
     const actorRole = getUserWorkspaceRole(req.user.id, workspace);
-    if (actorRole === 'member' || actorRole === 'support') {
+    if (actorRole !== 'owner' && actorRole !== 'admin') {
       return res.status(403).json({ error: 'Only workspace Owners and Admins can update member roles.' });
     }
 
@@ -385,8 +385,8 @@ export const toggleMemberStatus = async (req: AuthRequest, res: Response) => {
     }
 
     const actorRole = getUserWorkspaceRole(req.user.id, workspace);
-    if (actorRole === 'member' || actorRole === 'support') {
-      return res.status(403).json({ error: 'Only workspace Owners and Admins can manage member status.' });
+    if (actorRole !== 'owner' && actorRole !== 'admin') {
+      return res.status(403).json({ error: 'Only workspace Owners and Admins can update member status.' });
     }
 
     const member = db.prepare('SELECT * FROM workspace_members WHERE id = ? AND workspace_id = ?').get(memberId, workspace.id) as DbWorkspaceMember | undefined;
@@ -443,8 +443,8 @@ export const removeTeamMember = async (req: AuthRequest, res: Response) => {
     }
 
     const actorRole = getUserWorkspaceRole(req.user.id, workspace);
-    if (actorRole === 'member' || actorRole === 'support') {
-      return res.status(403).json({ error: 'Only workspace Owners and Admins can remove team members.' });
+    if (actorRole !== 'owner' && actorRole !== 'admin') {
+      return res.status(403).json({ error: 'Only workspace Owners and Admins can remove members.' });
     }
 
     const member = db.prepare('SELECT * FROM workspace_members WHERE id = ? AND workspace_id = ?').get(memberId, workspace.id) as DbWorkspaceMember | undefined;
