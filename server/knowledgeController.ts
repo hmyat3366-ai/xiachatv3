@@ -299,11 +299,13 @@ export const createTextKnowledge = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
 
-    const { name, content } = req.body;
-    if (!name || typeof name !== 'string' || !name.trim()) {
-      return res.status(400).json({ error: 'Knowledge name is required.' });
+    const rawName = req.body.name || req.body.title || '';
+    const rawContent = req.body.content || req.body.text || '';
+
+    if (!rawName || typeof rawName !== 'string' || !rawName.trim()) {
+      return res.status(400).json({ error: 'Knowledge name or title is required.' });
     }
-    if (!content || typeof content !== 'string' || !content.trim()) {
+    if (!rawContent || typeof rawContent !== 'string' || !rawContent.trim()) {
       return res.status(400).json({ error: 'Knowledge content is required.' });
     }
 
@@ -312,7 +314,7 @@ export const createTextKnowledge = async (req: AuthRequest, res: Response) => {
     if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
 
     // Duplicate Source Prevention
-    const existing = db.prepare('SELECT id FROM knowledge_sources WHERE workspace_id = ? AND LOWER(name) = LOWER(?)').get(workspace.id, name.trim());
+    const existing = db.prepare('SELECT id FROM knowledge_sources WHERE workspace_id = ? AND LOWER(name) = LOWER(?)').get(workspace.id, rawName.trim());
     if (existing) {
       return res.status(409).json({ error: 'A knowledge source with this name already exists in your workspace.' });
     }
@@ -325,12 +327,13 @@ export const createTextKnowledge = async (req: AuthRequest, res: Response) => {
         id, workspace_id, name, type, status, content, original_url,
         file_metadata, chunk_count, created_by, created_at, updated_at
       ) VALUES (?, ?, ?, ?, 'ready', ?, NULL, NULL, 0, ?, ?, ?)
-    `).run(sourceId, workspace.id, name.trim(), 'Text', content.trim(), req.user.name, now, now);
+    `).run(sourceId, workspace.id, rawName.trim(), 'Text', rawContent.trim(), req.user.name, now, now);
 
-    const count = createTextChunks(sourceId, workspace.id, name.trim(), 'Text', content.trim());
+    const count = createTextChunks(sourceId, workspace.id, rawName.trim(), 'Text', rawContent.trim());
     db.prepare('UPDATE knowledge_sources SET chunk_count = ? WHERE id = ?').run(count, sourceId);
 
-    return res.status(201).json({ success: true, id: sourceId, chunkCount: count });
+    const source = db.prepare('SELECT * FROM knowledge_sources WHERE id = ?').get(sourceId);
+    return res.status(201).json({ success: true, id: sourceId, source, chunkCount: count });
   } catch (err) {
     console.error('Error creating text knowledge:', err);
     return res.status(500).json({ error: 'Failed to create text knowledge source.' });
@@ -342,11 +345,13 @@ export const createFaqKnowledge = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
 
-    const { name, faqs } = req.body; // faqs: Array<{ question: string; answer: string }>
-    if (!name || typeof name !== 'string' || !name.trim()) {
-      return res.status(400).json({ error: 'Knowledge name is required.' });
+    const rawName = req.body.name || req.body.title || '';
+    const rawFaqs = req.body.faqs || req.body.qaPairs || [];
+
+    if (!rawName || typeof rawName !== 'string' || !rawName.trim()) {
+      return res.status(400).json({ error: 'Knowledge name or title is required.' });
     }
-    if (!Array.isArray(faqs) || faqs.length === 0) {
+    if (!Array.isArray(rawFaqs) || rawFaqs.length === 0) {
       return res.status(400).json({ error: 'At least one FAQ pair is required.' });
     }
 
@@ -355,21 +360,21 @@ export const createFaqKnowledge = async (req: AuthRequest, res: Response) => {
     if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
 
     // Duplicate Source Prevention
-    const existing = db.prepare('SELECT id FROM knowledge_sources WHERE workspace_id = ? AND LOWER(name) = LOWER(?)').get(workspace.id, name.trim());
+    const existing = db.prepare('SELECT id FROM knowledge_sources WHERE workspace_id = ? AND LOWER(name) = LOWER(?)').get(workspace.id, rawName.trim());
     if (existing) {
       return res.status(409).json({ error: 'A knowledge source with this name already exists in your workspace.' });
     }
 
     const now = new Date().toISOString();
     const sourceId = crypto.randomUUID();
-    const formattedContent = JSON.stringify(faqs);
+    const formattedContent = JSON.stringify(rawFaqs);
 
     db.prepare(`
       INSERT INTO knowledge_sources (
         id, workspace_id, name, type, status, content, original_url,
         file_metadata, chunk_count, created_by, created_at, updated_at
       ) VALUES (?, ?, ?, ?, 'ready', ?, NULL, NULL, ?, ?, ?, ?)
-    `).run(sourceId, workspace.id, name.trim(), 'FAQ', formattedContent, faqs.length, req.user.name, now, now);
+    `).run(sourceId, workspace.id, rawName.trim(), 'FAQ', formattedContent, rawFaqs.length, req.user.name, now, now);
 
     // Chunk each FAQ item separately
     const insertChunk = db.prepare(`
@@ -378,7 +383,7 @@ export const createFaqKnowledge = async (req: AuthRequest, res: Response) => {
     `);
 
     db.transaction(() => {
-      faqs.forEach((faq: { question: string; answer: string }, idx: number) => {
+      rawFaqs.forEach((faq: { question: string; answer: string }, idx: number) => {
         const text = `Q: ${faq.question}\nA: ${faq.answer}`;
         const tokens = text.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/);
         insertChunk.run(
@@ -394,7 +399,8 @@ export const createFaqKnowledge = async (req: AuthRequest, res: Response) => {
       });
     })();
 
-    return res.status(201).json({ success: true, id: sourceId, chunkCount: faqs.length });
+    const source = db.prepare('SELECT * FROM knowledge_sources WHERE id = ?').get(sourceId);
+    return res.status(201).json({ success: true, id: sourceId, source, chunkCount: rawFaqs.length });
   } catch (err) {
     console.error('Error creating FAQ knowledge:', err);
     return res.status(500).json({ error: 'Failed to create FAQ knowledge source.' });
