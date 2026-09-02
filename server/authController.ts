@@ -500,7 +500,7 @@ export const verifySignupCode = async (req: Request, res: Response) => {
     const now = new Date().toISOString();
     db.prepare('UPDATE users SET email_verified = 1, updated_at = ? WHERE id = ?').run(now, user.id);
     db.prepare('UPDATE email_verifications SET verified_at = ? WHERE id = ?').run(now, record.id);
-
+    user.email_verified = 1;
     const token = generateTokenCookie(res, user.id);
     return res.status(200).json({
       message: 'Email verified successfully.',
