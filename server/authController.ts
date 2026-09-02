@@ -602,8 +602,10 @@ export const googleCallback = async (req: Request, res: Response) => {
     if (intent === 'signup') {
       // 1. User clicked "Continue with Google" on Signup Page
       if (user) {
-        // User already exists -> Do NOT create duplicate account! Show warning banner.
-        return res.redirect(`${frontendBase}/signup?google_account_exists=true&email=${encodeURIComponent(googleProfile.email)}`);
+        // User already exists -> Authenticate directly and navigate to dashboard or onboarding
+        const token = generateTokenCookie(res, user.id);
+        const redirectTarget = user.onboarding_completed ? '/dashboard' : '/onboarding';
+        return res.redirect(`${frontendBase}${redirectTarget}?auth=google_success&token=${token}`);
       }
 
       // New user -> Create account atomically with Workspace & WorkspaceMember
@@ -621,7 +623,7 @@ export const googleCallback = async (req: Request, res: Response) => {
       });
 
       const token = generateTokenCookie(res, user.id);
-      return res.redirect(`${frontendBase}/set-password?auth=google_success&token=${token}`);
+      return res.redirect(`${frontendBase}/onboarding?auth=google_success&token=${token}`);
     } else {
       // 2. User clicked "Continue with Google" on Login Page (intent === 'login')
       if (user) {
@@ -636,12 +638,11 @@ export const googleCallback = async (req: Request, res: Response) => {
         }
 
         const token = generateTokenCookie(res, user.id);
-        const hasLocalPassword = Boolean(user.password_hash);
-        const redirectTarget = hasLocalPassword ? (user.onboarding_completed ? '/dashboard' : '/onboarding') : '/set-password';
+        const redirectTarget = user.onboarding_completed ? '/dashboard' : '/onboarding';
         return res.redirect(`${frontendBase}${redirectTarget}?auth=google_success&token=${token}`);
       }
 
-      // New Google User from Login page -> DO NOT immediately create account! Show Signup Confirmation Modal!
+      // New Google User from Login page -> Show Signup Confirmation Modal
       const tempToken = crypto.randomBytes(24).toString('hex');
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
       db.prepare(`
@@ -703,10 +704,10 @@ export const confirmGoogleSignup = async (req: Request, res: Response) => {
     const token = generateTokenCookie(res, user.id);
 
     return res.status(200).json({
-      message: 'Account created successfully.',
+      message: 'Account confirmed successfully.',
       user: sanitizeUser(user),
       token,
-      redirectTo: '/set-password',
+      redirectTo: user.onboarding_completed ? '/dashboard' : '/onboarding',
     });
   } catch {
     return res.status(500).json({ error: 'Failed to confirm Google signup.' });

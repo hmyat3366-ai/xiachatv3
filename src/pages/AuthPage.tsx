@@ -149,19 +149,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   // If already authenticated, redirect appropriately
   useEffect(() => {
     if (isAuthenticated && user) {
-      if (mode === 'set_password') {
-        if (user.hasPassword) {
-          onNavigate(user.onboardingCompleted ? '/dashboard' : '/onboarding');
-        }
+      if (user.onboardingCompleted) {
+        onNavigate('/dashboard');
       } else {
-        if (!user.onboardingCompleted) {
-          onNavigate('/onboarding');
-        } else {
-          onNavigate('/dashboard');
-        }
+        onNavigate('/onboarding');
       }
     }
-  }, [isAuthenticated, user, mode, onNavigate]);
+  }, [isAuthenticated, user, onNavigate]);
 
   const validateEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());
 
