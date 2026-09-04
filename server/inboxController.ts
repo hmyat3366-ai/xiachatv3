@@ -211,12 +211,20 @@ export const getInboxConversations = async (req: AuthRequest, res: Response) => 
       return true;
     });
 
-    // Team members list for assignee dropdowns
+    // Dynamic team members list from database for assignee dropdowns
+    const realDbMembers = db.prepare(`
+      SELECT m.user_id as id, u.name, u.email, m.role
+      FROM workspace_members m
+      JOIN users u ON m.user_id = u.id
+      WHERE m.workspace_id = ? AND m.status = 'active'
+    `).all(workspace.id) as Array<{ id: string; name: string; email: string; role: string }>;
+
     const teamMembers = [
       { id: req.user.id, name: req.user.name, email: req.user.email, role: 'You' },
       { id: 'xia-ai', name: 'Xia AI', email: 'ai@xiachat.com', role: 'AI Assistant' },
-      { id: 'alex-rivera', name: 'Alex Rivera', email: 'alex@company.com', role: 'Senior Support' },
-      { id: 'sarah-admin', name: 'Sarah Admin', email: 'sarah@company.com', role: 'Support Lead' },
+      ...realDbMembers
+        .filter((m) => m.id !== req.user?.id)
+        .map((m) => ({ id: m.id, name: m.name, email: m.email, role: m.role.charAt(0).toUpperCase() + m.role.slice(1) })),
     ];
 
     // Pagination
