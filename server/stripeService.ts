@@ -3,9 +3,7 @@ import crypto from 'crypto';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
 export const stripe = stripeSecretKey
-  ? new Stripe(stripeSecretKey, {
-      apiVersion: '2026-01-28' as any,
-    })
+  ? new Stripe(stripeSecretKey)
   : null;
 
 export const isStripeConfigured = Boolean(stripeSecretKey);
@@ -35,7 +33,6 @@ export async function createOrGetStripeCustomer(workspaceId: string, email: stri
   return `cus_mock_${workspaceId.substring(0, 8)}`;
 }
 
-// Helper to create Checkout Session
 export async function createBillingCheckoutSession(params: {
   workspaceId: string;
   customerEmail: string;
@@ -45,23 +42,55 @@ export async function createBillingCheckoutSession(params: {
   successUrl: string;
   cancelUrl: string;
   existingStripeCustomerId?: string | null;
-}): Promise<{ url: string; sessionId: string }> {
-  const { workspaceId, customerEmail, planId, priceId, billingInterval, successUrl, cancelUrl, existingStripeCustomerId } = params;
+  planName?: string;
+  unitAmount?: number;
+}): Promise<{ url: string; checkoutUrl: string; sessionId: string }> {
+  const {
+    workspaceId,
+    customerEmail,
+    planId,
+    priceId,
+    billingInterval,
+    successUrl,
+    cancelUrl,
+    existingStripeCustomerId,
+    planName = 'Xia Chat Subscription',
+    unitAmount = 4900,
+  } = params;
 
   const customerId = await createOrGetStripeCustomer(workspaceId, customerEmail, `Workspace Owner`, existingStripeCustomerId);
 
-  if (stripe && priceId && !priceId.startsWith('price_xia_')) {
+  if (stripe) {
     try {
+      const isRealPriceId = priceId && !priceId.startsWith('price_xia_');
+      const lineItems = isRealPriceId
+        ? [
+            {
+              price: priceId,
+              quantity: 1,
+            },
+          ]
+        : [
+            {
+              price_data: {
+                currency: 'usd',
+                product_data: {
+                  name: planName,
+                },
+                unit_amount: unitAmount,
+                recurring: {
+                  interval: (billingInterval === 'yearly' ? 'year' : 'month') as 'year' | 'month',
+                },
+              },
+              quantity: 1,
+            },
+          ];
+
       const session = await stripe.checkout.sessions.create({
         customer: customerId,
         payment_method_types: ['card'],
         mode: 'subscription',
-        line_items: [
-          {
-            price: priceId,
-            quantity: 1,
-          },
-        ],
+        line_items: lineItems,
         metadata: {
           workspaceId,
           planId,
@@ -71,8 +100,10 @@ export async function createBillingCheckoutSession(params: {
         cancel_url: `${cancelUrl}?checkout=cancelled`,
       });
 
+      const checkoutUrl = session.url || successUrl;
       return {
-        url: session.url || successUrl,
+        url: checkoutUrl,
+        checkoutUrl,
         sessionId: session.id,
       };
     } catch (err) {
@@ -86,6 +117,7 @@ export async function createBillingCheckoutSession(params: {
 
   return {
     url: mockCheckoutUrl,
+    checkoutUrl: mockCheckoutUrl,
     sessionId: mockSessionId,
   };
 }

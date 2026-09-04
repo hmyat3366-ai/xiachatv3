@@ -133,7 +133,8 @@ export const createCheckoutSession = async (req: AuthRequest, res: Response) => 
   try {
     if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
 
-    const { planId, billingInterval = 'monthly', workspaceId: requestedWsId } = req.body;
+    const { planId, workspaceId: requestedWsId } = req.body;
+    const billingInterval = (req.body.billingInterval || req.body.interval || 'monthly') as 'monthly' | 'yearly';
 
     const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
     if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
@@ -153,6 +154,7 @@ export const createCheckoutSession = async (req: AuthRequest, res: Response) => 
 
     const priceId = billingInterval === 'yearly' ? plan.stripe_price_id_annual : plan.stripe_price_id_monthly;
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const amountInCents = Math.round((billingInterval === 'yearly' ? plan.price_annual * 12 : plan.price_monthly) * 100);
 
     const session = await createBillingCheckoutSession({
       workspaceId: workspace.id,
@@ -163,10 +165,13 @@ export const createCheckoutSession = async (req: AuthRequest, res: Response) => 
       successUrl: `${frontendUrl}/settings/billing`,
       cancelUrl: `${frontendUrl}/settings/billing`,
       existingStripeCustomerId: subscription.stripe_customer_id,
+      planName: `Xia Chat ${plan.name} Plan`,
+      unitAmount: amountInCents > 0 ? amountInCents : 1900,
     });
 
     return res.status(200).json({
       success: true,
+      url: session.url,
       checkoutUrl: session.url,
       sessionId: session.sessionId,
     });

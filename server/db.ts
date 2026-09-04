@@ -1114,6 +1114,9 @@ export function seedDefaultPlans() {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       name = excluded.name,
+      stripe_product_id = excluded.stripe_product_id,
+      stripe_price_id_monthly = excluded.stripe_price_id_monthly,
+      stripe_price_id_annual = excluded.stripe_price_id_annual,
       price_monthly = excluded.price_monthly,
       price_annual = excluded.price_annual,
       currency = excluded.currency,
