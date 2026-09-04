@@ -149,6 +149,26 @@ function ensureSeedKnowledge(workspaceId: string) {
         content: 'Xia Chat API enables real-time webhook events for incoming messages, customer tag updates, and automated handoffs.',
         chunkText: 'Xia Chat API enables real-time webhook events for incoming messages, customer tag updates, and automated handoffs.',
       },
+      {
+        name: 'Brew & Bean Coffee Shop Knowledge & FAQs',
+        type: 'FAQ',
+        status: 'ready',
+        content: JSON.stringify([
+          {
+            question: 'What coffee do you recommend?',
+            answer: 'We highly recommend our Signature Velvet Reserve Espresso (medium-dark roast with notes of dark chocolate, wild blackberry, and hazelnut) or our Ethiopian Floral Mist pour-over blend (light roast with jasmine and citrus floral notes).',
+          },
+          {
+            question: 'Where is my order?',
+            answer: 'Orders are freshly roasted within 48 hours of purchase. To look up your live tracking status, please provide your 6-digit Order ID (e.g. #ORD-84920) or your checkout email address.',
+          },
+          {
+            question: 'How do I talk with a human agent?',
+            answer: 'You can request human assistance anytime by saying "I want to talk with human". Our AI will immediately flag your conversation and connect you with a live support specialist.',
+          },
+        ]),
+        chunkText: 'Coffee Recommendations: We highly recommend our Signature Velvet Reserve Espresso (notes of rich dark chocolate, blackberry, and toasted hazelnut) for espresso drinks, or our Ethiopian Floral Mist for bright pour-overs.\n\nOrder Tracking & Shipping: All coffee is roasted to order and dispatched within 48 hours. To check where your order is, please provide your 6-digit Order ID (e.g. #ORD-84920) or email so we can retrieve your tracking link.\n\nHuman Support Handoff: If you want to talk with a human, say "I want to talk with human" and our AI will immediately connect you with our support team.',
+      },
     ];
 
     const insertSource = db.prepare(`

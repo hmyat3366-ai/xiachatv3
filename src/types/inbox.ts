@@ -1,4 +1,18 @@
-export type ConversationStatus = 'open' | 'ai' | 'human' | 'assigned' | 'waiting' | 'resolved' | 'closed';
+export type ConversationStatus =
+  | 'OPEN'
+  | 'AI_HANDLING'
+  | 'HUMAN_HANDLING'
+  | 'WAITING_CUSTOMER'
+  | 'WAITING'
+  | 'RESOLVED'
+  | 'CLOSED'
+  | 'open'
+  | 'ai'
+  | 'human'
+  | 'assigned'
+  | 'waiting'
+  | 'resolved'
+  | 'closed';
 
 export type ChannelType = 'Website' | 'Facebook' | 'WhatsApp' | 'Instagram' | 'Email';
 
@@ -11,6 +25,15 @@ export interface ConversationItem {
   channel: ChannelType | string;
   status: ConversationStatus;
   assignee: string;
+  assignedAgentId?: string | null;
+  assignedAgent?: string | null;
+  aiMode?: 'ai_auto' | 'human_controlled' | 'paused' | 'resumed' | string;
+  mode?: string | null;
+  handoffReason?: string | null;
+  resolvedAt?: string | null;
+  intent?: string | null;
+  aiSummary?: string | null;
+  recommendedAction?: string | null;
   lastMessage: string;
   needsAttention: boolean;
   attentionReason?: string | null;
@@ -34,6 +57,8 @@ export interface MessageItem {
   content: string;
   isInternalNote?: boolean;
   attachments?: Array<{ name: string; url: string; size?: string }>;
+  knowledgeSource?: string | null;
+  confidenceScore?: number | null;
   createdAt: string;
 }
 
@@ -41,12 +66,25 @@ export interface CustomerProfile {
   name: string;
   email: string | null;
   phone: string | null;
+  location?: string | null;
   channel: string;
   firstSeen: string;
   lastActive: string;
   totalConversations: number;
   tags: string[];
   notes: string;
+  intent?: string | null;
+  sentiment?: string | null;
+  aiSummary?: string | null;
+  recommendedAction?: string | null;
+  confidenceScore?: number;
+  previousConversations?: Array<{
+    id: string;
+    title: string;
+    status: string;
+    channel: string;
+    date: string;
+  }>;
 }
 
 export interface TeamMember {
@@ -61,12 +99,13 @@ export interface InboxStats {
   open: number;
   assigned: number;
   ai: number;
+  waiting?: number;
   resolved: number;
 }
 
 export interface FilterState {
   search: string;
-  tab: 'all' | 'open' | 'assigned' | 'ai' | 'resolved';
+  tab: 'all' | 'open' | 'assigned' | 'ai' | 'waiting' | 'resolved';
   channel?: string;
   status?: string;
   assignee?: string;

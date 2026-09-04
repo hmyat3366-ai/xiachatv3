@@ -498,8 +498,118 @@ const inboxMigrations = [
   `ALTER TABLE conversations ADD COLUMN ai_status TEXT DEFAULT 'active';`,
   `ALTER TABLE conversations ADD COLUMN draft_message TEXT;`,
   `ALTER TABLE conversations ADD COLUMN first_seen TEXT;`,
+  `ALTER TABLE conversations ADD COLUMN assigned_agent_id TEXT;`,
+  `ALTER TABLE conversations ADD COLUMN ai_mode TEXT DEFAULT 'ai_auto';`,
+  `ALTER TABLE conversations ADD COLUMN handoff_reason TEXT;`,
+  `ALTER TABLE conversations ADD COLUMN resolved_at TEXT;`,
+  `ALTER TABLE conversations ADD COLUMN intent TEXT;`,
+  `ALTER TABLE conversations ADD COLUMN ai_summary TEXT;`,
+  `ALTER TABLE conversations ADD COLUMN recommended_action TEXT;`,
+  `ALTER TABLE conversations ADD COLUMN assigned_agent TEXT;`,
+  `ALTER TABLE conversations ADD COLUMN mode TEXT;`,
   `ALTER TABLE messages ADD COLUMN is_internal_note INTEGER NOT NULL DEFAULT 0;`,
   `ALTER TABLE messages ADD COLUMN attachments TEXT;`,
+  `ALTER TABLE messages ADD COLUMN knowledge_source TEXT;`,
+  `ALTER TABLE messages ADD COLUMN confidence_score REAL;`,
+  `ALTER TABLE customers ADD COLUMN location TEXT;`,
+
+  // Agents Table
+  `CREATE TABLE IF NOT EXISTS agents (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    email TEXT,
+    role TEXT DEFAULT 'Support Specialist',
+    avatar TEXT,
+    availability TEXT NOT NULL DEFAULT 'available',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+  );`,
+  `CREATE INDEX IF NOT EXISTS idx_agents_workspace ON agents(workspace_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_agents_availability ON agents(workspace_id, availability);`,
+
+  // Widget settings table
+  `CREATE TABLE IF NOT EXISTS widget_settings (
+    workspace_id TEXT PRIMARY KEY,
+    widget_name TEXT DEFAULT 'Xia Support Chat',
+    welcome_message TEXT,
+    conversation_starters TEXT,
+    primary_color TEXT,
+    position TEXT DEFAULT 'bottom-right',
+    theme TEXT DEFAULT 'light',
+    show_agent_availability INTEGER DEFAULT 1,
+    business_context TEXT,
+    updated_at TEXT,
+    FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+  );`,
+  `ALTER TABLE widget_settings ADD COLUMN widget_name TEXT DEFAULT 'Xia Support Chat';`,
+  `ALTER TABLE widget_settings ADD COLUMN position TEXT DEFAULT 'bottom-right';`,
+  `ALTER TABLE widget_settings ADD COLUMN theme TEXT DEFAULT 'light';`,
+  `ALTER TABLE widget_settings ADD COLUMN show_agent_availability INTEGER DEFAULT 1;`,
+  `ALTER TABLE widget_settings ADD COLUMN business_context TEXT;`,
+
+  // Visitors table (Guest Visitor Support)
+  `CREATE TABLE IF NOT EXISTS visitors (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    browser_id TEXT,
+    customer_id TEXT,
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    intent TEXT,
+    sentiment TEXT,
+    product_interest TEXT,
+    metadata TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+  );`,
+  `CREATE INDEX IF NOT EXISTS idx_visitors_workspace ON visitors(workspace_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_visitors_session ON visitors(session_id);`,
+
+  // Products table (Product Catalog Awareness)
+  `CREATE TABLE IF NOT EXISTS products (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    slug TEXT,
+    category TEXT,
+    description TEXT,
+    price REAL NOT NULL DEFAULT 0,
+    currency TEXT NOT NULL DEFAULT 'USD',
+    in_stock INTEGER NOT NULL DEFAULT 1,
+    image_url TEXT,
+    tags TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+  );`,
+  `CREATE INDEX IF NOT EXISTS idx_products_workspace ON products(workspace_id);`,
+
+  // Orders table (Order Tracking Support)
+  `CREATE TABLE IF NOT EXISTS orders (
+    id TEXT PRIMARY KEY,
+    order_number TEXT UNIQUE NOT NULL,
+    workspace_id TEXT NOT NULL,
+    customer_id TEXT,
+    customer_name TEXT,
+    customer_email TEXT,
+    status TEXT NOT NULL DEFAULT 'processing',
+    items TEXT NOT NULL,
+    total_amount REAL NOT NULL DEFAULT 0,
+    currency TEXT NOT NULL DEFAULT 'USD',
+    tracking_number TEXT,
+    shipping_carrier TEXT,
+    estimated_delivery TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+  );`,
+  `CREATE INDEX IF NOT EXISTS idx_orders_workspace ON orders(workspace_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_orders_number ON orders(order_number);`,
+  `CREATE INDEX IF NOT EXISTS idx_orders_email ON orders(customer_email);`,
 
   // AI Assistant extensions
   `ALTER TABLE ai_assistants ADD COLUMN description TEXT;`,
@@ -614,8 +724,17 @@ export interface DbConversation {
   customer_email: string | null;
   customer_phone?: string | null;
   channel: string;
-  status: string; // 'ai' | 'human' | 'open' | 'assigned' | 'waiting' | 'resolved' | 'closed'
+  status: string; // 'AI_HANDLING' | 'HUMAN_HANDLING' | 'WAITING' | 'RESOLVED' | 'CLOSED' | 'open' | 'ai' | 'human' | 'assigned' | 'waiting' | 'resolved' | 'closed'
   assignee: string | null;
+  assigned_agent_id?: string | null;
+  ai_mode?: string | null; // 'ai_auto' | 'human_controlled' | 'paused' | 'resumed'
+  handoff_reason?: string | null;
+  resolved_at?: string | null;
+  intent?: string | null;
+  ai_summary?: string | null;
+  recommended_action?: string | null;
+  assigned_agent?: string | null;
+  mode?: string | null;
   last_message: string;
   needs_attention: number;
   attention_reason: string | null;
@@ -639,7 +758,21 @@ export interface DbMessage {
   content: string;
   is_internal_note?: number;
   attachments?: string | null;
+  knowledge_source?: string | null;
+  confidence_score?: number | null;
   created_at: string;
+}
+
+export interface DbAgent {
+  id: string;
+  workspace_id: string;
+  name: string;
+  email: string | null;
+  role: string;
+  avatar: string | null;
+  availability: 'available' | 'busy' | 'offline';
+  created_at: string;
+  updated_at: string;
 }
 
 export interface DbKnowledgeSource {
@@ -1051,3 +1184,209 @@ export interface DbTeamAuditLog {
   details: string;
   created_at: string;
 }
+
+export function ensureSeedAgents(workspaceId: string): DbAgent[] {
+  try {
+    const existing = db.prepare('SELECT * FROM agents WHERE workspace_id = ?').all(workspaceId) as DbAgent[];
+    if (existing && existing.length > 0) {
+      return existing;
+    }
+
+    const now = new Date().toISOString();
+    const defaultAgents = [
+      { id: crypto.randomUUID(), name: 'Alex Johnson', email: 'alex.j@xiachat.com', role: 'Senior Support Agent', availability: 'available' },
+      { id: crypto.randomUUID(), name: 'Sarah Connor', email: 'sarah.c@xiachat.com', role: 'Customer Success Specialist', availability: 'busy' },
+      { id: crypto.randomUUID(), name: 'David Miller', email: 'david.m@xiachat.com', role: 'Support Specialist', availability: 'available' },
+    ];
+
+    for (const ag of defaultAgents) {
+      db.prepare(`
+        INSERT INTO agents (id, workspace_id, name, email, role, avatar, availability, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)
+      `).run(ag.id, workspaceId, ag.name, ag.email, ag.role, ag.availability, now, now);
+    }
+
+    return db.prepare('SELECT * FROM agents WHERE workspace_id = ?').all(workspaceId) as DbAgent[];
+  } catch (err) {
+    console.warn('[DB] Failed to seed default agents:', err);
+    return [];
+  }
+}
+
+export interface DbVisitor {
+  id: string;
+  workspace_id: string;
+  session_id: string;
+  browser_id?: string | null;
+  customer_id?: string | null;
+  first_seen_at: string;
+  last_seen_at: string;
+  intent?: string | null;
+  sentiment?: string | null;
+  product_interest?: string | null;
+  metadata?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbProduct {
+  id: string;
+  workspace_id: string;
+  name: string;
+  slug?: string | null;
+  category: string;
+  description: string;
+  price: number;
+  currency: string;
+  in_stock: number;
+  image_url?: string | null;
+  tags?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbOrder {
+  id: string;
+  order_number: string;
+  workspace_id: string;
+  customer_id?: string | null;
+  customer_name?: string | null;
+  customer_email?: string | null;
+  status: string;
+  items: string;
+  total_amount: number;
+  currency: string;
+  tracking_number?: string | null;
+  shipping_carrier?: string | null;
+  estimated_delivery?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbWidgetSetting {
+  workspace_id: string;
+  widget_name?: string | null;
+  welcome_message?: string | null;
+  conversation_starters?: string | null;
+  primary_color?: string | null;
+  position?: string | null;
+  theme?: string | null;
+  show_agent_availability?: number;
+  business_context?: string | null;
+  updated_at?: string | null;
+}
+
+export function ensureSeedProductsAndOrders(workspaceId: string): { products: DbProduct[]; orders: DbOrder[] } {
+  try {
+    const existingProducts = db.prepare('SELECT * FROM products WHERE workspace_id = ?').all(workspaceId) as DbProduct[];
+    const existingOrders = db.prepare('SELECT * FROM orders WHERE workspace_id = ?').all(workspaceId) as DbOrder[];
+
+    const now = new Date().toISOString();
+
+    if (!existingProducts || existingProducts.length === 0) {
+      const defaultProducts = [
+        {
+          id: crypto.randomUUID(),
+          name: 'Signature Velvet Reserve Espresso',
+          slug: 'velvet-reserve-espresso',
+          category: 'Espresso Blend',
+          description: 'Small-batch medium-dark roast with rich notes of dark chocolate, wild blackberry, and toasted hazelnut. Roasted within 48 hours of dispatch.',
+          price: 18.5,
+          currency: 'USD',
+          in_stock: 1,
+          tags: JSON.stringify(['espresso', 'dark roast', 'chocolate', 'bestseller']),
+        },
+        {
+          id: crypto.randomUUID(),
+          name: 'Ethiopian Floral Mist Pour-Over Blend',
+          slug: 'ethiopian-floral-mist',
+          category: 'Single Origin',
+          description: 'Single-origin heirloom beans from Yirgacheffe with delicate notes of jasmine blossom, bergamot citrus, and peach nectar.',
+          price: 19.0,
+          currency: 'USD',
+          in_stock: 1,
+          tags: JSON.stringify(['single origin', 'light roast', 'floral', 'pour-over']),
+        },
+        {
+          id: crypto.randomUUID(),
+          name: 'Nitro Cold Brew Concentrate (32oz)',
+          slug: 'nitro-cold-brew-concentrate',
+          category: 'Cold Brew',
+          description: 'Slow-steeped for 24 hours for ultra-low acidity and naturally creamy cocoa mouthfeel. Makes 8 craft drinks.',
+          price: 16.5,
+          currency: 'USD',
+          in_stock: 1,
+          tags: JSON.stringify(['cold brew', 'nitro', 'low acidity', 'ready-to-drink']),
+        },
+        {
+          id: crypto.randomUUID(),
+          name: 'Colombian Honey-Processed Geisha Micro-Lot',
+          slug: 'colombian-honey-geisha',
+          category: 'Single Origin',
+          description: 'Rare micro-lot coffee with silky sweetness, tropical mango, and raw honey finish. Limited harvest.',
+          price: 24.0,
+          currency: 'USD',
+          in_stock: 1,
+          tags: JSON.stringify(['geisha', 'limited edition', 'honey processed', 'specialty']),
+        },
+      ];
+
+      for (const p of defaultProducts) {
+        db.prepare(`
+          INSERT INTO products (id, workspace_id, name, slug, category, description, price, currency, in_stock, image_url, tags, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)
+        `).run(p.id, workspaceId, p.name, p.slug, p.category, p.description, p.price, p.currency, p.in_stock, p.tags, now, now);
+      }
+    }
+
+    if (!existingOrders || existingOrders.length === 0) {
+      const defaultOrders = [
+        {
+          id: crypto.randomUUID(),
+          order_number: '#ORD-84920',
+          customer_name: 'Website Visitor',
+          customer_email: 'visitor@example.com',
+          status: 'shipped',
+          items: JSON.stringify([
+            { name: 'Signature Velvet Reserve Espresso', quantity: 2, price: 18.5 },
+          ]),
+          total_amount: 37.0,
+          currency: 'USD',
+          tracking_number: 'XC-928104',
+          shipping_carrier: 'Express Coffee Courier',
+          estimated_delivery: 'Tomorrow by 2:00 PM',
+        },
+        {
+          id: crypto.randomUUID(),
+          order_number: '#ORD-10294',
+          customer_name: 'Marcus Coffee Fan',
+          customer_email: 'marcus.fan@example.com',
+          status: 'delivered',
+          items: JSON.stringify([
+            { name: 'Ethiopian Floral Mist Pour-Over Blend', quantity: 1, price: 19.0 },
+          ]),
+          total_amount: 19.0,
+          currency: 'USD',
+          tracking_number: 'XC-710492',
+          shipping_carrier: 'Standard Roaster Delivery',
+          estimated_delivery: 'Delivered yesterday',
+        },
+      ];
+
+      for (const o of defaultOrders) {
+        db.prepare(`
+          INSERT INTO orders (id, order_number, workspace_id, customer_id, customer_name, customer_email, status, items, total_amount, currency, tracking_number, shipping_carrier, estimated_delivery, created_at, updated_at)
+          VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(o.id, o.order_number, workspaceId, o.customer_name, o.customer_email, o.status, o.items, o.total_amount, o.currency, o.tracking_number, o.shipping_carrier, o.estimated_delivery, now, now);
+      }
+    }
+
+    const products = db.prepare('SELECT * FROM products WHERE workspace_id = ?').all(workspaceId) as DbProduct[];
+    const orders = db.prepare('SELECT * FROM orders WHERE workspace_id = ?').all(workspaceId) as DbOrder[];
+    return { products, orders };
+  } catch (err) {
+    console.warn('[DB] Failed to seed default products or orders:', err);
+    return { products: [], orders: [] };
+  }
+}
+

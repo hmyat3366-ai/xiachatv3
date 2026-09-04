@@ -4,13 +4,14 @@ import { EventEmitter } from 'events';
 import { db, DbConversation, DbMessage, DbWorkspace } from './db.js';
 import { AuthRequest } from './authMiddleware.js';
 import { getWorkspaceForUser } from './planLimitMiddleware.js';
+import { syncMessageToSupabase, syncConversationToSupabase } from './supabase.js';
 
 // Global Event Emitter for Realtime Server-Sent Events (SSE)
-const inboxEventEmitter = new EventEmitter();
+export const inboxEventEmitter = new EventEmitter();
 inboxEventEmitter.setMaxListeners(100);
 
 // Helper to broadcast realtime event to a workspace channel
-function broadcastInboxEvent(workspaceId: string, type: string, payload: any) {
+export function broadcastInboxEvent(workspaceId: string, type: string, payload: any) {
   inboxEventEmitter.emit(`workspace:${workspaceId}`, { type, payload, timestamp: new Date().toISOString() });
 }
 
@@ -123,7 +124,12 @@ export const getInboxConversations = async (req: AuthRequest, res: Response) => 
       const phone = c.customer_phone || (c.customer_name.includes('Sarah') ? '+1 (555) 234-5678' : c.customer_name.includes('Michael') ? '+1 (555) 876-5432' : '+1 (555) 345-6789');
       const firstSeen = c.first_seen || new Date(new Date(c.created_at).getTime() - 7 * 24 * 3600 * 1000).toISOString();
       const unreadCount = c.unread_count !== undefined ? c.unread_count : (c.needs_attention ? 2 : 0);
-      const aiStatus = c.ai_status || (c.status === 'ai' ? 'active' : 'human_required');
+      const isAI = c.status === 'AI_HANDLING' || c.status === 'ai';
+      const isHuman = c.status === 'HUMAN_HANDLING' || c.status === 'human';
+      const aiStatus = c.ai_status || (isAI ? 'active' : 'human_required');
+
+      const intent = c.intent || (c.last_message.toLowerCase().includes('order') || c.last_message.toLowerCase().includes('track') ? 'Order Tracking' : c.last_message.toLowerCase().includes('coffee') || c.last_message.toLowerCase().includes('product') ? 'Product Information' : c.last_message.toLowerCase().includes('price') ? 'Pricing & Plans' : 'General Inquiry');
+      const aiSummary = c.ai_summary || (intent === 'Order Tracking' ? 'Customer needs help with delivery status and order tracking.' : intent === 'Product Information' ? 'Customer inquiring about signature coffee beans and blends.' : 'Customer inquiring about service details.');
 
       return {
         id: c.id,
@@ -132,11 +138,20 @@ export const getInboxConversations = async (req: AuthRequest, res: Response) => 
         customerEmail: c.customer_email,
         customerPhone: phone,
         channel: c.channel,
-        status: c.status, // 'open' | 'ai' | 'human' | 'assigned' | 'waiting' | 'resolved' | 'closed'
-        assignee: c.assignee || (c.status === 'ai' ? 'Xia AI' : 'Unassigned'),
+        status: c.status, // 'AI_HANDLING' | 'HUMAN_HANDLING' | 'WAITING' | 'RESOLVED' | 'CLOSED'
+        assignee: c.assignee || (isAI ? 'Xia AI' : 'Unassigned'),
+        assignedAgentId: c.assigned_agent_id || null,
+        aiMode: c.ai_mode || (isAI ? 'ai_auto' : 'human_controlled'),
+        handoffReason: c.handoff_reason || c.attention_reason || null,
+        resolvedAt: c.resolved_at || null,
+        intent,
+        aiSummary,
+        recommendedAction: c.recommended_action || (intent === 'Order Tracking' ? 'Verify package tracking ID with courier' : 'Provide standard brewing advice and menu'),
+        assignedAgent: c.assignee || c.assigned_agent || null,
+        mode: c.mode || c.ai_mode || null,
         lastMessage: c.last_message,
         needsAttention: Boolean(c.needs_attention),
-        attentionReason: c.attention_reason,
+        attentionReason: c.attention_reason || c.handoff_reason,
         confidenceScore: c.confidence_score || 0.95,
         sentiment: c.sentiment || 'neutral',
         unreadCount,
@@ -153,31 +168,34 @@ export const getInboxConversations = async (req: AuthRequest, res: Response) => 
     // Calculate tab statistics before applying search/tab filtering
     const stats = {
       total: conversations.length,
-      open: conversations.filter((c) => c.status === 'open' || c.status === 'ai' || c.status === 'human' || c.status === 'assigned' || c.status === 'waiting').length,
-      assigned: conversations.filter((c) => c.assignee && c.assignee !== 'Xia AI' && c.assignee !== 'Unassigned').length,
-      ai: conversations.filter((c) => c.status === 'ai').length,
-      resolved: conversations.filter((c) => c.status === 'resolved' || c.status === 'closed').length,
+      open: conversations.filter((c) => c.status !== 'RESOLVED' && c.status !== 'resolved' && c.status !== 'CLOSED' && c.status !== 'closed').length,
+      assigned: conversations.filter((c) => c.status === 'HUMAN_HANDLING' || c.status === 'human' || (c.assignee && c.assignee !== 'Xia AI' && c.assignee !== 'Unassigned')).length,
+      ai: conversations.filter((c) => c.status === 'AI_HANDLING' || c.status === 'ai').length,
+      waiting: conversations.filter((c) => c.status === 'WAITING' || c.status === 'waiting' || c.needsAttention).length,
+      resolved: conversations.filter((c) => c.status === 'RESOLVED' || c.status === 'resolved' || c.status === 'CLOSED' || c.status === 'closed').length,
     };
 
     // Filter conversations based on Tab, Search, and Multi-filters
     let filtered = conversations.filter((c) => {
-      // Search matching (Name, Email, Phone, Last Message, ID)
+      // Search matching (Name, Email, Phone, Last Message, ID, Intent)
       if (search) {
         const matchesName = c.customerName.toLowerCase().includes(search);
         const matchesEmail = c.customerEmail?.toLowerCase().includes(search);
         const matchesPhone = c.customerPhone?.toLowerCase().includes(search);
         const matchesMsg = c.lastMessage.toLowerCase().includes(search);
         const matchesId = c.id.toLowerCase().includes(search);
-        if (!matchesName && !matchesEmail && !matchesPhone && !matchesMsg && !matchesId) {
+        const matchesIntent = c.intent.toLowerCase().includes(search);
+        if (!matchesName && !matchesEmail && !matchesPhone && !matchesMsg && !matchesId && !matchesIntent) {
           return false;
         }
       }
 
       // Tab filtering
-      if (tab === 'open' && !(c.status === 'open' || c.status === 'ai' || c.status === 'human' || c.status === 'assigned' || c.status === 'waiting')) return false;
-      if (tab === 'assigned' && (c.assignee === 'Xia AI' || c.assignee === 'Unassigned' || !c.assignee)) return false;
-      if (tab === 'ai' && c.status !== 'ai') return false;
-      if (tab === 'resolved' && !(c.status === 'resolved' || c.status === 'closed')) return false;
+      if (tab === 'open' && (c.status === 'RESOLVED' || c.status === 'resolved' || c.status === 'CLOSED' || c.status === 'closed')) return false;
+      if (tab === 'assigned' && !(c.status === 'HUMAN_HANDLING' || c.status === 'human' || (c.assignee && c.assignee !== 'Xia AI' && c.assignee !== 'Unassigned'))) return false;
+      if (tab === 'ai' && !(c.status === 'AI_HANDLING' || c.status === 'ai')) return false;
+      if (tab === 'waiting' && !(c.status === 'WAITING' || c.status === 'waiting' || c.needsAttention)) return false;
+      if (tab === 'resolved' && !(c.status === 'RESOLVED' || c.status === 'resolved' || c.status === 'CLOSED' || c.status === 'closed')) return false;
 
       // Multi-filter conditions
       if (channelFilter && c.channel.toLowerCase() !== channelFilter.toLowerCase()) return false;
@@ -187,7 +205,7 @@ export const getInboxConversations = async (req: AuthRequest, res: Response) => 
         if (assigneeFilter === 'ai' && c.assignee !== 'Xia AI') return false;
         if (assigneeFilter === 'unassigned' && c.assignee !== 'Unassigned' && c.assignee !== null) return false;
       }
-      if (aiOnly && c.status !== 'ai') return false;
+      if (aiOnly && !(c.status === 'AI_HANDLING' || c.status === 'ai')) return false;
       if (unreadOnly && c.unreadCount === 0) return false;
 
       return true;
@@ -269,20 +287,36 @@ export const getConversationMessages = async (req: AuthRequest, res: Response) =
       content: m.content,
       isInternalNote: Boolean(m.is_internal_note),
       attachments: m.attachments ? JSON.parse(m.attachments) : [],
+      knowledgeSource: m.knowledge_source || (m.sender_type === 'ai' ? 'Coffee Shop FAQ' : null),
+      confidenceScore: m.confidence_score || (m.sender_type === 'ai' ? 0.98 : null),
       createdAt: m.created_at,
     }));
 
-    // Customer profile info
+    const intent = conv.intent || (conv.last_message.toLowerCase().includes('order') || conv.last_message.toLowerCase().includes('track') ? 'Order Tracking' : conv.last_message.toLowerCase().includes('coffee') || conv.last_message.toLowerCase().includes('product') ? 'Product Information' : conv.last_message.toLowerCase().includes('price') ? 'Pricing & Plans' : 'General Inquiry');
+    const aiSummary = conv.ai_summary || (intent === 'Order Tracking' ? 'Customer needs help with delivery status and order tracking.' : intent === 'Product Information' ? 'Customer inquiring about signature coffee beans and blends.' : 'Customer inquiring about support services.');
+    const recommendedAction = conv.recommended_action || (intent === 'Order Tracking' ? 'Verify package tracking ID with courier and provide delivery ETA' : 'Provide standard brewing advice and product catalogue');
+
+    // Customer profile info with AI Intelligence & History
     const customer = {
       name: conv.customer_name,
       email: conv.customer_email,
       phone: conv.customer_phone || '+1 (555) 234-5678',
+      location: 'San Francisco, CA',
       channel: conv.channel,
       firstSeen: conv.first_seen || new Date(new Date(conv.created_at).getTime() - 7 * 24 * 3600 * 1000).toISOString(),
       lastActive: conv.updated_at,
       totalConversations: 3,
-      tags: conv.tags ? JSON.parse(conv.tags) : ['VIP', 'Active Customer'],
+      tags: conv.tags ? JSON.parse(conv.tags) : ['VIP', 'Coffee Shop'],
       notes: conv.notes || '',
+      intent,
+      sentiment: conv.sentiment || 'neutral',
+      aiSummary,
+      recommendedAction,
+      confidenceScore: conv.confidence_score || 0.95,
+      previousConversations: [
+        { id: 'prev-1', title: 'Order Tracking #84920', status: 'Resolved', channel: conv.channel, date: 'Yesterday' },
+        { id: 'prev-2', title: 'Coffee Blend Recommendation', status: 'Resolved', channel: 'Website', date: 'Aug 28' },
+      ],
     };
 
     return res.status(200).json({
@@ -291,16 +325,30 @@ export const getConversationMessages = async (req: AuthRequest, res: Response) =
         workspaceId: conv.workspace_id,
         customerName: conv.customer_name,
         customerEmail: conv.customer_email,
+        customerPhone: conv.customer_phone,
         channel: conv.channel,
         status: conv.status,
-        assignee: conv.assignee || (conv.status === 'ai' ? 'Xia AI' : 'Unassigned'),
+        assignee: conv.assignee || (conv.status === 'ai' || conv.status === 'AI_HANDLING' ? 'Xia AI' : 'Unassigned'),
+        assignedAgentId: conv.assigned_agent_id || null,
+        assignedAgent: conv.assignee || conv.assigned_agent || null,
+        aiMode: conv.ai_mode || (conv.status === 'ai' || conv.status === 'AI_HANDLING' ? 'ai_auto' : 'human_controlled'),
+        mode: conv.mode || conv.ai_mode || null,
+        handoffReason: conv.handoff_reason || conv.attention_reason || null,
+        resolvedAt: conv.resolved_at || null,
+        intent,
+        aiSummary,
+        recommendedAction,
         lastMessage: conv.last_message,
-        needsAttention: false,
+        needsAttention: Boolean(conv.needs_attention),
+        attentionReason: conv.attention_reason || conv.handoff_reason,
         confidenceScore: conv.confidence_score || 0.95,
         sentiment: conv.sentiment || 'neutral',
         unreadCount: 0,
-        aiStatus: conv.ai_status || (conv.status === 'ai' ? 'active' : 'human_required'),
+        tags: conv.tags ? JSON.parse(conv.tags) : ['VIP', 'Coffee Shop'],
+        notes: conv.notes || '',
+        aiStatus: conv.ai_status || (conv.status === 'ai' || conv.status === 'AI_HANDLING' ? 'active' : 'human_required'),
         draftMessage: conv.draft_message || null,
+        firstSeen: conv.first_seen,
         updatedAt: conv.updated_at,
         createdAt: conv.created_at,
       },
@@ -377,14 +425,23 @@ export const postMessage = async (req: AuthRequest, res: Response) => {
       createdAt: now,
     };
 
-    // Broadcast SSE realtime event
+    // Broadcast SSE realtime event to workspace dashboard
     broadcastInboxEvent(workspace.id, 'new_message', { conversationId, message: newMessageObj });
 
-    // If message is from agent and conversation was in AI state, set status to human/assigned to agent
-    if (senderType === 'agent' && !isInternalNote && conv.status === 'ai') {
-      db.prepare('UPDATE conversations SET status = ?, assignee = ? WHERE id = ?').run('human', req.user.name, conversationId);
-      broadcastInboxEvent(workspace.id, 'status_change', { conversationId, status: 'human', assignee: req.user.name });
+    // Also broadcast to public widget SSE listeners for this conversation (zero latency delivery)
+    inboxEventEmitter.emit(`conversation:${conversationId}`, { type: 'new_message', payload: newMessageObj });
+
+    // If message is from human agent, update status to 'human' and clear needs_attention
+    if (senderType === 'agent' && !isInternalNote) {
+      db.prepare('UPDATE conversations SET status = ?, assignee = ?, needs_attention = 0, updated_at = ? WHERE id = ?').run('human', req.user.name, now, conversationId);
+      broadcastInboxEvent(workspace.id, 'status_change', { conversationId, status: 'human', assignee: req.user.name, needsAttention: false });
+      inboxEventEmitter.emit(`conversation:${conversationId}`, { type: 'status_change', payload: { status: 'human', assignee: req.user.name } });
     }
+
+    // Persist to Supabase
+    syncMessageToSupabase(newMessageObj);
+    const updatedConv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(conversationId);
+    syncConversationToSupabase(updatedConv);
 
     return res.status(201).json({ message: newMessageObj });
   } catch (err) {
@@ -409,12 +466,12 @@ export const takeoverConversation = async (req: AuthRequest, res: Response) => {
     const now = new Date().toISOString();
     const agentName = req.user.name;
 
-    // Update conversation status to human, assign to agent, stop AI auto-reply
+    // Update conversation status to HUMAN_HANDLING, assign to agent, pause AI auto-reply
     db.prepare(`
       UPDATE conversations
-      SET status = 'human', assignee = ?, ai_status = 'paused', needs_attention = 0, updated_at = ?
-      WHERE id = ?
-    `).run(agentName, now, conversationId);
+      SET status = 'HUMAN_HANDLING', assignee = ?, assigned_agent = ?, assigned_agent_id = ?, ai_mode = 'human_controlled', mode = 'human_handling', ai_status = 'paused', needs_attention = 0, updated_at = ?
+      WHERE id = ? AND workspace_id = ?
+    `).run(agentName, agentName, req.user.id, now, conversationId, workspace.id);
 
     // Insert System Event Message
     const systemMsgId = crypto.randomUUID();
@@ -437,16 +494,28 @@ export const takeoverConversation = async (req: AuthRequest, res: Response) => {
 
     broadcastInboxEvent(workspace.id, 'status_change', {
       conversationId,
-      status: 'human',
+      status: 'HUMAN_HANDLING',
       assignee: agentName,
+      aiMode: 'human_controlled',
       aiStatus: 'paused',
+      needsAttention: false,
       systemMessage: systemMsgObj,
     });
 
+    inboxEventEmitter.emit(`conversation:${conversationId}`, {
+      type: 'status_change',
+      payload: { status: 'HUMAN_HANDLING', assignee: agentName },
+    });
+
+    const updatedConv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(conversationId);
+    syncConversationToSupabase(updatedConv);
+    syncMessageToSupabase(systemMsgObj);
+
     return res.status(200).json({
       success: true,
-      status: 'human',
+      status: 'HUMAN_HANDLING',
       assignee: agentName,
+      aiMode: 'human_controlled',
       aiStatus: 'paused',
       systemMessage: systemMsgObj,
     });
@@ -468,9 +537,10 @@ export const returnToAI = async (req: AuthRequest, res: Response) => {
 
     const now = new Date().toISOString();
 
+    // Update conversation status to AI_HANDLING, reactivate AI auto-reply
     db.prepare(`
       UPDATE conversations
-      SET status = 'ai', assignee = 'Xia AI', ai_status = 'active', updated_at = ?
+      SET status = 'AI_HANDLING', assignee = 'Xia AI', assigned_agent = 'Xia AI', assigned_agent_id = NULL, ai_mode = 'ai_auto', mode = 'ai_autonomous', ai_status = 'active', needs_attention = 0, updated_at = ?
       WHERE id = ? AND workspace_id = ?
     `).run(now, conversationId, workspace.id);
 
@@ -494,16 +564,28 @@ export const returnToAI = async (req: AuthRequest, res: Response) => {
 
     broadcastInboxEvent(workspace.id, 'status_change', {
       conversationId,
-      status: 'ai',
+      status: 'AI_HANDLING',
       assignee: 'Xia AI',
+      aiMode: 'ai_auto',
       aiStatus: 'active',
+      needsAttention: false,
       systemMessage: systemMsgObj,
     });
 
+    inboxEventEmitter.emit(`conversation:${conversationId}`, {
+      type: 'status_change',
+      payload: { status: 'AI_HANDLING', assignee: 'Xia AI' },
+    });
+
+    const updatedConv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(conversationId);
+    syncConversationToSupabase(updatedConv);
+    syncMessageToSupabase(systemMsgObj);
+
     return res.status(200).json({
       success: true,
-      status: 'ai',
+      status: 'AI_HANDLING',
       assignee: 'Xia AI',
+      aiMode: 'ai_auto',
       aiStatus: 'active',
       systemMessage: systemMsgObj,
     });
@@ -571,7 +653,7 @@ export const updateStatus = async (req: AuthRequest, res: Response) => {
     if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
 
     const conversationId = req.params.id;
-    const { status } = req.body; // 'open' | 'ai' | 'human' | 'assigned' | 'waiting' | 'resolved' | 'closed'
+    const { status } = req.body; // 'AI_HANDLING' | 'HUMAN_HANDLING' | 'WAITING' | 'RESOLVED' | 'CLOSED'
     if (!status) return res.status(400).json({ error: 'Status is required.' });
 
     const requestedWsId = req.query.workspaceId as string | undefined;
@@ -579,15 +661,19 @@ export const updateStatus = async (req: AuthRequest, res: Response) => {
     if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
 
     const now = new Date().toISOString();
+    const isResolved = status === 'RESOLVED' || status === 'resolved';
+    const isClosed = status === 'CLOSED' || status === 'closed';
+    const resolvedAt = isResolved || isClosed ? now : null;
 
     db.prepare(`
       UPDATE conversations
-      SET status = ?, updated_at = ?
+      SET status = ?, resolved_at = ?, needs_attention = 0, updated_at = ?
       WHERE id = ? AND workspace_id = ?
-    `).run(status, now, conversationId, workspace.id);
+    `).run(status, resolvedAt, now, conversationId, workspace.id);
 
     const systemMsgId = crypto.randomUUID();
-    const systemContent = `Conversation marked as ${status.toUpperCase()}.`;
+    const statusLabel = isResolved ? 'RESOLVED' : isClosed ? 'CLOSED' : status.toUpperCase();
+    const systemContent = `Conversation marked as ${statusLabel}.${isResolved ? ' Ticket successfully completed.' : ''}`;
     db.prepare(`
       INSERT INTO messages (id, conversation_id, sender_type, sender_name, content, created_at)
       VALUES (?, ?, 'system', 'System', ?, ?)
@@ -605,13 +691,24 @@ export const updateStatus = async (req: AuthRequest, res: Response) => {
     broadcastInboxEvent(workspace.id, 'status_change', {
       conversationId,
       status,
+      resolvedAt,
+      needsAttention: false,
       systemMessage: systemMsgObj,
     });
 
-    return res.status(200).json({ success: true, status, systemMessage: systemMsgObj });
+    inboxEventEmitter.emit(`conversation:${conversationId}`, {
+      type: 'status_change',
+      payload: { status, resolvedAt },
+    });
+
+    const updatedConv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(conversationId);
+    syncConversationToSupabase(updatedConv);
+    syncMessageToSupabase(systemMsgObj);
+
+    return res.status(200).json({ success: true, status, resolvedAt, systemMessage: systemMsgObj });
   } catch (err) {
     console.error('Error updating status:', err);
-    return res.status(500).json({ error: 'Failed to update status.' });
+    return res.status(500).json({ error: 'Failed to update conversation status.' });
   }
 };
 
@@ -690,13 +787,29 @@ export const sseEventsStream = (req: AuthRequest, res: Response) => {
   const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
   if (!workspace) return res.status(404).end();
 
-  // Set SSE Headers
-  res.writeHead(200, {
+  const origin = (req.headers.origin as string) || (req.headers.referer as string) || '';
+  let allowedOrigin = '*';
+  try {
+    if (origin && origin.startsWith('http')) {
+      allowedOrigin = new URL(origin).origin;
+    }
+  } catch {}
+
+  const headers: Record<string, string> = {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache, no-transform',
     Connection: 'keep-alive',
-    'Access-Control-Allow-Origin': '*',
-  });
+    'X-Accel-Buffering': 'no',
+  };
+
+  if (allowedOrigin !== '*') {
+    headers['Access-Control-Allow-Origin'] = allowedOrigin;
+    headers['Access-Control-Allow-Credentials'] = 'true';
+  } else {
+    headers['Access-Control-Allow-Origin'] = '*';
+  }
+
+  res.writeHead(200, headers);
 
   res.write(`data: ${JSON.stringify({ type: 'connected', workspaceId: workspace.id })}\n\n`);
 

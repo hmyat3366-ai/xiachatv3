@@ -41,3 +41,146 @@ export async function testSupabaseConnection() {
 }
 
 export const projectId = 'xiachatV3';
+
+// ============================================================
+// Asynchronous Supabase Cloud PostgreSQL Sync Helpers
+// Ensures visitor conversations and messages are persisted in
+// cloud Supabase, immune to Render ephemeral disk restarts.
+// ============================================================
+
+export async function syncWorkspaceToSupabase(ws: any) {
+  try {
+    if (!ws || !ws.id) return;
+    // Ensure foreign key user exists in users table on Supabase first
+    if (ws.user_id) {
+      await supabaseService.from('users').upsert(
+        {
+          id: ws.user_id,
+          name: 'Workspace Admin',
+          email: `${ws.slug || ws.id}@placeholder.xiachat.ai`,
+          created_at: ws.created_at || new Date().toISOString(),
+          updated_at: ws.updated_at || new Date().toISOString(),
+          last_login_at: new Date().toISOString(),
+        },
+        { onConflict: 'id', ignoreDuplicates: true }
+      );
+    }
+    await supabaseService.from('workspaces').upsert(
+      {
+        id: ws.id,
+        user_id: ws.user_id,
+        name: ws.name,
+        slug: ws.slug,
+        business_type: ws.business_type || null,
+        customer_channels: ws.customer_channels || null,
+        created_at: ws.created_at || new Date().toISOString(),
+        updated_at: ws.updated_at || new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    );
+  } catch (err: any) {
+    console.warn('[Supabase Sync] Workspace sync warning:', err.message || err);
+  }
+}
+
+export async function ensureWorkspaceInSupabase(workspaceId: string) {
+  try {
+    const { db } = await import('./db.js');
+    const ws = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(workspaceId) as any;
+    if (ws) {
+      await syncWorkspaceToSupabase(ws);
+    }
+  } catch (err: any) {
+    console.warn('[Supabase Sync] ensureWorkspaceInSupabase error:', err.message);
+  }
+}
+
+export async function syncCustomerToSupabase(c: any) {
+  try {
+    if (!c || !c.id) return;
+    if (c.workspace_id) {
+      await ensureWorkspaceInSupabase(c.workspace_id);
+    }
+    await supabaseService.from('customers').upsert(
+      {
+        id: c.id,
+        workspace_id: c.workspace_id,
+        name: c.name,
+        email: c.email || null,
+        phone: c.phone || null,
+        company: c.company || null,
+        location: c.location || null,
+        avatar: c.avatar || null,
+        status: c.status || 'active',
+        tags: c.tags || null,
+        created_at: c.created_at || new Date().toISOString(),
+        updated_at: c.updated_at || new Date().toISOString(),
+        last_active_at: c.last_active_at || new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    );
+  } catch (err: any) {
+    console.warn('[Supabase Sync] Customer sync warning:', err.message || err);
+  }
+}
+
+export async function syncConversationToSupabase(conv: any) {
+  try {
+    if (!conv || !conv.id) return;
+    if (conv.workspace_id) {
+      await ensureWorkspaceInSupabase(conv.workspace_id);
+    }
+    await supabaseService.from('conversations').upsert(
+      {
+        id: conv.id,
+        workspace_id: conv.workspace_id,
+        customer_name: conv.customer_name,
+        customer_email: conv.customer_email || null,
+        channel: conv.channel || 'Website',
+        status: conv.status || 'ai',
+        assignee: conv.assignee || 'Xia AI',
+        last_message: conv.last_message,
+        needs_attention: conv.needs_attention ? 1 : 0,
+        attention_reason: conv.attention_reason || null,
+        confidence_score: conv.confidence_score || 0.95,
+        sentiment: conv.sentiment || 'neutral',
+        unread_count: conv.unread_count || 0,
+        customer_phone: conv.customer_phone || null,
+        tags: typeof conv.tags === 'string' ? conv.tags : JSON.stringify(conv.tags || []),
+        notes: conv.notes || null,
+        ai_status: conv.ai_status || 'active',
+        draft_message: conv.draft_message || null,
+        first_seen: conv.first_seen || conv.created_at,
+        created_at: conv.created_at || new Date().toISOString(),
+        updated_at: conv.updated_at || new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    );
+  } catch (err: any) {
+    console.warn('[Supabase Sync] Conversation sync warning:', err.message || err);
+  }
+}
+
+export async function syncMessageToSupabase(msg: any) {
+  try {
+    if (!msg || !msg.id) return;
+    const conversationId = msg.conversation_id || msg.conversationId;
+    if (!conversationId) return;
+
+    await supabaseService.from('messages').upsert(
+      {
+        id: msg.id,
+        conversation_id: conversationId,
+        sender_type: msg.sender_type || msg.senderType || 'customer',
+        sender_name: msg.sender_name || msg.senderName || null,
+        content: msg.content,
+        is_internal_note: (msg.is_internal_note || msg.isInternalNote) ? 1 : 0,
+        attachments: typeof msg.attachments === 'string' ? msg.attachments : JSON.stringify(msg.attachments || []),
+        created_at: msg.created_at || msg.createdAt || new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    );
+  } catch (err: any) {
+    console.warn('[Supabase Sync] Message sync warning:', err.message || err);
+  }
+}

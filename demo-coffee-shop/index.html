@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Velvet Roast Artisanal Coffee | Fresh Micro-Lot Roastery</title>
+  <meta name="description" content="Artisanal single-origin coffee roasted fresh to order. Track orders, explore craft brews, and chat with our 24/7 AI Concierge." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Navigation -->
+  <header class="navbar">
+    <div class="container nav-wrapper">
+      <a href="#hero" class="brand">
+        <div class="brand-icon">☕</div>
+        <span class="brand-name">Velvet <span>Roast</span></span>
+      </a>
+
+      <nav>
+        <ul class="nav-links">
+          <li><a href="#featured">Signature Roasts</a></li>
+          <li><a href="#menu">Craft Menu</a></li>
+          <li><a href="#tracking">Order Tracking</a></li>
+          <li><a href="#roastery">Our Story</a></li>
+        </ul>
+      </nav>
+
+      <div class="nav-actions">
+        <button class="btn-bag" id="cartBtn">
+          <span>🛍️ Bag</span>
+          <span class="bag-count" id="cartCount">0</span>
+        </button>
+        <button class="btn-primary" onclick="openWidget('Can you recommend a roast based on my taste?')">
+          Ask AI Concierge
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero" id="hero">
+    <div class="container hero-grid">
+      <div class="hero-content">
+        <span class="pill-badge">✨ Roasted Within 48 Hours • Direct Trade 100% Arabica</span>
+        <h1>Crafted by Roasters. <em>Perfected by AI Concierge.</em></h1>
+        <p class="hero-lead">
+          Small-batch micro-lot coffees sourced directly from award-winning farms in Huila, Yirgacheffe, and Antigua. Experience vibrant aromatics, clean cups, and instant AI customer care.
+        </p>
+
+        <div class="hero-cta-group">
+          <a href="#featured" class="btn-primary">Shop Fresh Roasts</a>
+          <a href="#tracking" class="btn-secondary">Track Order #ORD-84920</a>
+        </div>
+
+        <div class="hero-stats">
+          <div class="stat-item">
+            <h3>48h</h3>
+            <p>Peak Roast Freshness</p>
+          </div>
+          <div class="stat-item">
+            <h3>100%</h3>
+            <p>Direct Trade Organic</p>
+          </div>
+          <div class="stat-item">
+            <h3>24/7</h3>
+            <p>Instant AI Support</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-preview">
+        <div class="hero-card-preview">
+          <span class="hero-badge-float">House Favorite</span>
+          <div class="hero-coffee-art">
+            <span class="coffee-emoji">☕</span>
+            <p>Velvet Reserve Espresso</p>
+          </div>
+          <div class="featured-roast-meta">
+            <div class="roast-info">
+              <h4>Signature Velvet Reserve (Medium-Dark)</h4>
+              <p>Dark chocolate, wild blackberry, roasted hazelnut</p>
+            </div>
+            <div class="roast-price">$18.50</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Featured Coffee Products Section -->
+  <section class="section section-alt" id="featured">
+    <div class="container">
+      <div class="section-header">
+        <span class="pill-badge">Single-Origin &amp; Blends</span>
+        <h2 class="section-title">Signature Coffee Selection</h2>
+        <p class="section-subtitle">Roasted every Monday and Thursday morning for maximum sweetness and bloom.</p>
+      </div>
+
+      <div class="products-grid">
+        <!-- Product 1 -->
+        <div class="product-card">
+          <span class="product-badge">Top Seller</span>
+          <div class="product-image">☕</div>
+          <h3 class="product-name">Signature Velvet Reserve</h3>
+          <p class="product-notes">Medium-Dark Roast. Tasting notes: Dark chocolate, blackberry, toasted hazelnut.</p>
+          <div class="product-bottom">
+            <span class="product-price">$18.50</span>
+            <button class="btn-add-cart" data-id="prod-1" data-name="Signature Velvet Reserve" data-price="18.50">
+              Add to Bag
+            </button>
+          </div>
+        </div>
+
+        <!-- Product 2 -->
+        <div class="product-card">
+          <span class="product-badge">Micro-Lot</span>
+          <div class="product-image">🌸</div>
+          <h3 class="product-name">Ethiopian Floral Mist</h3>
+          <p class="product-notes">Light-Medium Roast. Tasting notes: Jasmine blossom, bergamot, lemon curd.</p>
+          <div class="product-bottom">
+            <span class="product-price">$21.00</span>
+            <button class="btn-add-cart" data-id="prod-2" data-name="Ethiopian Floral Mist" data-price="21.00">
+              Add to Bag
+            </button>
+          </div>
+        </div>
+
+        <!-- Product 3 -->
+        <div class="product-card">
+          <span class="product-badge">Cold Craft</span>
+          <div class="product-image">🧊</div>
+          <h3 class="product-name">Nitro Cold Brew Concentrate</h3>
+          <p class="product-notes">Ready-to-drink 32oz bottle. Tasting notes: Velvety dark cocoa, vanilla bean.</p>
+          <div class="product-bottom">
+            <span class="product-price">$16.00</span>
+            <button class="btn-add-cart" data-id="prod-3" data-name="Nitro Cold Brew Concentrate" data-price="16.00">
+              Add to Bag
+            </button>
+          </div>
+        </div>
+
+        <!-- Product 4 -->
+        <div class="product-card">
+          <span class="product-badge">Limited Geisha</span>
+          <div class="product-image">🍯</div>
+          <h3 class="product-name">Colombian Honey Geisha</h3>
+          <p class="product-notes">Light Roast. Tasting notes: Papaya nectar, peach bloom, raw sugarcane.</p>
+          <div class="product-bottom">
+            <span class="product-price">$26.50</span>
+            <button class="btn-add-cart" data-id="prod-4" data-name="Colombian Honey Geisha" data-price="26.50">
+              Add to Bag
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Craft Menu Section -->
+  <section class="section" id="menu">
+    <div class="container">
+      <div class="section-header">
+        <span class="pill-badge">Espresso &amp; Brew Bar</span>
+        <h2 class="section-title">Craft Cafe Menu</h2>
+        <p class="section-subtitle">Hand-crafted beverages prepared fresh at our flagship roastery bar.</p>
+      </div>
+
+      <!-- Menu Category Tabs -->
+      <div class="menu-tabs">
+        <button class="tab-btn active" data-category="all">All Items</button>
+        <button class="tab-btn" data-category="espresso">Espresso Bar</button>
+        <button class="tab-btn" data-category="pourover">Pour Over &amp; Drip</button>
+        <button class="tab-btn" data-category="cold">Cold Crafts</button>
+        <button class="tab-btn" data-category="bakery">Artisan Bakery</button>
+      </div>
+
+      <div class="menu-items-grid">
+        <div class="menu-item" data-category="espresso">
+          <div class="menu-item-info">
+            <h4>Cortado (1:1 Ratio)</h4>
+            <p>Double ristretto velvet espresso cut with silky warm whole milk.</p>
+          </div>
+          <div class="menu-item-right">
+            <span class="menu-item-price">$4.75</span>
+            <button class="btn-add-cart" data-name="Cortado" data-price="4.75">+ Bag</button>
+          </div>
+        </div>
+
+        <div class="menu-item" data-category="espresso">
+          <div class="menu-item-info">
+            <h4>Honey Cinnamon Oat Latte</h4>
+            <p>Espresso, steamed oat milk, local raw wildflower honey, Ceylon cinnamon.</p>
+          </div>
+          <div class="menu-item-right">
+            <span class="menu-item-price">$6.25</span>
+            <button class="btn-add-cart" data-name="Honey Cinnamon Oat Latte" data-price="6.25">+ Bag</button>
+          </div>
+        </div>
+
+        <div class="menu-item" data-category="pourover">
+          <div class="menu-item-info">
+            <h4>Kalita Wave Hand Pour</h4>
+            <p>Single-origin Ethiopian Yirgacheffe brewed through a flat-bottom bed.</p>
+          </div>
+          <div class="menu-item-right">
+            <span class="menu-item-price">$5.50</span>
+            <button class="btn-add-cart" data-name="Kalita Wave Hand Pour" data-price="5.50">+ Bag</button>
+          </div>
+        </div>
+
+        <div class="menu-item" data-category="cold">
+          <div class="menu-item-info">
+            <h4>Nitro Cold Brew on Tap</h4>
+            <p>Infused with nitrogen for a Guinness-like creamy head and naturally sweet finish.</p>
+          </div>
+          <div class="menu-item-right">
+            <span class="menu-item-price">$5.75</span>
+            <button class="btn-add-cart" data-name="Nitro Cold Brew on Tap" data-price="5.75">+ Bag</button>
+          </div>
+        </div>
+
+        <div class="menu-item" data-category="bakery">
+          <div class="menu-item-info">
+            <h4>Brown Butter Cardamom Bun</h4>
+            <p>Twisted sourdough pastry with toasted cardamom sugar and flaky salt.</p>
+          </div>
+          <div class="menu-item-right">
+            <span class="menu-item-price">$4.50</span>
+            <button class="btn-add-cart" data-name="Cardamom Bun" data-price="4.50">+ Bag</button>
+          </div>
+        </div>
+
+        <div class="menu-item" data-category="bakery">
+          <div class="menu-item-info">
+            <h4>Almond Frangipane Croissant</h4>
+            <p>Twice-baked butter croissant filled with vanilla almond cream and toasted slices.</p>
+          </div>
+          <div class="menu-item-right">
+            <span class="menu-item-price">$5.25</span>
+            <button class="btn-add-cart" data-name="Almond Croissant" data-price="5.25">+ Bag</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Live Order Tracking Demo Section -->
+  <section class="section section-alt" id="tracking">
+    <div class="container">
+      <div class="tracking-banner">
+        <div class="tracking-info">
+          <h3>📦 Real-Time Order Tracking Demo</h3>
+          <p>
+            Experience how Xia Chat AI automatically checks live courier updates and inventory without human intervention.
+            Try testing our seeded order <strong>#ORD-84920</strong>!
+          </p>
+          <div class="tracking-input-group">
+            <input type="text" class="tracking-input" id="demoOrderInput" value="#ORD-84920" placeholder="e.g. #ORD-84920" />
+            <button class="btn-primary" id="trackOrderBtn">Track with AI</button>
+          </div>
+        </div>
+
+        <div class="tracking-card">
+          <div class="tracking-card-header">
+            <span style="font-weight: 700; font-size: 14px;">Demo Trackable Order</span>
+            <span class="order-badge">In Transit</span>
+          </div>
+          <div class="tracking-detail-row">
+            <span>Order Number:</span>
+            <strong style="color: #d4a373;">#ORD-84920</strong>
+          </div>
+          <div class="tracking-detail-row">
+            <span>Package:</span>
+            <span>2x Signature Velvet Reserve</span>
+          </div>
+          <div class="tracking-detail-row">
+            <span>Carrier:</span>
+            <span>FedEx Express Priority</span>
+          </div>
+          <div class="tracking-detail-row">
+            <span>Delivery ETA:</span>
+            <span style="color: #10b981; font-weight: 600;">Tomorrow by 2:00 PM</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Roastery Story Section -->
+  <section class="section" id="roastery">
+    <div class="container">
+      <div class="section-header">
+        <span class="pill-badge">Direct Trade Philosophy</span>
+        <h2 class="section-title">Freshness You Can Taste</h2>
+        <p class="section-subtitle">
+          We pay 40% above fair-trade minimums directly to micro-lot producers, ensuring sustainable livelihoods and unparalleled bean quality.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Slide-Over Shopping Bag Drawer -->
+  <div class="cart-drawer-overlay" id="cartOverlay"></div>
+  <div class="cart-drawer" id="cartDrawer">
+    <div class="cart-header">
+      <h3>Your Coffee Bag</h3>
+      <button class="cart-close-btn" id="closeCartBtn">&times;</button>
+    </div>
+    <div class="cart-body" id="cartItemsContainer">
+      <div class="cart-empty-text">Your bag is empty. Add a signature roast!</div>
+    </div>
+    <div class="cart-footer">
+      <div class="cart-subtotal">
+        <span>Subtotal:</span>
+        <span id="cartSubtotal">$0.00</span>
+      </div>
+      <button class="btn-primary" id="checkoutBtn" style="width: 100%;">
+        Demo 1-Click Checkout
+      </button>
+    </div>
+  </div>
+
+  <!-- Checkout Demo Success Modal -->
+  <div class="modal-overlay" id="checkoutModal">
+    <div class="checkout-modal">
+      <div class="modal-icon">✓</div>
+      <h3>Order Placed Successfully!</h3>
+      <p>Thank you for supporting small-batch roasters. Your order is confirmed.</p>
+      <div class="order-receipt-box">
+        <div>Your Live Order Tracking Number:</div>
+        <div class="order-code-display" id="modalOrderCode">#ORD-84920</div>
+        <small style="color: #746c64;">You can now ask the Xia AI Concierge to track this order in real time.</small>
+      </div>
+      <div style="display: flex; gap: 12px; justify-content: center;">
+        <button class="btn-primary" id="modalTrackBtn">Track Order in Xia Chat</button>
+        <button class="btn-secondary" id="modalCloseBtn">Continue Shopping</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-brand">
+          <h3>Velvet Roast Coffee Co.</h3>
+          <p>Micro-lot specialty roasters &amp; cold brew lab.</p>
+        </div>
+        <div class="ai-badge">
+          <span class="dot"></span>
+          <span>Powered by Xia Chat AI Support Platform</span>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        &copy; 2026 Velvet Roast Coffee Co. Embedded with Xia Chat AI Support Widget.
+      </div>
+    </div>
+  </footer>
+
+  <!-- Store Frontend Logic -->
+  <script src="app.js"></script>
+
+  <!-- Xia Chat AI Widget Embed (Enterprise SDK) -->
+  <script src="/widget.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      if (window.XiaChat) {
+        window.XiaChat.init({
+          websiteId: 'auto-detect',
+          theme: 'light',
+          industry: 'coffee_shop',
+          primaryColor: '#c2691e',
+          widgetName: 'Velvet Roast AI Concierge',
+          welcomeMessage: 'Hi 👋 How can I help you today?',
+          conversationStarters: [
+            { label: '☕ View Menu', prompt: 'Can I see your coffee menu and signature blends?' },
+            { label: '📦 Track Order', prompt: 'Where is my order #ORD-84920?' },
+            { label: '🛒 Place Order', prompt: 'How do I place an order for freshly roasted beans?' },
+            { label: '💳 Payment Help', prompt: 'What payment methods do you accept?' },
+            { label: '👤 Talk to Human', prompt: 'I want to talk with human support please.' }
+          ],
+          productContext: {
+            companyName: 'Velvet Roast Coffee Co.',
+            industry: 'coffee_shop',
+            catalog: [
+              { name: 'Signature Velvet Reserve Espresso', price: '$18.50', notes: 'Dark chocolate, blackberry, toasted hazelnut' },
+              { name: 'Ethiopian Floral Mist Yirgacheffe', price: '$21.00', notes: 'Jasmine blossom, bergamot, lemon curd' },
+              { name: 'Nitro Cold Brew Concentrate', price: '$16.00', notes: 'Velvety dark cocoa, Madagascar vanilla' },
+              { name: 'Colombian Honey Geisha', price: '$26.50', notes: 'Papaya nectar, peach bloom, sugarcane' }
+            ],
+            shippingPolicy: 'Free delivery on orders over $40. Roasted and dispatched within 48 hours.',
+            refundPolicy: '100% Roast Freshness Guarantee: If not satisfied within 30 days, we issue an instant full refund.',
+            trackableOrders: ['#ORD-84920', '#ORD-10294']
+          }
+        });
+      }
+    });
+
+    // Quick helper to trigger Xia Chat from anywhere
+    function openWidget(prompt) {
+      if (window.XiaChat) {
+        window.XiaChat.open();
+        if (prompt) {
+          window.XiaChat.sendMessage(prompt);
+        }
+      }
+    }
+  </script>
+
+</body>
+</html>

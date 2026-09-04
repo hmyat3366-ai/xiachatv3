@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xia Chat — Customer Widget Embed Test</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: #FAF9F6; color: #171717; line-height: 1.6; }
+    header { background: #FFFFFF; border-bottom: 1px solid #E8E8E5; padding: 20px 32px; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 20px; font-weight: 800; color: #171717; display: flex; align-items: center; gap: 8px; }
+    .logo span { color: #FF8A2A; }
+    .badge { background: #FFF0E5; color: #D96512; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; }
+    main { max-width: 960px; margin: 60px auto; padding: 0 24px; text-align: center; }
+    h1 { font-size: 38px; font-weight: 900; margin-bottom: 16px; letter-spacing: -0.5px; }
+    p.lead { font-size: 17px; color: #6B6B6B; max-width: 640px; margin: 0 auto 40px; }
+    .card { background: #FFFFFF; border: 1px solid #E8E8E5; border-radius: 24px; padding: 36px; box-shadow: 0 4px 16px rgba(0,0,0,0.03); text-align: left; }
+    .step { display: flex; gap: 16px; margin-bottom: 24px; }
+    .step-num { width: 32px; height: 32px; border-radius: 50%; background: #FFF0E5; color: #D96512; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .step-title { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+    .step-desc { font-size: 13.5px; color: #6B6B6B; }
+    code { background: #F3F4F6; padding: 2px 6px; border-radius: 6px; font-size: 13px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">
+      Store<span>Demo</span>
+    </div>
+    <div class="badge">Standalone Embed Test Page</div>
+  </header>
+
+  <main>
+    <h1>Client E-Commerce Website</h1>
+    <p class="lead">This demo page simulates an external customer storefront embedding the Xia Chat Widget script. The floating chat button in the bottom corner connects directly to your backend AI Agent!</p>
+
+    <div class="card">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div>
+          <div class="step-title">Click the Chat Bubble (Bottom-Right)</div>
+          <div class="step-desc">The widget is loaded via <code>/widget.js</code> with your workspace channel site key.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div>
+          <div class="step-title">Ask a Question to the Gemini AI Agent</div>
+          <div class="step-desc">Try asking: <em>"What is your return policy?"</em> or <em>"How long does shipping take?"</em></div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div>
+          <div class="step-title">Verify Dashboard Inbox Sync</div>
+          <div class="step-desc">Open your Xia Chat Dashboard at <code>/inbox</code> to see this visitor conversation synced in real-time.</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Embed Xia Chat Widget -->
+  <script>
+    // Dynamically fetch first website channel ID to test seamlessly
+    fetch('/api/channels/public-widget/auto-detect')
+      .catch(() => {})
+      .then(r => r && r.ok ? r.json() : null)
+      .then(data => {
+        const siteKey = (data && data.siteKey) ? data.siteKey : 'site-key';
+        const script = document.createElement('script');
+        script.src = '/widget.js';
+        script.setAttribute('data-site-key', siteKey);
+        script.async = true;
+        document.body.appendChild(script);
+      });
+  </script>
+</body>
+</html>

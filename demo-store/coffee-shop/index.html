@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Brew & Bean Artisans | Single-Origin Specialty Coffee</title>
+  <meta name="description" content="Artisanal small-batch coffee roasted daily. Single-origin beans, nitro cold brew, and ethically sourced blends with 24/7 AI-assisted customer care." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Navigation -->
+  <header class="navbar">
+    <div class="container nav-wrapper">
+      <a href="#hero" class="brand">
+        <div class="brand-icon">☕</div>
+        <span class="brand-name">Brew &amp; <span>Bean</span></span>
+      </a>
+
+      <nav>
+        <ul class="nav-links">
+          <li><a href="#featured">Featured Roasts</a></li>
+          <li><a href="#menu">Craft Menu</a></li>
+          <li><a href="#pricing">Subscriptions</a></li>
+          <li><a href="#reviews">Reviews</a></li>
+          <li><a href="#faq">FAQ</a></li>
+          <li><a href="#contact">Visit Store</a></li>
+        </ul>
+      </nav>
+
+      <div class="nav-actions">
+        <button class="btn-bag" id="cartBtn">
+          <span>🛍️ Bag</span>
+          <span class="bag-count" id="cartCount">0</span>
+        </button>
+        <a href="#pricing" class="btn-primary">Order Coffee</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero" id="hero">
+    <div class="container hero-grid">
+      <div class="hero-content">
+        <span class="pill-badge">Ethically Sourced • 100% Arabica</span>
+        <h1>Roasted with Passion. <em>Brewed for Clarity.</em></h1>
+        <p class="hero-lead">
+          Small-batch single-origin coffees sourced directly from micro-lot farmers in Ethiopia, Colombia, and Guatemala. Roasted within 48 hours of dispatch for optimal bloom.
+        </p>
+
+        <div class="hero-cta-group">
+          <a href="#featured" class="btn-primary">Explore Featured Roasts</a>
+          <a href="#contact" class="btn-secondary">Visit Our Roastery</a>
+        </div>
+
+        <div class="hero-stats">
+          <div class="stat-item">
+            <h3>48h</h3>
+            <p>Peak Roast Freshness</p>
+          </div>
+          <div class="stat-item">
+            <h3>100%</h3>
+            <p>Direct Trade Organic</p>
+          </div>
+          <div class="stat-item">
+            <h3>4.9 ★</h3>
+            <p>Over 12,000 Cups Served</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-preview">
+        <div class="hero-card-preview">
+          <span class="hero-badge-float">Staff Recommendation</span>
+          <div class="hero-coffee-art">
+            <span class="coffee-emoji">☕</span>
+            <p>Velvet Reserve Espresso</p>
+          </div>
+          <div class="featured-roast-meta">
+            <div class="roast-info">
+              <h4>Signature Velvet Roast (Medium-Dark)</h4>
+              <p>Notes: Dark Chocolate, Wild Blackberry, Toasted Hazelnut</p>
+            </div>
+            <div class="roast-price">$18.50</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Featured Coffee Products -->
+  <section class="section section-alt" id="featured">
+    <div class="container">
+      <div class="section-header">
+        <span class="pill-badge">Single-Origin Roasts</span>
+        <h2 class="section-title">Our Signature Selection</h2>
+        <p class="section-subtitle">Hand-selected beans roasted to highlight delicate terroir and natural sweetness.</p>
+      </div>
+
+      <div class="products-grid">
+        <!-- Product 1 -->
+        <article class="product-card">
+          <div class="product-thumb">
+            <span class="product-tag">Bestseller</span>
+            <span class="product-emoji">🌿</span>
+          </div>
+          <div class="product-details">
+            <span class="product-origin">Ethiopia • Yirgacheffe</span>
+            <h3 class="product-title">Floral Mist Pour-Over Blend</h3>
+            <p class="product-notes">Light washed roast with floral jasmine aromas, bergamot brightness, and a clean honey finish.</p>
+            <div class="notes-chips">
+              <span class="chip">Light Roast</span>
+              <span class="chip">Jasmine</span>
+              <span class="chip">Citrus</span>
+            </div>
+            <div class="product-footer">
+              <span class="product-price">$19.00</span>
+              <button class="btn-add-cart" data-name="Floral Mist Pour-Over" data-price="19.00">+ Add to Bag</button>
+            </div>
+          </div>
+        </article>
+
+        <!-- Product 2 -->
+        <article class="product-card">
+          <div class="product-thumb">
+            <span class="product-tag">Staff Pick</span>
+            <span class="product-emoji">🍫</span>
+          </div>
+          <div class="product-details">
+            <span class="product-origin">Colombia • Huila</span>
+            <h3 class="product-title">Velvet Reserve Espresso</h3>
+            <p class="product-notes">Full-bodied medium-dark roast boasting rich melted dark chocolate, wild berries, and toasted hazelnut crema.</p>
+            <div class="notes-chips">
+              <span class="chip">Medium-Dark</span>
+              <span class="chip">Chocolate</span>
+              <span class="chip">Hazelnut</span>
+            </div>
+            <div class="product-footer">
+              <span class="product-price">$18.50</span>
+              <button class="btn-add-cart" data-name="Velvet Reserve Espresso" data-price="18.50">+ Add to Bag</button>
+            </div>
+          </div>
+        </article>
+
+        <!-- Product 3 -->
+        <article class="product-card">
+          <div class="product-thumb">
+            <span class="product-tag">Cold Craft</span>
+            <span class="product-emoji">🧊</span>
+          </div>
+          <div class="product-details">
+            <span class="product-origin">Guatemala • Antigua</span>
+            <h3 class="product-title">Nitro Cold Brew Concentrate</h3>
+            <p class="product-notes">Slow-steeped for 20 hours in cold mountain water. Ultra-smooth, zero bitterness with caramel sweetness.</p>
+            <div class="notes-chips">
+              <span class="chip">Cold Brew</span>
+              <span class="chip">Caramel</span>
+              <span class="chip">Low Acid</span>
+            </div>
+            <div class="product-footer">
+              <span class="product-price">$16.00</span>
+              <button class="btn-add-cart" data-name="Nitro Cold Brew Concentrate" data-price="16.00">+ Add to Bag</button>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- Craft In-Store Menu -->
+  <section class="section" id="menu">
+    <div class="container">
+      <div class="section-header">
+        <span class="pill-badge">Cafe Bar Menu</span>
+        <h2 class="section-title">Freshly Brewed Daily</h2>
+        <p class="section-subtitle">Crafted by certified baristas using purified mineral-balanced water and fresh pasture-raised milk.</p>
+      </div>
+
+      <div class="menu-tabs">
+        <button class="tab-btn active" data-category="all">All Drinks</button>
+        <button class="tab-btn" data-category="espresso">Espresso Bar</button>
+        <button class="tab-btn" data-category="cold">Cold Crafts</button>
+        <button class="tab-btn" data-category="bakery">Artisan Pastries</button>
+      </div>
+
+      <div class="menu-list" id="menuList">
+        <div class="menu-item" data-category="espresso">
+          <div class="menu-item-info">
+            <h4>Double Ristretto Espresso</h4>
+            <p>Short double pull of our Huila single-origin, syrupy crema.</p>
+          </div>
+          <div class="menu-item-price">$4.25</div>
+        </div>
+
+        <div class="menu-item" data-category="espresso">
+          <div class="menu-item-info">
+            <h4>Oat Milk Flat White</h4>
+            <p>Velvety micro-foam poured over a double shot with Minor Figures oat milk.</p>
+          </div>
+          <div class="menu-item-price">$5.50</div>
+        </div>
+
+        <div class="menu-item" data-category="cold">
+          <div class="menu-item-info">
+            <h4>Cascara Tonic &amp; Orange</h4>
+            <p>Sparkling coffee cherry tea infusion over ice with fresh blood orange slice.</p>
+          </div>
+          <div class="menu-item-price">$6.00</div>
+        </div>
+
+        <div class="menu-item" data-category="cold">
+          <div class="menu-item-info">
+            <h4>Madagascar Vanilla Cold Foam</h4>
+            <p>20-hour steeped cold brew crowned with organic vanilla sweet cream.</p>
+          </div>
+          <div class="menu-item-price">$6.50</div>
+        </div>
+
+        <div class="menu-item" data-category="bakery">
+          <div class="menu-item-info">
+            <h4>Cardamom Almond Brioche</h4>
+            <p>Freshly baked Scandinavian morning bun with crushed green cardamom.</p>
+          </div>
+          <div class="menu-item-price">$4.75</div>
+        </div>
+
+        <div class="menu-item" data-category="bakery">
+          <div class="menu-item-info">
+            <h4>Dark Chocolate Sea Salt Scone</h4>
+            <p>Brown butter dough with 70% Valrhona dark chocolate chunks.</p>
+          </div>
+          <div class="menu-item-price">$4.50</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Subscription Pricing -->
+  <section class="section section-alt" id="pricing">
+    <div class="container">
+      <div class="section-header">
+        <span class="pill-badge">Roaster Subscriptions</span>
+        <h2 class="section-title">Fresh Coffee on Your Schedule</h2>
+        <p class="section-subtitle">Never run out of freshly roasted beans. Free carbon-neutral shipping on all subscriptions.</p>
+      </div>
+
+      <div class="pricing-grid">
+        <div class="pricing-card">
+          <h3 class="pricing-title">The Casual Sipper</h3>
+          <p class="pricing-desc">Perfect for 1-2 cups per day. One 12oz bag shipped every month.</p>
+          <div class="pricing-rate">$17<span>/month</span></div>
+          <ul class="pricing-features">
+            <li>1 x 12oz Bag of Single Origin Roast</li>
+            <li>Whole bean or custom grind</li>
+            <li>Free standard shipping</li>
+            <li>Cancel or pause anytime</li>
+          </ul>
+          <button class="btn-secondary" onclick="alert('Subscription selected! You can also ask our AI Support Assistant about custom grinds.')">Choose Plan</button>
+        </div>
+
+        <div class="pricing-card popular">
+          <span class="popular-badge">Most Popular</span>
+          <h3 class="pricing-title">The Coffee Enthusiast</h3>
+          <p class="pricing-desc">For true connoisseurs. Two 12oz bags delivered bi-weekly at peak bloom.</p>
+          <div class="pricing-rate">$32<span>/month</span></div>
+          <ul class="pricing-features">
+            <li>2 x 12oz Bags (Rotating Micro-lots)</li>
+            <li>Priority access to limited harvest roasts</li>
+            <li>Free express shipping</li>
+            <li>10% off in-store drinks &amp; merch</li>
+            <li>24/7 AI-guided brewing concierge</li>
+          </ul>
+          <button class="btn-primary" onclick="alert('Enthusiast subscription selected! Enjoy fresh roasts.')">Start Subscription</button>
+        </div>
+
+        <div class="pricing-card">
+          <h3 class="pricing-title">Roastery Office Reserve</h3>
+          <p class="pricing-desc">For collaborative workspaces, studios, and startup teams.</p>
+          <div class="pricing-rate">$85<span>/month</span></div>
+          <ul class="pricing-features">
+            <li>5 x 12oz Bags (Espresso + Filter blends)</li>
+            <li>Bi-weekly scheduled roasts</li>
+            <li>Dedicated bulk delivery manager</li>
+            <li>Direct human concierge support</li>
+          </ul>
+          <button class="btn-secondary" onclick="alert('Office plan selected! Contact support for invoicing.')">Contact for Office</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Customer Reviews -->
+  <section class="section" id="reviews">
+    <div class="container">
+      <div class="section-header">
+        <span class="pill-badge">Real Feedback</span>
+        <h2 class="section-title">Loved by Coffee Lovers</h2>
+        <p class="section-subtitle">Here is what our regulars say about our beans and customer support.</p>
+      </div>
+
+      <div class="reviews-grid">
+        <div class="review-card">
+          <div class="stars">★★★★★</div>
+          <p class="review-quote">"The Ethiopian Yirgacheffe is hands down the cleanest pour-over roast I have ever had. Plus their website AI assistant recommended the exact grind setting for my V60!"</p>
+          <div class="review-author">
+            <div class="author-avatar">👨‍💻</div>
+            <div class="author-info">
+              <h5>Marcus Chen</h5>
+              <span>Verified Buyer • San Francisco</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="stars">★★★★★</div>
+          <p class="review-quote">"I had a question about tracking my monthly subscription order. The live chat answered immediately and gave me tracking details in 10 seconds. Flawless service."</p>
+          <div class="review-author">
+            <div class="author-avatar">👩‍🎨</div>
+            <div class="author-info">
+              <h5>Elena Rostova</h5>
+              <span>Enthusiast Subscriber • Brooklyn</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="stars">★★★★★</div>
+          <p class="review-quote">"Velvet Reserve has replaced all other espresso beans in our home machine. Deep, chocolatey, no sourness. Fast 2-day delivery every time."</p>
+          <div class="review-author">
+            <div class="author-avatar">☕</div>
+            <div class="author-info">
+              <h5>Liam O'Connor</h5>
+              <span>Home Barista • Chicago</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ Section (Store Knowledge for AI Reference) -->
+  <section class="section section-alt" id="faq">
+    <div class="container">
+      <div class="section-header">
+        <span class="pill-badge">Frequently Asked Questions</span>
+        <h2 class="section-title">Everything You Need to Know</h2>
+        <p class="section-subtitle">Have questions about our roasts, shipping, or returns? Click below or ask our AI assistant anytime!</p>
+      </div>
+
+      <div class="faq-wrap">
+        <div class="faq-item active">
+          <button class="faq-question">
+            <span>What coffee roast do you recommend for beginners?</span>
+            <span class="toggle-icon">+</span>
+          </button>
+          <div class="faq-answer">
+            We highly recommend our <strong>Signature Velvet Reserve</strong>. It is a smooth, balanced medium-dark roast with naturally sweet notes of dark chocolate and toasted hazelnut. If you prefer bright, fruity filter coffee, try our <strong>Ethiopian Floral Mist</strong>.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question">
+            <span>How can I check "Where is my order"?</span>
+            <span class="toggle-icon">+</span>
+          </button>
+          <div class="faq-answer">
+            All orders ship within 24 to 48 hours of roasting. You will receive a tracking link via email once dispatched. If you need live tracking, simply provide your <strong>6-digit Order ID (e.g. #ORD-84920)</strong> to our live chat assistant!
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question">
+            <span>What is your return and freshness policy?</span>
+            <span class="toggle-icon">+</span>
+          </button>
+          <div class="faq-answer">
+            We guarantee 100% satisfaction. If your coffee beans arrive damaged or you are not completely satisfied within 30 days of delivery, contact us via live chat for an immediate replacement or full refund.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question">
+            <span>Can I speak with a human support specialist?</span>
+            <span class="toggle-icon">+</span>
+          </button>
+          <div class="faq-answer">
+            Yes! Our AI assistant will instantly connect you with our human support team if you type <em>"I want to talk with human"</em> or request human assistance in the chat widget.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Contact & Roastery Info -->
+  <section class="section" id="contact">
+    <div class="container">
+      <div class="section-header">
+        <span class="pill-badge">Visit &amp; Connect</span>
+        <h2 class="section-title">Our Roastery &amp; Espresso Bar</h2>
+        <p class="section-subtitle">Come taste freshly pulled shots and learn pour-over brewing at our flaghsip cafe.</p>
+      </div>
+
+      <div class="contact-grid">
+        <div class="info-card">
+          <div class="info-row">
+            <div class="info-icon">📍</div>
+            <div class="info-text">
+              <h4>Flagship Roastery Address</h4>
+              <p>452 Roaster Avenue, Artisan District, Suite 100<br />Portland, OR 97201</p>
+            </div>
+          </div>
+
+          <div class="info-row">
+            <div class="info-icon">⏰</div>
+            <div class="info-text">
+              <h4>Opening Hours</h4>
+              <p>Monday – Friday: 6:30 AM – 6:00 PM<br />Saturday – Sunday: 7:30 AM – 7:00 PM</p>
+            </div>
+          </div>
+
+          <div class="info-row">
+            <div class="info-icon">📞</div>
+            <div class="info-text">
+              <h4>Customer Support Phone &amp; Email</h4>
+              <p>+1 (555) 234-5678 • support@brewandbean.demo</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <h3 style="font-family: var(--font-serif); font-size: 24px; margin-bottom: 12px; color: var(--espresso);">
+            Need Help Now?
+          </h3>
+          <p style="font-size: 14.5px; color: var(--text-muted); margin-bottom: 24px;">
+            Our AI-powered customer concierge is ready 24/7 at the bottom right corner of this page. Ask about grind recommendations, order tracking, roast dates, or speak to a live human.
+          </p>
+          <button class="btn-primary" onclick="openWidgetChat()">Open Live Chat Support</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-brand">
+          <h3>Brew &amp; Bean Artisans</h3>
+          <p>Hand-roasted specialty coffee beans &amp; cold crafts.</p>
+        </div>
+        <div class="ai-badge">
+          <span class="dot"></span>
+          <span>Powered by Xia Chat AI Support System</span>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        &copy; 2026 Brew &amp; Bean Artisans Demo Store. Demonstrating live Xia Chat AI customer communication.
+      </div>
+    </div>
+  </footer>
+
+  <!-- Store Frontend Logic -->
+  <script src="app.js"></script>
+
+  <!-- Xia Chat Widget (Pure, reusable, zero hardcoded store logic) -->
+  <script src="widget.js" data-site-key="auto-detect"></script>
+
+</body>
+</html>

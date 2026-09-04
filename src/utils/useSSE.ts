@@ -46,7 +46,7 @@ export function useSSE(url: string | null, options: UseSSEOptions): SSEStatus {
     const token = localStorage.getItem('xia_auth_token');
     const fullUrl = token ? `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}` : url;
 
-    const es = new EventSource(fullUrl, { withCredentials: true });
+    const es = new EventSource(fullUrl);
     esRef.current = es;
 
     es.onmessage = (ev) => {

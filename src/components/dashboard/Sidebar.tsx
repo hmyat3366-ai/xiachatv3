@@ -105,10 +105,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const sidebarContent = (
-    <div className="h-full flex flex-col justify-between bg-white border-r border-[#E8E8E5] w-64 shrink-0">
-      {/* Brand Header & Mobile Close */}
-      <div>
-        <div className="p-5 border-b border-[#E8E8E5] flex items-center justify-between">
+    <div className="h-full flex flex-col justify-between bg-white border-r border-[#E8E8E5] w-64 shrink-0 min-h-0 overflow-hidden">
+      {/* Brand Header & Primary Nav List */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div className="p-4 border-b border-[#E8E8E5] flex items-center justify-between shrink-0">
           <Logo
             variant="full"
             size="md"
@@ -124,8 +124,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        {/* Primary Nav List */}
-        <nav className="p-3.5 space-y-1">
+        {/* Primary Nav List (scrolls independently if screen is short) */}
+        <nav className="p-3 space-y-1 flex-1 overflow-y-auto min-h-0">
           {mainNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = isNavActive(item.path);
@@ -152,7 +152,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             );
           })}
 
-          <div className="my-3 border-t border-[#E8E8E5]" />
+          <div className="my-2.5 border-t border-[#E8E8E5]" />
 
           {teamNavItems.map((item) => {
             const Icon = item.icon;
@@ -180,7 +180,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             );
           })}
 
-          <div className="my-3 border-t border-[#E8E8E5]" />
+          <div className="my-2.5 border-t border-[#E8E8E5]" />
 
           {secondaryNavItems.map((item) => {
             const Icon = item.icon;
@@ -206,11 +206,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Bottom Area: Workspace Switcher & User Profile */}
-      <div className="p-3.5 border-t border-[#E8E8E5] space-y-2 bg-[#FAF9F6]">
+      <div className="p-3 border-t border-[#E8E8E5] space-y-2 bg-[#FAF9F6] shrink-0">
         {/* Workspace Switcher */}
         <button
           onClick={onOpenWorkspaceModal}
-          className="w-full flex items-center justify-between p-2.5 rounded-xl bg-white border border-[#E8E8E5] hover:border-gray-300 text-left transition-colors cursor-pointer"
+          className="w-full flex items-center justify-between p-2 rounded-xl bg-white border border-[#E8E8E5] hover:border-gray-300 text-left transition-colors cursor-pointer"
         >
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-7 h-7 rounded-lg bg-[#FF8A2A] text-white font-bold text-xs flex items-center justify-center shrink-0">
@@ -254,7 +254,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <>
       {/* Desktop Persistent Sidebar */}
-      <aside className="hidden md:block h-screen sticky top-0 z-30">{sidebarContent}</aside>
+      <aside className="hidden md:block h-full shrink-0 z-30">{sidebarContent}</aside>
 
       {/* Mobile Drawer Overlay */}
       {isMobileOpen && (

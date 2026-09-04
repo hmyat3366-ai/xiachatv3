@@ -89,6 +89,10 @@ import {
   getChannelById,
   updateWebsiteChannelConfig,
   getPublicWidgetConfig,
+  handlePublicWidgetMessage,
+  getPublicWidgetConversation,
+  identifyPublicWidgetVisitor,
+  streamPublicWidgetEvents,
   testChannelConnection,
   disconnectChannel,
   connectChannel,
@@ -203,6 +207,14 @@ const resetLimiter = rateLimit({
   message: { error: 'Too many password reset requests. Please try again later.' },
 });
 
+const widgetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: isTestMode ? 1000 : 60, // max 60 visitor messages per 15 minutes in production
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many messages sent. Please slow down and try again shortly.' },
+});
+
 // Authentication Routes
 app.post('/api/auth/signup', authLimiter, signup);
 app.post('/api/auth/login', authLimiter, login);
@@ -230,12 +242,15 @@ app.post('/api/dashboard/workspaces', authenticateToken, createWorkspace);
 
 // Inbox Routes
 app.get('/api/inbox/conversations', authenticateToken, getInboxConversations);
+app.get('/api/inbox/conversations/:id', authenticateToken, getConversationMessages);
 app.get('/api/inbox/conversations/:id/messages', authenticateToken, getConversationMessages);
 app.post('/api/inbox/conversations/:id/messages', authenticateToken, postMessage);
 app.post('/api/inbox/conversations/:id/takeover', authenticateToken, takeoverConversation);
 app.post('/api/inbox/conversations/:id/return-to-ai', authenticateToken, returnToAI);
+app.post('/api/inbox/conversations/:id/resume-ai', authenticateToken, returnToAI);
 app.post('/api/inbox/conversations/:id/assign', authenticateToken, updateAssignment);
 app.post('/api/inbox/conversations/:id/status', authenticateToken, updateStatus);
+app.patch('/api/inbox/conversations/:id/status', authenticateToken, updateStatus);
 app.post('/api/inbox/conversations/:id/customer-details', authenticateToken, updateCustomerDetails);
 app.post('/api/inbox/conversations/:id/generate-ai-draft', authenticateToken, generateAIDraft);
 app.get('/api/inbox/events', authenticateToken, sseEventsStream);
@@ -280,8 +295,12 @@ app.post('/api/channels/:provider/connect', authenticateToken, checkChannelLimit
 app.post('/api/channels/:id/test', authenticateToken, testChannelConnection);
 app.post('/api/channels/:id/disconnect', authenticateToken, disconnectChannel);
 
-// Public Browser-Safe Widget Config API (CORS enabled)
+// Public Browser-Safe Widget Config & Messaging APIs (CORS enabled)
 app.get('/api/channels/public-widget/:siteKey', getPublicWidgetConfig);
+app.post('/api/channels/public-widget/:siteKey/message', widgetLimiter, handlePublicWidgetMessage);
+app.get('/api/channels/public-widget/:siteKey/conversation/:conversationId', getPublicWidgetConversation);
+app.post('/api/channels/public-widget/:siteKey/identify', identifyPublicWidgetVisitor);
+app.get('/api/channels/public-widget/:siteKey/conversation/:conversationId/events', streamPublicWidgetEvents);
 
 // Webhook Endpoints
 app.get('/api/webhooks/:provider', verifyWebhookChallenge);
@@ -346,9 +365,25 @@ app.get('/api/health', (req, res) => {
 const distPath = path.resolve(__dirname, '../dist');
 app.use(express.static(distPath));
 
-// Fallback to index.html for client-side React router routes (non-API)
+// Serve public static assets (e.g. widget.js)
+const publicPath = path.resolve(__dirname, '../public');
+app.use(express.static(publicPath));
+
+// Serve standalone demo customer stores (e.g. coffee-shop)
+const demoStorePath = path.resolve(__dirname, '../demo-store');
+app.use('/demo-store', express.static(demoStorePath));
+
+const demoCoffeeShopPath = path.resolve(__dirname, '../demo-coffee-shop');
+app.use('/demo-coffee-shop', express.static(demoCoffeeShopPath));
+
+// Fallback to index.html for client-side React router routes
 app.use((req, res, next) => {
-  if (req.path.startsWith('/api')) {
+  if (
+    req.path.startsWith('/api') ||
+    req.path.startsWith('/demo-store') ||
+    req.path.startsWith('/demo-coffee-shop') ||
+    req.path === '/widget.js'
+  ) {
     return next();
   }
   res.sendFile(path.join(distPath, 'index.html'));

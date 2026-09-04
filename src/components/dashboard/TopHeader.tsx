@@ -44,7 +44,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
   return (
     <>
-      <header className="bg-white border-b border-[#E8E8E5] px-4 sm:px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+      <header className="bg-white border-b border-[#E8E8E5] px-4 sm:px-6 py-3 flex items-center justify-between shrink-0 z-20">
         {/* Left: Mobile Menu Toggle & Workspace Switcher Indicator */}
         <div className="flex items-center gap-3">
           <button
