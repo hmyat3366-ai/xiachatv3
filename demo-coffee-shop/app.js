@@ -149,4 +149,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // 5. Host Website Dark/Light Mode Realtime Switcher
+  const themeToggleBtn = document.getElementById('themeToggleBtn');
+  if (themeToggleBtn) {
+    themeToggleBtn.addEventListener('click', () => {
+      const isDark = document.documentElement.classList.toggle('dark');
+      themeToggleBtn.textContent = isDark ? '☀️' : '🌙';
+    });
+  }
 });

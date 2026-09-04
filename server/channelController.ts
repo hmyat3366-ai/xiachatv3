@@ -203,7 +203,21 @@ export const updateWebsiteChannelConfig = async (req: AuthRequest, res: Response
 
     ensureSeedChannels(workspace.id);
 
-    const { widgetName, welcomeMessage, primaryColor, position, defaultAgentId, enableAI, enableHandoff, showAgentAvailability } = req.body;
+    const {
+      widgetName,
+      welcomeMessage,
+      primaryColor,
+      secondaryColor,
+      autoDetectColor,
+      matchWebsiteTheme,
+      theme,
+      position,
+      defaultAgentId,
+      enableAI,
+      enableHandoff,
+      showAgentAvailability,
+      conversationStarters,
+    } = req.body;
 
     const channel = db.prepare("SELECT * FROM channels WHERE workspace_id = ? AND type = 'website'").get(workspace.id) as DbChannel | undefined;
     if (!channel) return res.status(404).json({ error: 'Website Chat channel not found.' });
@@ -213,10 +227,15 @@ export const updateWebsiteChannelConfig = async (req: AuthRequest, res: Response
       widgetName: widgetName || 'Xia Support Chat',
       welcomeMessage: welcomeMessage || 'Hello! How can we help you today?',
       primaryColor: primaryColor || '#FF8A2A',
+      secondaryColor: secondaryColor || null,
+      autoDetectColor: autoDetectColor !== false,
+      matchWebsiteTheme: matchWebsiteTheme !== false,
+      theme: theme || 'auto',
       position: position || 'bottom-right',
       enableAI: enableAI !== false,
       enableHandoff: enableHandoff !== false,
       showAgentAvailability: showAgentAvailability !== false,
+      conversationStarters: conversationStarters || undefined,
     });
 
     db.prepare(`
@@ -224,6 +243,39 @@ export const updateWebsiteChannelConfig = async (req: AuthRequest, res: Response
       SET config = ?, default_agent_id = ?, updated_at = ?
       WHERE id = ? AND workspace_id = ?
     `).run(updatedConfig, defaultAgentId || channel.default_agent_id, now, channel.id, workspace.id);
+
+    // Sync to workspace widget_settings
+    try {
+      db.prepare(`
+        INSERT INTO widget_settings (workspace_id, widget_name, welcome_message, primary_color, secondary_color, auto_detect_color, match_website_theme, position, theme, show_agent_availability, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(workspace_id) DO UPDATE SET
+          widget_name = excluded.widget_name,
+          welcome_message = excluded.welcome_message,
+          primary_color = excluded.primary_color,
+          secondary_color = excluded.secondary_color,
+          auto_detect_color = excluded.auto_detect_color,
+          match_website_theme = excluded.match_website_theme,
+          position = excluded.position,
+          theme = excluded.theme,
+          show_agent_availability = excluded.show_agent_availability,
+          updated_at = excluded.updated_at
+      `).run(
+        workspace.id,
+        widgetName || 'Xia Support Chat',
+        welcomeMessage || 'Hello! How can we help you today?',
+        primaryColor || '#FF8A2A',
+        secondaryColor || null,
+        autoDetectColor !== false ? 1 : 0,
+        matchWebsiteTheme !== false ? 1 : 0,
+        position || 'bottom-right',
+        theme || 'auto',
+        showAgentAvailability !== false ? 1 : 0,
+        now
+      );
+    } catch (e) {
+      console.warn('[Widget] Failed to sync to widget_settings table:', e);
+    }
 
     const updatedChannel = db.prepare('SELECT * FROM channels WHERE id = ?').get(channel.id);
     return res.status(200).json({ success: true, channel: updatedChannel });
@@ -291,8 +343,15 @@ export const getPublicWidgetConfig = async (req: Request, res: Response) => {
     }
 
     const welcomeMessage = (widgetSettings && widgetSettings.welcome_message) || config.welcomeMessage || 'Hi 👋 How can I help you today?';
-    const primaryColor = (widgetSettings && widgetSettings.primary_color) || config.primaryColor || '#FF8A2A';
-    const theme = (widgetSettings && widgetSettings.theme) || config.theme || 'light';
+    const primaryColor = config.primaryColor || (widgetSettings && widgetSettings.primary_color) || '#FF8A2A';
+    const secondaryColor = config.secondaryColor || (widgetSettings && widgetSettings.secondary_color) || null;
+    const autoDetectColor = config.autoDetectColor !== undefined
+      ? Boolean(config.autoDetectColor)
+      : (widgetSettings?.auto_detect_color !== undefined ? Boolean(widgetSettings.auto_detect_color) : true);
+    const matchWebsiteTheme = config.matchWebsiteTheme !== undefined
+      ? Boolean(config.matchWebsiteTheme)
+      : (widgetSettings?.match_website_theme !== undefined ? Boolean(widgetSettings.match_website_theme) : true);
+    const theme = config.theme || (widgetSettings && widgetSettings.theme) || 'auto';
 
     // Return strictly browser-safe properties (No JWTs, database keys or secrets)
     return res.status(200).json({
@@ -302,6 +361,9 @@ export const getPublicWidgetConfig = async (req: Request, res: Response) => {
       welcomeMessage,
       conversationStarters,
       primaryColor,
+      secondaryColor,
+      autoDetectColor,
+      matchWebsiteTheme,
       position: (widgetSettings && widgetSettings.position) || config.position || 'bottom-right',
       theme,
       showAgentAvailability: (widgetSettings && widgetSettings.show_agent_availability !== undefined) ? Boolean(widgetSettings.show_agent_availability) : (config.showAgentAvailability !== false),

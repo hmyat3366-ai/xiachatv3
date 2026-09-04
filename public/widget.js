@@ -1,7 +1,7 @@
 /**
- * Xia Chat AI Widget SDK (Enterprise Edition)
+ * Xia Chat AI Widget SDK (Enterprise Edition with Brand Color Adaptation)
  * Reusable embeddable customer support widget for any website (Static HTML, React, Next.js, Shopify, Ecommerce).
- * Compatible with Intercom, Zendesk AI, and Crisp architectures.
+ * Supports automatic website brand color adaptation, dynamic dark/light mode inheritance, and isolated Shadow DOM.
  */
 (function (window, document) {
   'use strict';
@@ -50,9 +50,15 @@
     siteKey: (currentScript && currentScript.getAttribute('data-site-key')) || 'auto-detect',
     apiKey: (currentScript && currentScript.getAttribute('data-api-key')) || '',
     industry: (currentScript && currentScript.getAttribute('data-industry')) || 'coffee_shop',
-    theme: (currentScript && currentScript.getAttribute('data-theme')) || 'light',
+    theme: (currentScript && currentScript.getAttribute('data-theme')) || 'auto',
+    matchWebsiteTheme: true,
+    autoDetectColor: true,
+    configuredPrimaryColor: null,
+    manualPrimaryColor: null,
+    configuredSecondaryColor: null,
+    currentEffectiveColor: '#6366F1',
+    currentEffectiveTheme: 'light',
     position: (currentScript && currentScript.getAttribute('data-position')) || 'bottom-right',
-    primaryColor: '#FF8A2A',
     widgetName: 'Xia AI Assistant',
     welcomeMessage: 'Hi 👋 How can I help you today?',
     conversationStarters: [],
@@ -67,7 +73,261 @@
     sseSource: null,
   };
 
-  // 3. Guest Visitor Identity System (No Login Required)
+  // -------------------------------------------------------------
+  // COLOR & THEME DETECTION ENGINE
+  // -------------------------------------------------------------
+
+  function parseColorToRgb(colorStr) {
+    if (!colorStr || typeof colorStr !== 'string') return null;
+    colorStr = colorStr.trim();
+
+    // Hex format #RGB or #RRGGBB
+    if (colorStr.charAt(0) === '#') {
+      var hex = colorStr.slice(1);
+      if (hex.length === 3) {
+        hex = hex.split('').map(function (c) { return c + c; }).join('');
+      }
+      if (hex.length === 6) {
+        return {
+          r: parseInt(hex.substring(0, 2), 16),
+          g: parseInt(hex.substring(2, 4), 16),
+          b: parseInt(hex.substring(4, 6), 16),
+        };
+      }
+    }
+
+    // rgb(r, g, b) or rgba(r, g, b, a)
+    var rgbMatch = colorStr.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)/);
+    if (rgbMatch) {
+      var alpha = rgbMatch[4] !== undefined ? parseFloat(rgbMatch[4]) : 1;
+      if (alpha < 0.1) return null; // Transparent
+      return {
+        r: Math.round(parseFloat(rgbMatch[1])),
+        g: Math.round(parseFloat(rgbMatch[2])),
+        b: Math.round(parseFloat(rgbMatch[3])),
+      };
+    }
+
+    // HSL or named colors via computed dummy
+    try {
+      var dummy = document.createElement('div');
+      dummy.style.color = colorStr;
+      dummy.style.display = 'none';
+      document.body.appendChild(dummy);
+      var computed = window.getComputedStyle(dummy).color;
+      document.body.removeChild(dummy);
+      if (computed && computed !== colorStr) {
+        return parseColorToRgb(computed);
+      }
+    } catch (e) {}
+
+    return null;
+  }
+
+  function rgbToHex(r, g, b) {
+    var toH = function (c) {
+      var h = Math.max(0, Math.min(255, Math.round(c))).toString(16);
+      return h.length === 1 ? '0' + h : h;
+    };
+    return '#' + toH(r) + toH(g) + toH(b);
+  }
+
+  function getRelativeLuminance(rgb) {
+    var a = [rgb.r, rgb.g, rgb.b].map(function (v) {
+      v /= 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
+  }
+
+  function getContrastColor(rgb) {
+    if (!rgb) return '#FFFFFF';
+    var lum = getRelativeLuminance(rgb);
+    return lum > 0.45 ? '#111827' : '#FFFFFF';
+  }
+
+  function isForbiddenColor(rgb) {
+    if (!rgb) return true;
+    var r = rgb.r, g = rgb.g, b = rgb.b;
+    var lum = getRelativeLuminance(rgb);
+
+    // Pure black or near-black
+    if (lum < 0.04) return true;
+
+    // Pure white or near-white
+    if (lum > 0.90) return true;
+
+    // Low-contrast gray (saturation test)
+    var max = Math.max(r, g, b);
+    var min = Math.min(r, g, b);
+    var delta = max - min;
+    if (delta < 25) return true; // Grayscale / low contrast
+
+    // Destructive alert red (e.g. #ef4444, #dc2626, #ff0000)
+    if (r > 195 && g < 75 && b < 75) return true;
+
+    // Body background match check
+    try {
+      if (document.body) {
+        var bodyBg = window.getComputedStyle(document.body).backgroundColor;
+        var parsedBg = parseColorToRgb(bodyBg);
+        if (parsedBg && Math.abs(parsedBg.r - r) < 16 && Math.abs(parsedBg.g - g) < 16 && Math.abs(parsedBg.b - b) < 16) {
+          return true;
+        }
+      }
+    } catch (e) {}
+
+    return false;
+  }
+
+  // Primary Color Detection Hierarchy (Priorities 2 -> 3 -> 4 -> 5)
+  function detectHostPrimaryColor() {
+    var customProps = [
+      '--primary',
+      '--primary-color',
+      '--brand',
+      '--brand-color',
+      '--accent',
+      '--accent-color',
+      '--theme-primary',
+    ];
+
+    // Priority 2: CSS Custom Properties on :root or body
+    try {
+      if (document.documentElement) {
+        var rootStyles = window.getComputedStyle(document.documentElement);
+        for (var i = 0; i < customProps.length; i++) {
+          var val = rootStyles.getPropertyValue(customProps[i]);
+          if (val && val.trim()) {
+            var rgb = parseColorToRgb(val);
+            if (rgb && !isForbiddenColor(rgb)) {
+              return rgbToHex(rgb.r, rgb.g, rgb.b);
+            }
+          }
+        }
+      }
+
+      if (document.body) {
+        var bodyStyles = window.getComputedStyle(document.body);
+        for (var j = 0; j < customProps.length; j++) {
+          var bVal = bodyStyles.getPropertyValue(customProps[j]);
+          if (bVal && bVal.trim()) {
+            var bRgb = parseColorToRgb(bVal);
+            if (bRgb && !isForbiddenColor(bRgb)) {
+              return rgbToHex(bRgb.r, bRgb.g, bRgb.b);
+            }
+          }
+        }
+      }
+    } catch (e) {}
+
+    // Priority 3: Analyze Dominant Visual Elements
+    try {
+      var selectors = [
+        'button.btn-primary',
+        'button.primary',
+        '.btn-primary',
+        'a.btn-primary',
+        'button[type="submit"]',
+        '.cta-button',
+        'header nav a.active',
+        'header .brand-icon',
+        '.brand-icon',
+        'header .brand',
+      ];
+
+      for (var s = 0; s < selectors.length; s++) {
+        var el = document.querySelector(selectors[s]);
+        if (el) {
+          var elStyle = window.getComputedStyle(el);
+          var bg = elStyle.backgroundColor;
+          var rgbBg = parseColorToRgb(bg);
+          if (rgbBg && !isForbiddenColor(rgbBg)) {
+            return rgbToHex(rgbBg.r, rgbBg.g, rgbBg.b);
+          }
+          var col = elStyle.color;
+          var rgbCol = parseColorToRgb(col);
+          if (rgbCol && !isForbiddenColor(rgbCol)) {
+            return rgbToHex(rgbCol.r, rgbCol.g, rgbCol.b);
+          }
+        }
+      }
+    } catch (e) {}
+
+    // Priority 4: Meta Theme-Color Tag
+    try {
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta && meta.content) {
+        var metaRgb = parseColorToRgb(meta.content);
+        if (metaRgb && !isForbiddenColor(metaRgb)) {
+          return rgbToHex(metaRgb.r, metaRgb.g, metaRgb.b);
+        }
+      }
+    } catch (e) {}
+
+    // Priority 5: Default Xia Chat Purple/Blue Fallback
+    return '#6366F1';
+  }
+
+  function resolveEffectiveTheme() {
+    if (state.theme === 'light') return 'light';
+    if (state.theme === 'dark') return 'dark';
+
+    // Theme mode 'auto' or matchWebsiteTheme:
+    if (state.matchWebsiteTheme || state.theme === 'auto') {
+      try {
+        var isDarkClass = (document.documentElement && (
+          document.documentElement.classList.contains('dark') ||
+          document.documentElement.classList.contains('theme-dark') ||
+          document.documentElement.getAttribute('data-theme') === 'dark' ||
+          document.documentElement.getAttribute('data-mode') === 'dark'
+        )) || (document.body && (
+          document.body.classList.contains('dark') ||
+          document.body.classList.contains('theme-dark') ||
+          document.body.getAttribute('data-theme') === 'dark' ||
+          document.body.getAttribute('data-mode') === 'dark'
+        ));
+
+        if (isDarkClass) return 'dark';
+
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          return 'dark';
+        }
+      } catch (e) {}
+    }
+
+    return 'light';
+  }
+
+  function resolveEffectivePrimaryColor() {
+    // 1. Manual override from options or code
+    if (state.manualPrimaryColor) {
+      return state.manualPrimaryColor;
+    }
+
+    // 2. If autoDetectColor is explicitly OFF, use dashboard configured color
+    if (!state.autoDetectColor && state.configuredPrimaryColor) {
+      return state.configuredPrimaryColor;
+    }
+
+    // 3. Auto-detect from host site (CSS properties, dominant elements, metadata)
+    var detected = detectHostPrimaryColor();
+    if (detected && detected !== '#6366F1') {
+      return detected;
+    }
+
+    // 4. Configured color from channel/workspace
+    if (state.configuredPrimaryColor) {
+      return state.configuredPrimaryColor;
+    }
+
+    // 5. Default Xia Chat Brand
+    return detected || '#6366F1';
+  }
+
+  // -------------------------------------------------------------
+  // GUEST VISITOR IDENTITY SYSTEM (No Login Required)
+  // -------------------------------------------------------------
   var visitorIdentity = (function () {
     var visitorId = '';
     var sessionId = '';
@@ -127,13 +387,25 @@
     shadow = container.attachShadow ? container.attachShadow({ mode: 'open' }) : container;
   }
 
-  // Generate CSS with full Dark/Light Theme and Responsive Mobile sizing
-  function generateCSS(color, position, theme) {
+  // -------------------------------------------------------------
+  // DYNAMIC STYLING & SHADOW DOM GENERATOR
+  // -------------------------------------------------------------
+
+  function generateCSS(primaryHex, position, theme) {
     var isLeft = position === 'bottom-left';
     var isDark = theme === 'dark';
 
+    var rgb = parseColorToRgb(primaryHex) || { r: 99, g: 102, b: 241 };
+    var contrastText = getContrastColor(rgb);
+
+    // Tinted secondary surfaces
+    var primaryLight = 'rgba(' + rgb.r + ', ' + rgb.g + ', ' + rgb.b + ', 0.08)';
+    var primaryBorder = 'rgba(' + rgb.r + ', ' + rgb.g + ', ' + rgb.b + ', 0.25)';
+    var primaryHover = 'rgba(' + rgb.r + ', ' + rgb.g + ', ' + rgb.b + ', 0.16)';
+    var primaryFocus = 'rgba(' + rgb.r + ', ' + rgb.g + ', ' + rgb.b + ', 0.35)';
+
     var bgBody = isDark ? '#111827' : '#ffffff';
-    var bgCard = isDark ? '#1f2937' : '#f9fafb';
+    var bgCard = isDark ? '#1f2937' : '#faf9f6';
     var textMain = isDark ? '#f9fafb' : '#111827';
     var textSub = isDark ? '#9ca3af' : '#6b7280';
     var borderCol = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
@@ -142,7 +414,7 @@
 
     return `
       * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-      
+
       .xia-launcher {
         position: fixed;
         bottom: 24px;
@@ -150,14 +422,15 @@
         width: 60px;
         height: 60px;
         border-radius: 50%;
-        background: ${color};
+        background: ${primaryHex};
+        color: ${contrastText};
         box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22), 0 3px 8px rgba(0, 0, 0, 0.1);
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
         z-index: 2147483647;
-        transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
+        transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, background 0.25s ease;
         border: none;
         outline: none;
       }
@@ -166,14 +439,14 @@
         box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
       }
       .xia-launcher:active { transform: scale(0.95); }
-      .xia-launcher svg { width: 28px; height: 28px; fill: white; }
+      .xia-launcher svg { width: 28px; height: 28px; fill: ${contrastText}; }
 
       .xia-unread-badge {
         position: absolute;
         top: -2px;
         right: -2px;
         background: #ef4444;
-        color: white;
+        color: #ffffff;
         border: 2px solid ${bgBody};
         border-radius: 999px;
         font-size: 11px;
@@ -205,6 +478,7 @@
         z-index: 2147483646;
         border: 1px solid ${borderCol};
         animation: xiaSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        transition: background 0.25s ease, color 0.25s ease;
       }
       .xia-window.open { display: flex; }
 
@@ -215,9 +489,9 @@
 
       /* Header */
       .xia-header {
-        background: ${color};
-        background-image: linear-gradient(135deg, ${color}, rgba(0, 0, 0, 0.25));
-        color: white;
+        background: ${primaryHex};
+        background-image: linear-gradient(135deg, ${primaryHex}, rgba(0, 0, 0, 0.25));
+        color: ${contrastText};
         padding: 16px 18px;
         display: flex;
         align-items: center;
@@ -240,8 +514,8 @@
         justify-content: center;
         flex-shrink: 0;
       }
-      .xia-avatar svg { width: 22px; height: 22px; fill: white; }
-      .xia-title { font-weight: 700; font-size: 15px; line-height: 1.2; letter-spacing: -0.01em; }
+      .xia-avatar svg { width: 22px; height: 22px; fill: ${contrastText}; }
+      .xia-title { font-weight: 700; font-size: 15px; line-height: 1.2; letter-spacing: -0.01em; color: ${contrastText}; }
       .xia-status-sub {
         display: flex;
         align-items: center;
@@ -249,6 +523,7 @@
         font-size: 12px;
         opacity: 0.92;
         margin-top: 2px;
+        color: ${contrastText};
       }
       .xia-status-dot {
         width: 7px;
@@ -263,9 +538,9 @@
       }
 
       .xia-close-btn {
-        background: rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.18);
         border: none;
-        color: white;
+        color: ${contrastText};
         cursor: pointer;
         width: 32px;
         height: 32px;
@@ -275,8 +550,8 @@
         justify-content: center;
         transition: background 0.15s ease;
       }
-      .xia-close-btn:hover { background: rgba(255, 255, 255, 0.25); }
-      .xia-close-btn svg { width: 18px; height: 18px; stroke: white; stroke-width: 2.2; }
+      .xia-close-btn:hover { background: rgba(255, 255, 255, 0.3); }
+      .xia-close-btn svg { width: 18px; height: 18px; stroke: ${contrastText}; stroke-width: 2.2; }
 
       /* Body */
       .xia-body {
@@ -334,8 +609,8 @@
         white-space: pre-wrap;
       }
       .xia-msg-wrap.visitor .xia-bubble {
-        background: ${color};
-        color: #ffffff;
+        background: ${primaryHex};
+        color: ${contrastText};
         border-bottom-right-radius: 4px;
         box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
       }
@@ -376,8 +651,8 @@
       }
       .xia-starter-chip {
         background: ${bgBody};
-        border: 1px solid ${borderCol};
-        color: ${textMain};
+        border: 1px solid ${primaryBorder};
+        color: ${isDark ? '#F3F4F6' : primaryHex};
         padding: 10px 14px;
         border-radius: 12px;
         font-size: 13px;
@@ -391,18 +666,20 @@
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
       }
       .xia-starter-chip:hover {
-        border-color: ${color};
-        background: ${color}10;
-        color: ${color};
+        border-color: ${primaryHex};
+        background: ${primaryHover};
         transform: translateX(3px);
+      }
+      .xia-starter-chip:active {
+        background: ${primaryFocus};
       }
       .xia-starter-chip::after {
         content: '→';
         font-size: 13px;
-        opacity: 0.6;
+        opacity: 0.7;
       }
 
-      /* Email Identify Banner (Guest -> Customer Merge) */
+      /* Email Identify Banner */
       .xia-identify-banner {
         background: ${bgBody};
         border: 1px solid ${borderCol};
@@ -432,9 +709,12 @@
         border-radius: 8px;
         outline: none;
       }
+      .xia-identify-input:focus {
+        border-color: ${primaryHex};
+      }
       .xia-identify-btn {
-        background: ${color};
-        color: white;
+        background: ${primaryHex};
+        color: ${contrastText};
         border: none;
         border-radius: 8px;
         padding: 6px 10px;
@@ -443,7 +723,7 @@
         cursor: pointer;
       }
 
-      /* Typing indicator */
+      /* Typing Indicator */
       .xia-typing {
         display: flex;
         align-items: center;
@@ -459,7 +739,7 @@
         width: 6px;
         height: 6px;
         border-radius: 50%;
-        background: ${textSub};
+        background: ${primaryHex};
         animation: xiaBounce 1.2s infinite ease-in-out;
       }
       .xia-typing-dot:nth-child(2) { animation-delay: 0.2s; }
@@ -486,11 +766,11 @@
         border: 1px solid ${borderCol};
         border-radius: 12px;
         padding: 4px 8px 4px 12px;
-        transition: border-color 0.2s ease;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
       }
       .xia-input-row:focus-within {
-        border-color: ${color};
-        box-shadow: 0 0 0 2px ${color}20;
+        border-color: ${primaryHex};
+        box-shadow: 0 0 0 2px ${primaryFocus};
       }
       .xia-input {
         flex: 1;
@@ -505,19 +785,19 @@
         width: 32px;
         height: 32px;
         border-radius: 8px;
-        background: ${color};
+        background: ${primaryHex};
         border: none;
-        color: white;
+        color: ${contrastText};
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        transition: transform 0.15s ease, background 0.15s ease;
+        transition: transform 0.15s ease, opacity 0.15s ease;
         flex-shrink: 0;
       }
       .xia-send-btn:hover { transform: scale(1.05); }
       .xia-send-btn:active { transform: scale(0.95); }
-      .xia-send-btn svg { width: 16px; height: 16px; fill: white; }
+      .xia-send-btn svg { width: 16px; height: 16px; fill: ${contrastText}; }
 
       .xia-branding {
         font-size: 10px;
@@ -549,19 +829,28 @@
     }
   }
 
+  // Update only the scoped style tag for instantaneous dynamic theme update
+  function updateWidgetStyles() {
+    if (!shadow) return;
+    var styleTag = shadow.querySelector('#xia-scoped-styles');
+    var css = generateCSS(state.currentEffectiveColor, state.position, state.currentEffectiveTheme);
+    if (styleTag) {
+      styleTag.textContent = css;
+    }
+  }
+
   // Render DOM into Shadow Root
   function renderDOM() {
     ensureShadowRoot();
 
-    var starters = (state.conversationStarters && state.conversationStarters.length > 0)
-      ? state.conversationStarters
-      : (INDUSTRY_QUICK_ACTIONS[state.industry] || INDUSTRY_QUICK_ACTIONS['coffee_shop']);
+    state.currentEffectiveColor = resolveEffectivePrimaryColor();
+    state.currentEffectiveTheme = resolveEffectiveTheme();
 
     var isHuman = state.conversationStatus === 'human' || Boolean(state.assignedAgentName);
     var statusText = isHuman ? ('Live Agent: ' + (state.assignedAgentName || 'Assigned')) : (state.showAgentAvailability ? 'AI Support Active' : 'Online');
 
     shadow.innerHTML = `
-      <style>${generateCSS(state.primaryColor, state.position, state.theme)}</style>
+      <style id="xia-scoped-styles">${generateCSS(state.currentEffectiveColor, state.position, state.currentEffectiveTheme)}</style>
 
       <button class="xia-launcher" aria-label="Open AI Customer Support">
         <svg viewBox="0 0 24 24">
@@ -611,6 +900,7 @@
 
     bindDOMEvents();
     renderMessages();
+    setupThemeObservers();
   }
 
   // Render conversation messages & dynamic starters
@@ -711,7 +1001,6 @@
   // Bind events for launcher, close button, input, starters
   function bindDOMEvents() {
     var launcher = shadow.querySelector('.xia-launcher');
-    var windowEl = shadow.querySelector('.xia-window');
     var closeBtn = shadow.querySelector('.xia-close-btn');
     var sendBtn = shadow.querySelector('.xia-send-btn');
     var input = shadow.querySelector('.xia-input');
@@ -771,7 +1060,67 @@
     }
   }
 
-  // Core API: Send Message
+  // -------------------------------------------------------------
+  // REAL-TIME OBSERVERS FOR HOST THEME CHANGES
+  // -------------------------------------------------------------
+  var observersAttached = false;
+  function setupThemeObservers() {
+    if (observersAttached) return;
+    observersAttached = true;
+
+    // 1. Media query observer for OS dark mode
+    try {
+      if (window.matchMedia) {
+        var mq = window.matchMedia('(prefers-color-scheme: dark)');
+        var onMqChange = function () {
+          handleDynamicHostChange();
+        };
+        if (mq.addEventListener) {
+          mq.addEventListener('change', onMqChange);
+        } else if (mq.addListener) {
+          mq.addListener(onMqChange);
+        }
+      }
+    } catch (e) {}
+
+    // 2. MutationObserver for host website class changes (e.g. toggling .dark or style)
+    try {
+      if (typeof MutationObserver !== 'undefined') {
+        var observer = new MutationObserver(function () {
+          handleDynamicHostChange();
+        });
+
+        if (document.documentElement) {
+          observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['class', 'data-theme', 'data-mode', 'style'],
+          });
+        }
+        if (document.body) {
+          observer.observe(document.body, {
+            attributes: true,
+            attributeFilter: ['class', 'data-theme', 'data-mode', 'style'],
+          });
+        }
+      }
+    } catch (e) {}
+  }
+
+  function handleDynamicHostChange() {
+    var newTheme = resolveEffectiveTheme();
+    var newPrimary = resolveEffectivePrimaryColor();
+
+    if (newTheme !== state.currentEffectiveTheme || newPrimary !== state.currentEffectiveColor) {
+      state.currentEffectiveTheme = newTheme;
+      state.currentEffectiveColor = newPrimary;
+      updateWidgetStyles();
+    }
+  }
+
+  // -------------------------------------------------------------
+  // NETWORK & MESSAGING APIS
+  // -------------------------------------------------------------
+
   function sendMessageToServer(content) {
     state.isSending = true;
     state.messages.push({
@@ -848,7 +1197,6 @@
       });
   }
 
-  // Core API: Identify Guest Visitor with Email (Merges history)
   function identifyVisitor(customerData) {
     if (!customerData || !customerData.email) return Promise.reject(new Error('Email is required'));
 
@@ -880,7 +1228,6 @@
       });
   }
 
-  // Fetch Conversation History
   function fetchHistory() {
     if (!savedConvId) return;
 
@@ -902,7 +1249,6 @@
       .catch(function () {});
   }
 
-  // Realtime: SSE + Polling Fallback
   function connectSSE() {
     if (!savedConvId || typeof EventSource === 'undefined') return;
     if (state.sseSource) {
@@ -932,7 +1278,6 @@
       });
 
       state.sseSource.onerror = function () {
-        // Fallback gracefully to polling
         startPolling();
       };
     } catch (e) {
@@ -970,9 +1315,12 @@
         if (Array.isArray(data.conversationStarters) && data.conversationStarters.length > 0) {
           state.conversationStarters = data.conversationStarters;
         }
-        state.primaryColor = data.primaryColor || state.primaryColor;
+        if (data.primaryColor) state.configuredPrimaryColor = data.primaryColor;
+        if (data.secondaryColor) state.configuredSecondaryColor = data.secondaryColor;
+        if (data.autoDetectColor !== undefined) state.autoDetectColor = Boolean(data.autoDetectColor);
+        if (data.matchWebsiteTheme !== undefined) state.matchWebsiteTheme = Boolean(data.matchWebsiteTheme);
+        if (data.theme) state.theme = data.theme;
         state.position = data.position || state.position;
-        state.theme = data.theme || state.theme;
         state.showAgentAvailability = data.showAgentAvailability !== false;
 
         // Initialize greeting message
@@ -1012,7 +1360,7 @@
   }
 
   // -------------------------------------------------------------
-  // Public SDK API (window.XiaChat)
+  // PUBLIC SDK API (window.XiaChat)
   // -------------------------------------------------------------
   XiaChat.init = function (options) {
     options = options || {};
@@ -1022,7 +1370,9 @@
     if (options.theme) state.theme = options.theme;
     if (options.industry) state.industry = options.industry;
     if (options.position) state.position = options.position;
-    if (options.primaryColor) state.primaryColor = options.primaryColor;
+    if (options.primaryColor) state.manualPrimaryColor = options.primaryColor;
+    if (options.autoDetectColor !== undefined) state.autoDetectColor = Boolean(options.autoDetectColor);
+    if (options.matchWebsiteTheme !== undefined) state.matchWebsiteTheme = Boolean(options.matchWebsiteTheme);
     if (options.widgetName) state.widgetName = options.widgetName;
     if (options.welcomeMessage) state.welcomeMessage = options.welcomeMessage;
     if (options.conversationStarters) state.conversationStarters = options.conversationStarters;
@@ -1066,6 +1416,24 @@
 
   XiaChat.setContext = function (productContext) {
     state.productContext = productContext;
+  };
+
+  XiaChat.setColor = function (colorHex) {
+    state.manualPrimaryColor = colorHex;
+    handleDynamicHostChange();
+  };
+
+  XiaChat.setTheme = function (themeMode) {
+    state.theme = themeMode;
+    handleDynamicHostChange();
+  };
+
+  XiaChat.getEffectiveColor = function () {
+    return state.currentEffectiveColor;
+  };
+
+  XiaChat.getEffectiveTheme = function () {
+    return state.currentEffectiveTheme;
   };
 
   XiaChat.getVisitorId = function () {

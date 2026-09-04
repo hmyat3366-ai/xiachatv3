@@ -536,8 +536,11 @@ const inboxMigrations = [
     welcome_message TEXT,
     conversation_starters TEXT,
     primary_color TEXT,
+    secondary_color TEXT,
+    auto_detect_color INTEGER DEFAULT 1,
+    match_website_theme INTEGER DEFAULT 1,
     position TEXT DEFAULT 'bottom-right',
-    theme TEXT DEFAULT 'light',
+    theme TEXT DEFAULT 'auto',
     show_agent_availability INTEGER DEFAULT 1,
     business_context TEXT,
     updated_at TEXT,
@@ -545,9 +548,12 @@ const inboxMigrations = [
   );`,
   `ALTER TABLE widget_settings ADD COLUMN widget_name TEXT DEFAULT 'Xia Support Chat';`,
   `ALTER TABLE widget_settings ADD COLUMN position TEXT DEFAULT 'bottom-right';`,
-  `ALTER TABLE widget_settings ADD COLUMN theme TEXT DEFAULT 'light';`,
+  `ALTER TABLE widget_settings ADD COLUMN theme TEXT DEFAULT 'auto';`,
   `ALTER TABLE widget_settings ADD COLUMN show_agent_availability INTEGER DEFAULT 1;`,
   `ALTER TABLE widget_settings ADD COLUMN business_context TEXT;`,
+  `ALTER TABLE widget_settings ADD COLUMN secondary_color TEXT;`,
+  `ALTER TABLE widget_settings ADD COLUMN auto_detect_color INTEGER DEFAULT 1;`,
+  `ALTER TABLE widget_settings ADD COLUMN match_website_theme INTEGER DEFAULT 1;`,
 
   // Visitors table (Guest Visitor Support)
   `CREATE TABLE IF NOT EXISTS visitors (

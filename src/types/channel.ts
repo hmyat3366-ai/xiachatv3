@@ -6,10 +6,15 @@ export interface WebsiteWidgetConfig {
   widgetName: string;
   welcomeMessage: string;
   primaryColor: string;
+  secondaryColor?: string | null;
+  autoDetectColor?: boolean;
+  matchWebsiteTheme?: boolean;
+  theme?: 'light' | 'dark' | 'auto';
   position: 'bottom-right' | 'bottom-left';
   enableAI: boolean;
   enableHandoff: boolean;
   showAgentAvailability: boolean;
+  conversationStarters?: Array<{ label: string; prompt: string }> | string[];
 }
 
 export interface Channel {

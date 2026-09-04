@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Velvet Roast Artisanal Coffee | Fresh Micro-Lot Roastery</title>
   <meta name="description" content="Artisanal single-origin coffee roasted fresh to order. Track orders, explore craft brews, and chat with our 24/7 AI Concierge." />
+  <meta name="theme-color" content="#c2691e" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -27,6 +28,7 @@
       </nav>
 
       <div class="nav-actions">
+        <button class="btn-theme-toggle" id="themeToggleBtn" title="Toggle Website Theme">🌙</button>
         <button class="btn-bag" id="cartBtn">
           <span>🛍️ Bag</span>
           <span class="bag-count" id="cartCount">0</span>
@@ -368,9 +370,10 @@
       if (window.XiaChat) {
         window.XiaChat.init({
           websiteId: 'auto-detect',
-          theme: 'light',
+          theme: 'auto',
+          autoDetectColor: true,
+          matchWebsiteTheme: true,
           industry: 'coffee_shop',
-          primaryColor: '#c2691e',
           widgetName: 'Velvet Roast AI Concierge',
           welcomeMessage: 'Hi 👋 How can I help you today?',
           conversationStarters: [
