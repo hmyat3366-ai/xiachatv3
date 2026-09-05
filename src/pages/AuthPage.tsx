@@ -160,8 +160,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
   const validateEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());
 
-  const handleGoogleAuth = (_intent: 'login' | 'signup' = 'login') => {
-    setFormError('Google Sign-In is coming soon.');
+  const handleGoogleAuth = (intent: 'login' | 'signup' = 'login') => {
+    setIsGoogleLoading(true);
+    const apiBase = import.meta.env.VITE_API_URL || '';
+    window.location.href = `${apiBase}/api/auth/google?intent=${intent}`;
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {

@@ -19,13 +19,33 @@ if (fs.existsSync(dbPath)) {
   }
 }
 
-const rawDb = buffer && buffer.length > 0 ? new SQL.Database(buffer) : new SQL.Database();
+let rawDb = buffer && buffer.length > 0 ? new SQL.Database(buffer) : new SQL.Database();
 console.log('[DB] Pure WebAssembly SQLite engine initialized successfully with persistence.');
+
+let lastMtime = fs.existsSync(dbPath) ? fs.statSync(dbPath).mtimeMs : 0;
+
+function syncFromDisk() {
+  try {
+    if (fs.existsSync(dbPath)) {
+      const stat = fs.statSync(dbPath);
+      if (stat.mtimeMs > lastMtime) {
+        const data = fs.readFileSync(dbPath);
+        if (data.length > 0) {
+          rawDb = new SQL.Database(data);
+          lastMtime = stat.mtimeMs;
+        }
+      }
+    }
+  } catch {}
+}
 
 function persistToDisk() {
   try {
     const data = rawDb.export();
     fs.writeFileSync(dbPath, Buffer.from(data));
+    if (fs.existsSync(dbPath)) {
+      lastMtime = fs.statSync(dbPath).mtimeMs;
+    }
   } catch (err) {
     console.warn('[DB] Failed to persist SQLite to disk:', err);
   }
@@ -65,6 +85,7 @@ export const db = {
   prepare(sql: string) {
     return {
       get(...params: any[]) {
+        syncFromDisk();
         const flatParams = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
         const stmt = rawDb.prepare(sql);
         if (flatParams.length > 0) stmt.bind(flatParams);
@@ -76,6 +97,7 @@ export const db = {
         return res;
       },
       all(...params: any[]) {
+        syncFromDisk();
         const flatParams = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
         const stmt = rawDb.prepare(sql);
         if (flatParams.length > 0) stmt.bind(flatParams);
@@ -87,6 +109,7 @@ export const db = {
         return rows;
       },
       run(...params: any[]) {
+        syncFromDisk();
         const flatParams = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
         rawDb.run(sql, flatParams);
         persistToDisk();

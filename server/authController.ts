@@ -525,7 +525,12 @@ export const googleAuth = async (req: Request, res: Response) => {
   // Sign a short-lived JWT that encodes nonce, intent, and origin frontend URL — no cookies needed
   const signedState = jwt.sign({ nonce, intent, mockNew: isMockNew, frontendUrl }, JWT_SECRET, { expiresIn: '10m' });
 
-  const isConfigured = GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID !== 'mock_google_client_id_dev';
+  const isConfigured =
+    Boolean(GOOGLE_CLIENT_ID) &&
+    GOOGLE_CLIENT_ID !== 'mock_google_client_id_dev' &&
+    Boolean(GOOGLE_CLIENT_SECRET) &&
+    GOOGLE_CLIENT_SECRET !== 'mock_google_client_secret_dev' &&
+    process.env.NODE_ENV !== 'test';
 
   if (isConfigured) {
     const params = new URLSearchParams({
@@ -579,7 +584,12 @@ export const googleCallback = async (req: Request, res: Response) => {
 
     let googleProfile: { id: string; email: string; name: string; email_verified: boolean };
 
-    const isConfigured = GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID !== 'mock_google_client_id_dev';
+    const isConfigured =
+      Boolean(GOOGLE_CLIENT_ID) &&
+      GOOGLE_CLIENT_ID !== 'mock_google_client_id_dev' &&
+      Boolean(GOOGLE_CLIENT_SECRET) &&
+      GOOGLE_CLIENT_SECRET !== 'mock_google_client_secret_dev' &&
+      process.env.NODE_ENV !== 'test';
     // Prefer isMockNew from signed state payload; fall back to query param for direct test calls
     const isMockNew = Boolean(statePayload.mockNew) || String(req.query.mock_new || '') === 'true';
 
@@ -654,10 +664,8 @@ export const googleCallback = async (req: Request, res: Response) => {
     if (intent === 'signup') {
       // 1. User clicked "Continue with Google" on Signup Page
       if (user) {
-        // User already exists -> Authenticate directly and navigate to dashboard or onboarding
-        const token = generateTokenCookie(res, user.id);
-        const redirectTarget = user.onboarding_completed ? '/dashboard' : '/onboarding';
-        return res.redirect(`${frontendBase}${redirectTarget}?auth=google_success&token=${token}`);
+        // User already exists -> Redirect to login with notice
+        return res.redirect(`${frontendBase}/login?google_account_exists=true&email=${encodeURIComponent(googleProfile.email)}`);
       }
 
       // New user -> Create account atomically with Workspace & WorkspaceMember

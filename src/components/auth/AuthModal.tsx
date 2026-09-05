@@ -57,7 +57,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const validateEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());
 
   const handleGoogleAuth = () => {
-    setFormError('Google Sign-In is coming soon.');
+    setIsGoogleLoading(true);
+    const apiBase = import.meta.env.VITE_API_URL || '';
+    window.location.href = `${apiBase}/api/auth/google?intent=${mode === 'signup' ? 'signup' : 'login'}`;
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
