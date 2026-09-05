@@ -135,7 +135,7 @@ export async function generateAiAgentResponse(req: AIProviderRequest): Promise<A
 
         if (process.env.GEMINI_API_KEY) {
           const res = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -154,7 +154,7 @@ export async function generateAiAgentResponse(req: AIProviderRequest): Promise<A
             const data = (await res.json()) as any;
             replyText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
             if (replyText) {
-              modelUsed = 'gemini-3.8-flash';
+              modelUsed = 'gemini-2.5-flash';
               break;
             }
           }
@@ -450,6 +450,104 @@ export async function processInboundCustomerMessage(params: {
     sourcesUsed: aiRes.knowledgeSourcesUsed,
     detectedLanguage,
   };
+}
+
+/**
+ * Real-time SSE Token Streaming AI Response Generator
+ * Streams tokens chunk-by-chunk from Gemini 2.5 Flash for typing animation
+ */
+export async function streamAiAgentTokens(
+  req: AIProviderRequest,
+  onChunk: (chunk: string) => void,
+  onComplete: (fullText: string, metadata: { modelUsed: string; latencyMs: number }) => void
+): Promise<void> {
+  const startTime = Date.now();
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  // 1. RAG Knowledge Search
+  let ragSnippet = '';
+  try {
+    const ragResults = performRagSearch(req.workspaceId, req.userMessage, 3);
+    if (ragResults && ragResults.length > 0) {
+      ragSnippet = ragResults.map((r) => `[Source: ${r.sourceName}]\n${r.text}`).join('\n\n');
+    }
+  } catch {}
+
+  const language = detectLanguage(req.userMessage);
+  const fullSystemPrompt = [
+    `You are ${req.agentName}, an enterprise AI customer support concierge for ${req.productContext?.companyName || 'our store'}.`,
+    `Tone: ${req.tone || 'Friendly, professional, warm, concise'}.`,
+    language !== 'English' ? `CRITICAL: The customer is speaking ${language}. You MUST reply directly in ${language}.` : '',
+    req.systemInstructions ? `Instructions: ${req.systemInstructions}` : '',
+    ragSnippet ? `Verified Knowledge Base:\n${ragSnippet}` : '',
+    `Rules:
+1. Answer naturally and concisely.
+2. Recommend products from the catalog when appropriate.
+3. NEVER hallucinate details not found in the verified knowledge base.
+4. If a question cannot be resolved accurately, politely offer to connect the customer with human support.`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+
+  if (apiKey && apiKey !== 'mock_key') {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              { role: 'user', parts: [{ text: `${fullSystemPrompt}\n\nCustomer: ${req.userMessage}` }] },
+            ],
+          }),
+        }
+      );
+
+      if (res.ok && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const textChunk = decoder.decode(value);
+          for (const line of textChunk.split('\n')) {
+            if (line.startsWith('data: ')) {
+              try {
+                const parsed = JSON.parse(line.slice(6));
+                const delta = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (delta) {
+                  fullText += delta;
+                  onChunk(delta);
+                }
+              } catch {}
+            }
+          }
+        }
+
+        if (fullText.trim()) {
+          onComplete(fullText.trim(), { modelUsed: 'gemini-2.5-flash', latencyMs: Date.now() - startTime });
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('[AI Provider Stream] Streaming error, falling back:', err);
+    }
+  }
+
+  // Fallback: Generate via standard RAG and stream words smoothly
+  const standardRes = await generateAiAgentResponse(req);
+  const words = standardRes.reply.split(' ');
+  let accumulated = '';
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i] + (i === words.length - 1 ? '' : ' ');
+    accumulated += word;
+    onChunk(word);
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  onComplete(accumulated, { modelUsed: standardRes.modelUsed, latencyMs: Date.now() - startTime });
 }
 
 
