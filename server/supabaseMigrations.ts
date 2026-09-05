@@ -98,9 +98,14 @@ export async function ensurePostgresSchema(): Promise<void> {
       { table: 'conversations', col: 'recommended_action', type: 'TEXT' },
       { table: 'conversations', col: 'assigned_agent', type: 'TEXT' },
       { table: 'conversations', col: 'mode', type: 'TEXT' },
+      { table: 'conversations', col: 'csat_rating', type: 'INTEGER' },
+      { table: 'conversations', col: 'csat_comment', type: 'TEXT' },
       { table: 'email_verifications', col: 'code_hash', type: 'TEXT' },
       { table: 'messages', col: 'knowledge_source', type: 'TEXT' },
       { table: 'messages', col: 'confidence_score', type: 'NUMERIC' },
+      { table: 'visitors', col: 'current_page', type: 'TEXT' },
+      { table: 'visitors', col: 'page_title', type: 'TEXT' },
+      { table: 'visitors', col: 'time_spent_seconds', type: 'INTEGER DEFAULT 0' },
     ];
 
     for (const c of missingColumns) {

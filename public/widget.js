@@ -74,6 +74,11 @@
     pendingAttachment: null,
     isUploadingAttachment: false,
     lightboxUrl: null,
+    soundEnabled: true,
+    csatSubmitted: false,
+    csatRating: 0,
+    proactiveShown: false,
+    startTime: Date.now(),
   };
 
   // -------------------------------------------------------------
@@ -931,6 +936,131 @@
       }
       .xia-lightbox-close:hover { background: rgba(255,255,255,0.4); }
 
+      /* Proactive Greeting Bubble */
+      .xia-proactive-bubble {
+        position: absolute;
+        bottom: 76px;
+        ${isLeft ? 'left: 0;' : 'right: 0;'}
+        background: ${bgCard};
+        color: ${textMain};
+        border: 1px solid ${borderCol};
+        border-radius: 16px;
+        padding: 12px 14px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        max-width: 250px;
+        font-size: 13px;
+        line-height: 1.4;
+        cursor: pointer;
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        animation: xiaMsgFade 0.3s ease;
+        z-index: 99998;
+      }
+      .xia-proactive-bubble::after {
+        content: '';
+        position: absolute;
+        bottom: -6px;
+        ${isLeft ? 'left: 22px;' : 'right: 22px;'}
+        width: 10px;
+        height: 10px;
+        background: ${bgCard};
+        border-right: 1px solid ${borderCol};
+        border-bottom: 1px solid ${borderCol};
+        transform: rotate(45deg);
+      }
+      .xia-proactive-close {
+        background: none;
+        border: none;
+        color: ${textSub};
+        cursor: pointer;
+        font-size: 16px;
+        padding: 0;
+        line-height: 1;
+        margin-left: auto;
+      }
+      .xia-proactive-close:hover { color: #ef4444; }
+
+      /* Sound Toggle Button */
+      .xia-sound-btn {
+        background: rgba(255, 255, 255, 0.18);
+        border: none;
+        color: ${contrastText};
+        cursor: pointer;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        transition: background 0.15s ease;
+      }
+      .xia-sound-btn:hover { background: rgba(255, 255, 255, 0.3); }
+
+      /* CSAT Rating Card */
+      .xia-csat-card {
+        background: ${bgBody};
+        border: 1px solid ${borderCol};
+        border-radius: 14px;
+        padding: 14px;
+        margin-top: 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        animation: xiaMsgFade 0.25s ease;
+      }
+      .xia-csat-title {
+        font-size: 12.5px;
+        font-weight: 600;
+        color: ${textMain};
+      }
+      .xia-csat-stars {
+        display: flex;
+        gap: 6px;
+      }
+      .xia-csat-star {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #d1d5db;
+        transition: transform 0.15s ease, color 0.15s ease;
+        padding: 0;
+        line-height: 1;
+      }
+      .xia-csat-star:hover { transform: scale(1.25); }
+      .xia-csat-star.active { color: #f59e0b; }
+      .xia-csat-textarea {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid ${borderCol};
+        background: ${bgCard};
+        color: ${textMain};
+        font-size: 12px;
+        padding: 8px;
+        border-radius: 8px;
+        outline: none;
+        resize: none;
+        height: 50px;
+      }
+      .xia-csat-submit-btn {
+        background: ${primaryHex};
+        color: ${contrastText};
+        border: none;
+        border-radius: 8px;
+        padding: 7px 14px;
+        font-size: 11.5px;
+        font-weight: 600;
+        cursor: pointer;
+        width: 100%;
+        transition: opacity 0.15s ease;
+      }
+      .xia-csat-submit-btn:hover { opacity: 0.9; }
+
       .xia-branding {
         font-size: 10px;
         text-align: center;
@@ -961,6 +1091,128 @@
     }
   }
 
+  // -------------------------------------------------------------
+  // WEB AUDIO SYNTHESIZER & SOUND NOTIFICATIONS
+  // -------------------------------------------------------------
+  var audioCtx = null;
+  function getAudioCtx() {
+    try {
+      if (!audioCtx) {
+        var AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) audioCtx = new AudioContextClass();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function playChime(type) {
+    if (!state.soundEnabled) return;
+    try {
+      var ctx = getAudioCtx();
+      if (!ctx) return;
+      var now = ctx.currentTime;
+
+      if (type === 'incoming') {
+        // High pleasant dual chime (F5 698.46Hz -> A5 880Hz)
+        var osc1 = ctx.createOscillator();
+        var osc2 = ctx.createOscillator();
+        var gain = ctx.createGain();
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(698.46, now);
+        osc1.connect(gain);
+        osc1.start(now);
+        osc1.stop(now + 0.2);
+
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(880, now + 0.15);
+        osc2.connect(gain);
+        osc2.start(now + 0.15);
+        osc2.stop(now + 0.45);
+      } else if (type === 'outgoing') {
+        // Soft ascending pop (440Hz -> 660Hz)
+        var osc = ctx.createOscillator();
+        var gainOut = ctx.createGain();
+        gainOut.connect(ctx.destination);
+        gainOut.gain.setValueAtTime(0.09, now);
+        gainOut.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(660, now + 0.16);
+        osc.connect(gainOut);
+        osc.start(now);
+        osc.stop(now + 0.18);
+      } else if (type === 'resolve') {
+        // Cheerful resolve arpeggio chord (C5 523Hz -> E5 659Hz -> G5 784Hz)
+        [523.25, 659.25, 783.99].forEach(function (freq, i) {
+          var noteOsc = ctx.createOscillator();
+          var noteGain = ctx.createGain();
+          noteGain.connect(ctx.destination);
+          var start = now + i * 0.11;
+          noteGain.gain.setValueAtTime(0.08, start);
+          noteGain.gain.exponentialRampToValueAtTime(0.001, start + 0.32);
+          noteOsc.type = 'sine';
+          noteOsc.frequency.setValueAtTime(freq, start);
+          noteOsc.connect(noteGain);
+          noteOsc.start(start);
+          noteOsc.stop(start + 0.32);
+        });
+      }
+    } catch (e) {
+      console.warn('[Xia Chat] Audio chime error:', e);
+    }
+  }
+
+  // Proactive Greeting Popup Timer
+  function setupProactiveGreeting() {
+    if (state.proactiveShown) return;
+    setTimeout(function () {
+      if (!state.isOpen && !state.proactiveShown) {
+        state.proactiveShown = true;
+        var bubble = shadow ? shadow.querySelector('#xia-proactive-bubble') : null;
+        if (bubble) {
+          bubble.style.display = 'flex';
+          playChime('incoming');
+        }
+      }
+    }, 5000);
+  }
+
+  // Live Visitor Presence Heartbeat (every 30s)
+  function sendPresenceHeartbeat() {
+    try {
+      var duration = Math.round((Date.now() - state.startTime) / 1000);
+      var currentPath = window.location.pathname + window.location.search;
+      var pageTitle = document.title || window.location.hostname;
+      fetch(apiBase + '/api/channels/public-widget/' + encodeURIComponent(state.siteKey) + '/heartbeat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          visitorId: visitorIdentity.visitorId,
+          currentPage: currentPath,
+          pageTitle: pageTitle,
+          timeSpentSeconds: duration,
+        }),
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
+  var heartbeatInterval = null;
+  function startPresenceHeartbeat() {
+    if (heartbeatInterval) return;
+    sendPresenceHeartbeat();
+    heartbeatInterval = setInterval(sendPresenceHeartbeat, 30000);
+  }
+
   // Update only the scoped style tag for instantaneous dynamic theme update
   function updateWidgetStyles() {
     if (!shadow) return;
@@ -983,6 +1235,12 @@
 
     shadow.innerHTML = `
       <style id="xia-scoped-styles">${generateCSS(state.currentEffectiveColor, state.position, state.currentEffectiveTheme)}</style>
+
+      <div class="xia-proactive-bubble" id="xia-proactive-bubble" style="display:none;">
+        <span style="font-size:16px;line-height:1;">👋</span>
+        <div class="xia-proactive-text">${escapeHTML(state.welcomeMessage || 'Hi there! Need any help?')}</div>
+        <button type="button" class="xia-proactive-close" id="xia-proactive-close" aria-label="Dismiss">&times;</button>
+      </div>
 
       <button class="xia-launcher" aria-label="Open AI Customer Support">
         <svg viewBox="0 0 24 24">
@@ -1007,11 +1265,16 @@
               </div>
             </div>
           </div>
-          <button class="xia-close-btn" aria-label="Close Chat">
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="M18 6L6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button class="xia-sound-btn" id="xia-sound-btn" title="Toggle Sound" aria-label="Toggle Sound">
+              ${state.soundEnabled ? '🔔' : '🔕'}
+            </button>
+            <button class="xia-close-btn" aria-label="Close Chat">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M18 6L6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div class="xia-body" id="xia-chat-body"></div>
@@ -1042,6 +1305,8 @@
     bindDOMEvents();
     renderMessages();
     setupThemeObservers();
+    setupProactiveGreeting();
+    startPresenceHeartbeat();
   }
 
   // Render conversation messages & dynamic starters
@@ -1132,12 +1397,42 @@
       html += `
         <div class="xia-identify-banner">
           <div class="xia-identify-title">Get conversation updates via email:</div>
-          <div class="xia-identify-form">
-            <input type="email" class="xia-identify-input" id="xia-visitor-email-input" placeholder="name@example.com" />
-            <button type="button" class="xia-identify-btn" id="xia-save-email-btn">Save</button>
+          <div class="xia-identify-form" style="display:flex;flex-direction:column;gap:6px;">
+            <input type="text" class="xia-identify-input" id="xia-visitor-name-input" placeholder="Your name (optional)" style="width:100%;box-sizing:border-box;" />
+            <div style="display:flex;gap:6px;width:100%;">
+              <input type="email" class="xia-identify-input" id="xia-visitor-email-input" placeholder="name@example.com" style="flex:1;" />
+              <button type="button" class="xia-identify-btn" id="xia-save-email-btn">Save</button>
+            </div>
           </div>
         </div>
       `;
+    }
+
+    // CSAT Customer Satisfaction Rating Card (when conversation is resolved or closed)
+    var isResolved = state.conversationStatus === 'resolved' || state.conversationStatus === 'closed' || state.conversationStatus === 'RESOLVED';
+    if (isResolved) {
+      if (!state.csatSubmitted) {
+        html += `
+          <div class="xia-csat-card" id="xia-csat-card">
+            <div class="xia-csat-title">How was your support experience today?</div>
+            <div class="xia-csat-stars" id="xia-csat-stars">
+              ${[1, 2, 3, 4, 5].map(function (star) {
+                var activeClass = star <= state.csatRating ? 'active' : '';
+                return '<button type="button" class="xia-csat-star ' + activeClass + '" data-rating="' + star + '" aria-label="' + star + ' stars">★</button>';
+              }).join('')}
+            </div>
+            <textarea class="xia-csat-textarea" id="xia-csat-comment" placeholder="Optional feedback (e.g. fast answer, helpful advice)..."></textarea>
+            <button type="button" class="xia-csat-submit-btn" id="xia-csat-submit-btn">Submit Feedback</button>
+          </div>
+        `;
+      } else {
+        html += `
+          <div class="xia-csat-card" style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.3); color: #10b981;">
+            <div style="font-weight: 600; font-size: 13px;">⭐ Thank you for your feedback!</div>
+            <div style="font-size: 11px; opacity: 0.85;">Your rating: ${state.csatRating || 5} / 5 stars recorded</div>
+          </div>
+        `;
+      }
     }
 
     body.innerHTML = html;
@@ -1261,6 +1556,27 @@
     var fileInput = shadow.querySelector('#xia-file-input');
     var previewBar = shadow.querySelector('#xia-attachment-preview-bar');
     var lightbox = shadow.querySelector('#xia-lightbox');
+    var soundBtn = shadow.querySelector('#xia-sound-btn');
+    var proactiveBubble = shadow.querySelector('#xia-proactive-bubble');
+
+    if (soundBtn) {
+      soundBtn.onclick = function () {
+        state.soundEnabled = !state.soundEnabled;
+        soundBtn.textContent = state.soundEnabled ? '🔔' : '🔕';
+        if (state.soundEnabled) playChime('outgoing');
+      };
+    }
+
+    if (proactiveBubble) {
+      proactiveBubble.onclick = function (e) {
+        if (e.target.closest('#xia-proactive-close')) {
+          proactiveBubble.style.display = 'none';
+          return;
+        }
+        proactiveBubble.style.display = 'none';
+        XiaChat.open();
+      };
+    }
 
     if (launcher) {
       launcher.onclick = function () {
@@ -1349,11 +1665,52 @@
           return;
         }
 
+        // CSAT Star Click
+        var starBtn = e.target.closest('.xia-csat-star');
+        if (starBtn) {
+          var rating = parseInt(starBtn.getAttribute('data-rating'), 10) || 5;
+          state.csatRating = rating;
+          var allStars = shadow.querySelectorAll('.xia-csat-star');
+          allStars.forEach(function (s) {
+            var r = parseInt(s.getAttribute('data-rating'), 10) || 0;
+            if (r <= rating) s.classList.add('active');
+            else s.classList.remove('active');
+          });
+          return;
+        }
+
+        // CSAT Submit
+        var csatSubmit = e.target.closest('#xia-csat-submit-btn');
+        if (csatSubmit) {
+          var commentEl = shadow.querySelector('#xia-csat-comment');
+          var comment = commentEl ? commentEl.value.trim() : '';
+          var ratingVal = state.csatRating || 5;
+          if (savedConvId) {
+            fetch(apiBase + '/api/channels/public-widget/' + encodeURIComponent(state.siteKey) + '/csat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                conversationId: savedConvId,
+                rating: ratingVal,
+                comment: comment,
+              }),
+            }).catch(function () {});
+          }
+          state.csatSubmitted = true;
+          playChime('resolve');
+          renderMessages();
+          return;
+        }
+
         var saveEmailBtn = e.target.closest('#xia-save-email-btn');
         if (saveEmailBtn) {
+          var nameInput = shadow.querySelector('#xia-visitor-name-input');
           var emailInput = shadow.querySelector('#xia-visitor-email-input');
           if (emailInput && emailInput.value && emailInput.value.includes('@')) {
-            XiaChat.identify({ email: emailInput.value.trim() });
+            XiaChat.identify({
+              name: nameInput ? nameInput.value.trim() : undefined,
+              email: emailInput.value.trim(),
+            });
           }
         }
       };
@@ -1436,6 +1793,7 @@
       createdAt: new Date().toISOString(),
     });
     renderMessages();
+    playChime('outgoing');
 
     var payload = {
       message: content,
@@ -1488,6 +1846,7 @@
             content: data.reply,
             createdAt: new Date().toISOString(),
           });
+          playChime('incoming');
         }
         renderMessages();
       })
@@ -1548,6 +1907,8 @@
           state.messages = data.messages;
           if (data.status === 'HUMAN_HANDLING' || data.status === 'human') {
             state.conversationStatus = 'human';
+          } else if (data.status === 'RESOLVED' || data.status === 'resolved' || data.status === 'closed') {
+            state.conversationStatus = 'resolved';
           }
           updateHeaderStatus();
           renderMessages();
@@ -1575,11 +1936,19 @@
             if (!exists) {
               state.messages.push(msg);
               renderMessages();
+              if (msg.senderType !== 'customer' && msg.senderType !== 'visitor') {
+                playChime('incoming');
+              }
             }
           } else if (payload.type === 'status_change') {
-            state.conversationStatus = payload.status === 'HUMAN_HANDLING' ? 'human' : 'ai';
+            var isResolvedStatus = payload.status === 'RESOLVED' || payload.status === 'resolved' || payload.status === 'closed';
+            state.conversationStatus = payload.status === 'HUMAN_HANDLING' ? 'human' : (isResolvedStatus ? 'resolved' : 'ai');
             if (payload.assignee) state.assignedAgentName = payload.assignee;
             updateHeaderStatus();
+            if (isResolvedStatus) {
+              playChime('resolve');
+            }
+            renderMessages();
           }
         } catch (err) {}
       });
@@ -1696,6 +2065,8 @@
       if (w) w.classList.add('open');
       var badge = shadow.querySelector('#xia-unread-badge');
       if (badge) badge.classList.remove('active');
+      var bubble = shadow.querySelector('#xia-proactive-bubble');
+      if (bubble) bubble.style.display = 'none';
     }
   };
 

@@ -55,6 +55,52 @@ interface ChatThreadPanelProps {
 
 const COMMON_EMOJIS = ['👍', '👋', '☕', '😊', '🙏', '🔥', '🎉', '✅', '🚀', '📦', '💬', '❤️'];
 
+interface CannedResponse {
+  shortcut: string;
+  title: string;
+  category: string;
+  content: string;
+}
+
+const CANNED_RESPONSES: CannedResponse[] = [
+  {
+    shortcut: '/greeting',
+    title: 'Warm Welcome',
+    category: 'General',
+    content: 'Hi there! 👋 Thanks for reaching out. How can I assist you today?',
+  },
+  {
+    shortcut: '/order',
+    title: 'Order Status & Tracking',
+    category: 'Orders',
+    content: 'Could you please share your Order ID or tracking number? I will check the delivery status for you right away.',
+  },
+  {
+    shortcut: '/pricing',
+    title: 'Pricing & Plans',
+    category: 'Sales',
+    content: 'We offer flexible plans tailored to your team size. You can view our full pricing details at our pricing page, or let me know your requirements!',
+  },
+  {
+    shortcut: '/refund',
+    title: 'Return & Refund Policy',
+    category: 'Billing',
+    content: 'We offer a 30-day money-back guarantee. If you are not completely satisfied, let us know and we will guide you through the instant refund process.',
+  },
+  {
+    shortcut: '/transfer',
+    title: 'Transfer to Specialist',
+    category: 'Support',
+    content: 'I am transferring your request to our senior technical specialist who will review your details shortly. Please hold on for just a moment!',
+  },
+  {
+    shortcut: '/resolved',
+    title: 'Resolution Confirmation',
+    category: 'Closing',
+    content: 'I am glad I could help! If you have any further questions down the line, feel free to message us again anytime. Have a wonderful day!',
+  },
+];
+
 export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
   conversation,
   messages,
@@ -78,6 +124,9 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
   const [copiedDraft, setCopiedDraft] = useState(false);
   const [isGeneratingDraft, setIsGeneratingDraft] = useState(false);
 
+  // Canned Responses / Macros State
+  const [selectedCannedIndex, setSelectedCannedIndex] = useState(0);
+
   // Voice & Video Call states
   const [isVoiceCallActive, setIsVoiceCallActive] = useState(false);
   const [isVideoCallActive, setIsVideoCallActive] = useState(false);
@@ -92,6 +141,21 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
   const messageContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Macro filtering
+  const cannedQuery = inputText.startsWith('/') ? inputText.slice(1).toLowerCase() : '';
+  const isCannedTriggered = inputText.startsWith('/') && !isInternalNote;
+  const filteredCanned = isCannedTriggered
+    ? CANNED_RESPONSES.filter(
+        (c) => c.shortcut.toLowerCase().includes(cannedQuery) || c.title.toLowerCase().includes(cannedQuery)
+      )
+    : [];
+
+  const handleSelectCanned = (canned: CannedResponse) => {
+    setInputText(canned.content);
+    setSelectedCannedIndex(0);
+    textareaRef.current?.focus();
+  };
 
   // Auto scroll to bottom strictly within the message container to avoid shifting parent layout
   useEffect(() => {
@@ -126,6 +190,32 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (isCannedTriggered && filteredCanned.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedCannedIndex((prev) => (prev + 1) % filteredCanned.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedCannedIndex((prev) => (prev - 1 + filteredCanned.length) % filteredCanned.length);
+        return;
+      }
+      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+        e.preventDefault();
+        const selected = filteredCanned[selectedCannedIndex] || filteredCanned[0];
+        if (selected) {
+          handleSelectCanned(selected);
+          return;
+        }
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setInputText('');
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -257,6 +347,19 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {conversation.csatRating ? (
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-[11px] font-bold border border-amber-200 shadow-2xs"
+                title={conversation.csatComment ? `Feedback: "${conversation.csatComment}"` : 'Customer Satisfaction Rating'}
+              >
+                <span>⭐ {conversation.csatRating}/5 CSAT</span>
+                {conversation.csatComment && (
+                  <span className="hidden md:inline font-normal italic max-w-[120px] truncate text-amber-700">
+                    "{conversation.csatComment}"
+                  </span>
+                )}
+              </span>
+            ) : null}
             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-mono text-[10.5px] font-bold border border-purple-200/60 shadow-2xs">
               <ShieldCheck className="w-3 h-3 text-[#8B5CF6]" />
               <span>Confidence: {Math.round((conversation.confidenceScore || 0.95) * 100)}%</span>
@@ -792,6 +895,47 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
               : 'bg-[#FAF9F6] border-[#E8E8E5] focus-within:bg-white focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/15'
           }`}
         >
+          {/* Canned Responses / Macros Floating Menu */}
+          {isCannedTriggered && filteredCanned.length > 0 && (
+            <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-2xl border border-blue-200 shadow-2xl overflow-hidden z-40 animate-in fade-in slide-in-from-bottom-2 duration-150">
+              <div className="px-3 py-2 bg-blue-50/80 border-b border-blue-100 flex items-center justify-between text-xs">
+                <span className="font-bold text-blue-900 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Canned Responses & Macros</span>
+                </span>
+                <span className="text-[10px] text-blue-600 font-medium">Use ↑↓ to navigate, Tab/Enter to insert</span>
+              </div>
+              <div className="max-h-48 overflow-y-auto p-1.5 space-y-0.5">
+                {filteredCanned.map((canned, idx) => {
+                  const isSelected = idx === selectedCannedIndex;
+                  return (
+                    <button
+                      key={canned.shortcut}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        handleSelectCanned(canned);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between text-xs transition-colors cursor-pointer ${
+                        isSelected ? 'bg-blue-50 text-blue-900 font-semibold' : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono text-[11px] font-bold text-blue-600 bg-blue-100/70 px-1.5 py-0.5 rounded-md">
+                          {canned.shortcut}
+                        </span>
+                        <span className="truncate">{canned.title}</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-medium ml-2 shrink-0">
+                        {canned.category}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <textarea
             ref={textareaRef}
             rows={2}

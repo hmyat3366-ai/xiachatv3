@@ -160,6 +160,8 @@ export const getInboxConversations = async (req: AuthRequest, res: Response) => 
         aiStatus,
         draftMessage: c.draft_message || null,
         firstSeen,
+        csatRating: c.csat_rating ?? null,
+        csatComment: c.csat_comment ?? null,
         updatedAt: c.updated_at,
         createdAt: c.created_at,
       };
@@ -357,6 +359,8 @@ export const getConversationMessages = async (req: AuthRequest, res: Response) =
         aiStatus: conv.ai_status || (conv.status === 'ai' || conv.status === 'AI_HANDLING' ? 'active' : 'human_required'),
         draftMessage: conv.draft_message || null,
         firstSeen: conv.first_seen,
+        csatRating: conv.csat_rating ?? null,
+        csatComment: conv.csat_comment ?? null,
         updatedAt: conv.updated_at,
         createdAt: conv.created_at,
       },
@@ -876,4 +880,81 @@ export const uploadAttachment = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: err.message || 'Failed to upload attachment.' });
   }
 };
+
+// ============================================================
+// Live Website Visitors & Co-Browsing Presence Engine
+// ============================================================
+export const getLiveVisitors = async (req: AuthRequest, res: Response) => {
+  try {
+    const requestedWsId = req.query.workspaceId as string | undefined;
+    const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
+    if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
+
+    // Active in last 5 minutes (300,000ms)
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const liveVisitors = db.prepare(`
+      SELECT v.*, c.name as customer_name, c.email as customer_email
+      FROM visitors v
+      LEFT JOIN customers c ON v.customer_id = c.id
+      WHERE v.workspace_id = ? AND v.last_seen_at >= ?
+      ORDER BY v.last_seen_at DESC
+    `).all(workspace.id, fiveMinAgo);
+
+    return res.status(200).json({ visitors: liveVisitors, count: liveVisitors.length });
+  } catch (err: any) {
+    console.error('Error fetching live visitors:', err);
+    return res.status(500).json({ error: err.message || 'Failed to fetch live visitors.' });
+  }
+};
+
+export const initiateVisitorChat = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { initialMessage } = req.body;
+    const requestedWsId = req.query.workspaceId as string | undefined;
+    const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
+    if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
+
+    const visitor = db.prepare('SELECT * FROM visitors WHERE id = ? AND workspace_id = ?').get(id, workspace.id) as any;
+    if (!visitor) return res.status(404).json({ error: 'Visitor not found.' });
+
+    const convId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const msgId = crypto.randomUUID();
+    const customerDisplayName = visitor.customer_id ? `Visitor (${visitor.id.substring(0, 6)})` : 'Website Visitor';
+    const text = initialMessage || `Hi there! 👋 I noticed you are browsing ${visitor.page_title || 'our website'}. Is there anything I can help you find today?`;
+
+    db.prepare(`
+      INSERT INTO conversations (
+        id, workspace_id, customer_name, customer_email, channel, status, assignee,
+        last_message, needs_attention, confidence_score, sentiment, unread_count, created_at, updated_at
+      ) VALUES (?, ?, ?, NULL, 'Website', 'human', ?, ?, 0, 1.0, 'positive', 0, ?, ?)
+    `).run(convId, workspace.id, customerDisplayName, req.user.name, text, now, now);
+
+    db.prepare(`
+      INSERT INTO messages (id, conversation_id, sender_type, sender_name, content, is_internal_note, created_at)
+      VALUES (?, ?, 'agent', ?, ?, 0, ?)
+    `).run(msgId, convId, req.user.name, text, now);
+
+    const messageObj = {
+      id: msgId,
+      conversationId: convId,
+      senderType: 'agent',
+      senderName: req.user.name,
+      content: text,
+      isInternalNote: false,
+      attachments: [],
+      createdAt: now,
+    };
+
+    inboxEventEmitter.emit(`visitor:${visitor.id}`, { type: 'agent_initiated_chat', conversationId: convId, message: messageObj });
+    broadcastInboxEvent(workspace.id, 'new_conversation', { conversationId: convId });
+
+    return res.status(201).json({ conversationId: convId, message: messageObj });
+  } catch (err: any) {
+    console.error('Error initiating visitor chat:', err);
+    return res.status(500).json({ error: err.message || 'Failed to initiate chat.' });
+  }
+};
+
 

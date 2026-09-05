@@ -52,6 +52,8 @@ import {
   generateAIDraft,
   sseEventsStream,
   uploadAttachment,
+  getLiveVisitors,
+  initiateVisitorChat,
 } from './inboxController.js';
 import {
   getAiAgents,
@@ -95,6 +97,8 @@ import {
   getPublicWidgetConversation,
   identifyPublicWidgetVisitor,
   streamPublicWidgetEvents,
+  handlePublicWidgetCSAT,
+  handlePublicWidgetHeartbeat,
   testChannelConnection,
   disconnectChannel,
   connectChannel,
@@ -260,6 +264,8 @@ app.post('/api/inbox/conversations/:id/customer-details', authenticateToken, upd
 app.post('/api/inbox/conversations/:id/generate-ai-draft', authenticateToken, generateAIDraft);
 app.get('/api/inbox/events', authenticateToken, sseEventsStream);
 app.post('/api/inbox/upload', authenticateToken, uploadAttachment);
+app.get('/api/visitors/live', authenticateToken, getLiveVisitors);
+app.post('/api/visitors/:id/initiate-chat', authenticateToken, initiateVisitorChat);
 
 // AI Agent Routes (Limit Gated)
 app.get('/api/ai-agents', authenticateToken, getAiAgents);
@@ -308,6 +314,8 @@ app.post('/api/channels/public-widget/:siteKey/upload', widgetLimiter, handlePub
 app.get('/api/channels/public-widget/:siteKey/conversation/:conversationId', getPublicWidgetConversation);
 app.post('/api/channels/public-widget/:siteKey/identify', identifyPublicWidgetVisitor);
 app.get('/api/channels/public-widget/:siteKey/conversation/:conversationId/events', streamPublicWidgetEvents);
+app.post('/api/channels/public-widget/:siteKey/csat', widgetLimiter, handlePublicWidgetCSAT);
+app.post('/api/channels/public-widget/:siteKey/heartbeat', widgetLimiter, handlePublicWidgetHeartbeat);
 
 // Webhook Endpoints
 app.get('/api/webhooks/:provider', verifyWebhookChallenge);

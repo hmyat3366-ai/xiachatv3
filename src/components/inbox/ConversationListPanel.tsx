@@ -33,6 +33,8 @@ interface ConversationListPanelProps {
   stats: InboxStats;
   isLoading: boolean;
   sseStatus?: SSEStatus;
+  onOpenLiveVisitors?: () => void;
+  liveVisitorsCount?: number;
 }
 
 // Format relative time helper
@@ -100,6 +102,8 @@ export const ConversationListPanel: React.FC<ConversationListPanelProps> = ({
   stats,
   isLoading,
   sseStatus = 'disconnected',
+  onOpenLiveVisitors,
+  liveVisitorsCount,
 }) => {
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 
@@ -167,23 +171,42 @@ export const ConversationListPanel: React.FC<ConversationListPanelProps> = ({
             </span>
           </div>
 
-          <button
-            onClick={() => setIsFilterModalOpen(!isFilterModalOpen)}
-            className={`p-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
-              activeFilterCount > 0
-                ? 'bg-[#FFF0E5] border-[#FF8A2A] text-[#D96512] ring-2 ring-[#FF8A2A]/20'
-                : 'bg-white border-[#E8E8E5] text-[#6B6B6B] hover:text-[#171717]'
-            }`}
-            title="Filter conversations"
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Filter</span>
-            {activeFilterCount > 0 && (
-              <span className="w-4 h-4 rounded-full bg-[#FF8A2A] text-white text-[9px] font-black flex items-center justify-center">
-                {activeFilterCount}
-              </span>
+          <div className="flex items-center gap-1.5">
+            {onOpenLiveVisitors && (
+              <button
+                type="button"
+                onClick={onOpenLiveVisitors}
+                className="px-2 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-2xs"
+                title="View active live website visitors"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span className="hidden sm:inline">Visitors</span>
+                {liveVisitorsCount !== undefined && liveVisitorsCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-emerald-600 text-white text-[9px] font-black">
+                    {liveVisitorsCount}
+                  </span>
+                )}
+              </button>
             )}
-          </button>
+
+            <button
+              onClick={() => setIsFilterModalOpen(!isFilterModalOpen)}
+              className={`p-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                activeFilterCount > 0
+                  ? 'bg-[#FFF0E5] border-[#FF8A2A] text-[#D96512] ring-2 ring-[#FF8A2A]/20'
+                  : 'bg-white border-[#E8E8E5] text-[#6B6B6B] hover:text-[#171717]'
+              }`}
+              title="Filter conversations"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Filter</span>
+              {activeFilterCount > 0 && (
+                <span className="w-4 h-4 rounded-full bg-[#FF8A2A] text-white text-[9px] font-black flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Search Bar */}

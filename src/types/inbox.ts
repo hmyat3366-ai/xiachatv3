@@ -45,6 +45,8 @@ export interface ConversationItem {
   aiStatus?: string;
   draftMessage?: string | null;
   firstSeen?: string;
+  csatRating?: number | null;
+  csatComment?: string | null;
   createdAt: string;
   updatedAt: string;
 }

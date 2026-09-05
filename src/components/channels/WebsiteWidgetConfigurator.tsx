@@ -76,13 +76,56 @@ export const WebsiteWidgetConfigurator: React.FC<WebsiteWidgetConfiguratorProps>
   const [testInput, setTestInput] = useState('');
   const [isTestLoading, setIsTestLoading] = useState(false);
 
-  const embedCode = `<script src="${window.location.origin}/widget.js" data-site-key="${channelId}" async></script>`;
+  type EmbedPlatform = 'html' | 'react' | 'wordpress' | 'shopify' | 'gtm';
+  const [embedPlatform, setEmbedPlatform] = useState<EmbedPlatform>('html');
+
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://xiachat.ai';
+
+  const platformSnippets: Record<EmbedPlatform, { label: string; title: string; desc: string; code: string; ext: string }> = {
+    html: {
+      label: 'HTML / JS',
+      title: 'Universal HTML Embed',
+      desc: 'Paste this snippet right before the closing </body> tag on any website or static HTML page.',
+      code: `<!-- Xia Chat AI Widget -->\n<script\n  src="${origin}/widget.js"\n  data-site-key="${channelId}"\n  data-position="${position}"\n  data-theme="${theme}"\n  async\n></script>`,
+      ext: 'html',
+    },
+    react: {
+      label: 'React / Next.js',
+      title: 'Next.js 13/14/15 App Router & React',
+      desc: 'Add to app/layout.tsx (App Router) or pages/_app.tsx for high-speed lazy-loaded hydration without blocking FCP.',
+      code: `// app/layout.tsx\nimport Script from 'next/script';\n\nexport default function RootLayout({ children }: { children: React.ReactNode }) {\n  return (\n    <html lang="en">\n      <body>\n        {children}\n        <Script\n          src="${origin}/widget.js"\n          data-site-key="${channelId}"\n          strategy="lazyOnload"\n        />\n      </body>\n    </html>\n  );\n}`,
+      ext: 'tsx',
+    },
+    wordpress: {
+      label: 'WordPress',
+      title: 'WordPress & WooCommerce',
+      desc: 'Add to your theme functions.php or insert via Header & Footer Scripts plugin.',
+      code: `// In your theme's functions.php or custom plugin:\nadd_action('wp_footer', function() {\n    ?>\n    <script \n        src="${origin}/widget.js" \n        data-site-key="${channelId}" \n        async>\n    </script>\n    <?php\n});`,
+      ext: 'php',
+    },
+    shopify: {
+      label: 'Shopify',
+      title: 'Shopify Liquid Theme',
+      desc: 'In Shopify Admin -> Online Store -> Themes -> Actions -> Edit Code -> theme.liquid. Paste right before </body>.',
+      code: `<!-- Xia Chat AI Widget for Shopify -->\n<script\n  src="${origin}/widget.js"\n  data-site-key="${channelId}"\n  data-industry="ecommerce"\n  async\n></script>`,
+      ext: 'liquid',
+    },
+    gtm: {
+      label: 'Google Tag Manager',
+      title: 'Google Tag Manager (GTM)',
+      desc: 'Create a "Custom HTML" Tag in GTM, paste this script, and trigger on "All Pages" (Page View).',
+      code: `<script\n  src="${origin}/widget.js"\n  data-site-key="${channelId}"\n  async\n></script>`,
+      ext: 'html',
+    },
+  };
+
+  const currentSnippet = platformSnippets[embedPlatform];
 
   const isDarkPrimary = getLuminance(primaryColor) <= 0.45;
   const contrastText = isDarkPrimary ? '#FFFFFF' : '#111827';
 
   const handleCopyCode = () => {
-    navigator.clipboard.writeText(embedCode);
+    navigator.clipboard.writeText(currentSnippet.code);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
   };
@@ -466,33 +509,71 @@ export const WebsiteWidgetConfigurator: React.FC<WebsiteWidgetConfiguratorProps>
             </div>
           </div>
 
-          {/* SECTION 5 — INSTALLATION EMBED CODE */}
+          {/* SECTION 5 — MULTI-PLATFORM EMBED HUB */}
           <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-[#E8E8E5]">
               <div className="flex items-center gap-2">
                 <Code className="w-5 h-5 text-[#FF8A2A]" />
-                <h2 className="font-extrabold text-base text-[#171717]">5. Embeddable Installation Code</h2>
+                <div>
+                  <h2 className="font-extrabold text-base text-[#171717]">5. Multi-Platform Embed Hub</h2>
+                  <p className="text-xs text-[#6B6B6B]">Deploy to your website in seconds with 1-click code snippets</p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={handleCopyCode}
-                className="px-3 py-1.5 rounded-xl bg-[#FFF0E5] text-[#FF8A2A] hover:bg-[#FFE4D0] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="px-3 py-1.5 rounded-xl bg-[#FFF0E5] text-[#FF8A2A] hover:bg-[#FFE4D0] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
               >
                 {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{isCopied ? 'Copied!' : 'Copy Code'}</span>
               </button>
             </div>
 
-            <p className="text-xs text-[#6B6B6B]">
-              Copy and paste this snippet into the HTML of your website before the closing <code className="text-[#FF8A2A]">&lt;/body&gt;</code> tag.
-            </p>
+            {/* Platform Selector Tabs */}
+            <div className="flex flex-wrap gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200/80">
+              {(Object.keys(platformSnippets) as EmbedPlatform[]).map((pKey) => {
+                const item = platformSnippets[pKey];
+                const isActive = embedPlatform === pKey;
+                return (
+                  <button
+                    key={pKey}
+                    type="button"
+                    onClick={() => setEmbedPlatform(pKey)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-200'
+                        : 'text-slate-500 hover:text-slate-900'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
 
-            <div className="p-4 rounded-2xl bg-[#171717] text-[#FAF9F6] text-xs font-mono overflow-x-auto leading-relaxed select-all">
-              {embedCode}
+            {/* Platform Instruction & Info */}
+            <div className="p-3 bg-blue-50/60 rounded-2xl border border-blue-100 flex items-start gap-2.5">
+              <Sparkles className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <div className="font-bold text-blue-950">{currentSnippet.title}</div>
+                <div className="text-blue-800/80 mt-0.5 leading-relaxed">{currentSnippet.desc}</div>
+              </div>
+            </div>
+
+            {/* Code Display Area */}
+            <div className="relative rounded-2xl bg-[#171717] text-[#FAF9F6] text-xs font-mono overflow-hidden shadow-inner">
+              <div className="px-4 py-2 bg-white/5 border-b border-white/10 flex items-center justify-between text-[11px] text-gray-400">
+                <span className="font-semibold text-gray-300">Snippet ({currentSnippet.ext.toUpperCase()})</span>
+                <span className="text-[10px] text-gray-500 font-mono">Site Key: {channelId}</span>
+              </div>
+              <pre className="p-4 overflow-x-auto leading-relaxed select-all">
+                <code>{currentSnippet.code}</code>
+              </pre>
             </div>
 
             <div className="flex items-center gap-2 text-[11px] text-[#6B6B6B]">
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Public key architecture protected against unauthorized database access.</span>
+              <span>Shadow DOM isolation prevents host CSS leakage. Zero external dependencies.</span>
             </div>
           </div>
         </div>

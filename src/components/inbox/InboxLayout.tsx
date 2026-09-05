@@ -5,6 +5,8 @@ import { WorkspaceSwitcherModal } from '../dashboard/WorkspaceSwitcherModal';
 import { ConversationListPanel } from './ConversationListPanel';
 import { ChatThreadPanel } from './ChatThreadPanel';
 import { CustomerDetailsPanel } from './CustomerDetailsPanel';
+import { LiveVisitorsDrawer } from './LiveVisitorsDrawer';
+import { playInboxChime } from '../../utils/audioChimes';
 import type { ConversationItem, MessageItem, CustomerProfile, FilterState, TeamMember, InboxStats } from '../../types/inbox';
 import type { WorkspaceItem } from '../../types/dashboard';
 import { apiFetch } from '../../utils/api';
@@ -49,6 +51,27 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
   // Loading & Error states
   const [isLoadingList, setIsLoadingList] = useState(true);
   const [isLoadingThread, setIsLoadingThread] = useState(false);
+
+  // Live Visitors Drawer state
+  const [isLiveVisitorsOpen, setIsLiveVisitorsOpen] = useState(false);
+  const [liveVisitorsCount, setLiveVisitorsCount] = useState(0);
+
+  const fetchLiveVisitorsCount = useCallback(async () => {
+    if (!currentWorkspace?.id) return;
+    try {
+      const res = await apiFetch(`/api/visitors/live?workspaceId=${currentWorkspace.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setLiveVisitorsCount(data.count || (data.visitors ? data.visitors.length : 0));
+      }
+    } catch {}
+  }, [currentWorkspace?.id]);
+
+  useEffect(() => {
+    fetchLiveVisitorsCount();
+    const t = setInterval(fetchLiveVisitorsCount, 15000);
+    return () => clearInterval(t);
+  }, [fetchLiveVisitorsCount]);
 
   // Fetch Conversations List
   const fetchConversations = useCallback(async (wsId?: string | null, f?: FilterState, silent: boolean = false) => {
@@ -156,11 +179,17 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
         if (conversationId === selectedId) {
           setActiveMessages((prev) => [...prev, message]);
         }
+        if (message?.senderType === 'customer') {
+          playInboxChime('incoming');
+        }
         fetchConversations(currentWorkspace?.id, filters);
       } else if (event.type === 'status_change' || event.type === 'assignment_update') {
-        const { conversationId, systemMessage } = event.payload as { conversationId: string; systemMessage?: MessageItem };
+        const { conversationId, systemMessage, status } = event.payload as { conversationId: string; systemMessage?: MessageItem; status?: string };
         if (conversationId === selectedId && systemMessage) {
           setActiveMessages((prev) => [...prev, systemMessage]);
+        }
+        if (status === 'RESOLVED' || status === 'resolved') {
+          playInboxChime('resolve');
         }
         fetchConversations(currentWorkspace?.id, filters);
       }
@@ -216,6 +245,7 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
     if (res.ok) {
       const data = await res.json();
       setActiveMessages((prev) => [...prev, data.message]);
+      playInboxChime('outgoing');
       fetchConversations(currentWorkspace?.id, filters);
     }
   };
@@ -293,6 +323,9 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
       if (data.systemMessage) {
         setActiveMessages((prev) => [...prev, data.systemMessage]);
       }
+      if (status === 'RESOLVED' || status === 'resolved') {
+        playInboxChime('resolve');
+      }
     }
   };
 
@@ -318,13 +351,13 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
 
   const handleGenerateAIDraft = async () => {
     if (!selectedId) return;
-    const res = await apiFetch(`/api/inbox/conversations/${selectedId}/generate-ai-draft?workspaceId=${currentWorkspace?.id || ''}`, {
+    const res = await apiFetch(`/api/inbox/conversations/${selectedId}/draft?workspaceId=${currentWorkspace?.id || ''}`, {
       method: 'POST',
     });
     if (res.ok) {
       const data = await res.json();
       setConversations((prev) =>
-        prev.map((c) => (c.id === selectedId ? { ...c, draftMessage: data.draftMessage } : c))
+        prev.map((c) => (c.id === selectedId ? { ...c, draftMessage: data.draft } : c))
       );
     }
   };
@@ -332,8 +365,8 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
   const selectedConversation = conversations.find((c) => c.id === selectedId) || null;
 
   return (
-    <div className="h-screen bg-[#F7F7F5] text-[#171717] flex flex-col overflow-hidden font-sans selection:bg-[#FFF0E5] selection:text-[#D96512]">
-      {/* Top Header */}
+    <div className="w-screen h-screen flex flex-col overflow-hidden bg-white select-none">
+      {/* Universal Sticky Top Header */}
       <TopHeader
         onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
         currentWorkspace={currentWorkspace}
@@ -365,6 +398,8 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
               stats={stats}
               isLoading={isLoadingList}
               sseStatus={sseStatus}
+              onOpenLiveVisitors={() => setIsLiveVisitorsOpen(true)}
+              liveVisitorsCount={liveVisitorsCount}
             />
           </div>
 
@@ -439,6 +474,20 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
         onSelectWorkspace={handleSelectWorkspace}
         onCreateWorkspace={handleCreateWorkspace}
       />
+
+      {/* Live Website Visitors Slide-over Drawer */}
+      {currentWorkspace && (
+        <LiveVisitorsDrawer
+          isOpen={isLiveVisitorsOpen}
+          onClose={() => setIsLiveVisitorsOpen(false)}
+          workspaceId={currentWorkspace.id}
+          onSelectConversation={(convId) => {
+            fetchConversations(currentWorkspace.id, filters);
+            setSelectedId(convId);
+            setMobileView('thread');
+          }}
+        />
+      )}
     </div>
   );
 };

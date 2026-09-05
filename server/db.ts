@@ -538,11 +538,16 @@ const inboxMigrations = [
   `ALTER TABLE conversations ADD COLUMN recommended_action TEXT;`,
   `ALTER TABLE conversations ADD COLUMN assigned_agent TEXT;`,
   `ALTER TABLE conversations ADD COLUMN mode TEXT;`,
+  `ALTER TABLE conversations ADD COLUMN csat_rating INTEGER;`,
+  `ALTER TABLE conversations ADD COLUMN csat_comment TEXT;`,
   `ALTER TABLE messages ADD COLUMN is_internal_note INTEGER NOT NULL DEFAULT 0;`,
   `ALTER TABLE messages ADD COLUMN attachments TEXT;`,
   `ALTER TABLE messages ADD COLUMN knowledge_source TEXT;`,
   `ALTER TABLE messages ADD COLUMN confidence_score REAL;`,
   `ALTER TABLE customers ADD COLUMN location TEXT;`,
+  `ALTER TABLE visitors ADD COLUMN current_page TEXT;`,
+  `ALTER TABLE visitors ADD COLUMN page_title TEXT;`,
+  `ALTER TABLE visitors ADD COLUMN time_spent_seconds INTEGER DEFAULT 0;`,
 
   // Agents Table
   `CREATE TABLE IF NOT EXISTS agents (
@@ -783,6 +788,8 @@ export interface DbConversation {
   ai_status?: string | null;
   draft_message?: string | null;
   first_seen?: string | null;
+  csat_rating?: number | null;
+  csat_comment?: string | null;
   created_at: string;
   updated_at: string;
 }

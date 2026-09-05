@@ -1178,3 +1178,84 @@ export async function handlePublicWidgetUpload(req: Request, res: Response) {
   }
 }
 
+// ============================================================
+// Public Widget CSAT Feedback Rating Handler
+// ============================================================
+export async function handlePublicWidgetCSAT(req: Request, res: Response) {
+  try {
+    const { siteKey } = req.params;
+    const { conversationId, rating, comment } = req.body;
+
+    if (!conversationId || typeof rating !== 'number' || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'Valid conversationId and rating (1-5) are required.' });
+    }
+
+    const now = new Date().toISOString();
+    db.prepare(`
+      UPDATE conversations
+      SET csat_rating = ?, csat_comment = ?, updated_at = ?
+      WHERE id = ?
+    `).run(Math.round(rating), comment ? String(comment).trim() : null, now, conversationId);
+
+    const updatedConv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(conversationId) as any;
+    if (updatedConv) {
+      syncConversationToSupabase(updatedConv);
+      if (updatedConv.workspace_id) {
+        broadcastInboxEvent(updatedConv.workspace_id, 'csat_received', {
+          conversationId,
+          rating: Math.round(rating),
+          comment: comment ? String(comment).trim() : null,
+        });
+      }
+    }
+
+    return res.status(200).json({ success: true, message: 'Thank you for your feedback!' });
+  } catch (err: any) {
+    console.error('[CSAT] Error:', err);
+    return res.status(500).json({ error: 'Failed to record feedback.' });
+  }
+}
+
+// ============================================================
+// Public Widget Real-Time Presence Heartbeat Handler
+// ============================================================
+export async function handlePublicWidgetHeartbeat(req: Request, res: Response) {
+  try {
+    const { siteKey } = req.params;
+    const { visitorId, sessionId, browserId, currentPage, pageTitle, timeSpent } = req.body;
+
+    if (!visitorId) {
+      return res.status(400).json({ error: 'visitorId is required.' });
+    }
+
+    let workspaceId = 'default';
+    if (siteKey && siteKey !== 'auto-detect') {
+      const channel = db.prepare('SELECT workspace_id FROM channels WHERE widget_site_key = ? OR id = ?').get(siteKey, siteKey) as any;
+      if (channel && channel.workspace_id) workspaceId = channel.workspace_id;
+    } else {
+      const firstWs = db.prepare('SELECT id FROM workspaces ORDER BY created_at ASC LIMIT 1').get() as any;
+      if (firstWs) workspaceId = firstWs.id;
+    }
+
+    const now = new Date().toISOString();
+    const existing = db.prepare('SELECT id FROM visitors WHERE id = ?').get(visitorId) as any;
+    if (existing) {
+      db.prepare(`
+        UPDATE visitors
+        SET last_seen_at = ?, current_page = ?, page_title = ?, time_spent_seconds = ?, updated_at = ?
+        WHERE id = ?
+      `).run(now, currentPage || null, pageTitle || null, timeSpent || 0, now, visitorId);
+    } else {
+      db.prepare(`
+        INSERT INTO visitors (id, workspace_id, session_id, browser_id, first_seen_at, last_seen_at, current_page, page_title, time_spent_seconds, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(visitorId, workspaceId, sessionId || visitorId, browserId || null, now, now, currentPage || null, pageTitle || null, timeSpent || 0, now, now);
+    }
+
+    return res.status(200).json({ status: 'ok', timestamp: now });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+
