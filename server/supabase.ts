@@ -3,6 +3,24 @@ import pg from 'pg';
 import dotenv from 'dotenv';
 dotenv.config();
 
+// Ensure globalThis.WebSocket exists to prevent @supabase/realtime-js crash in environments without native WebSocket
+if (typeof globalThis.WebSocket === 'undefined') {
+  class NoopWebSocket {
+    static readonly CONNECTING = 0;
+    static readonly OPEN = 1;
+    static readonly CLOSING = 2;
+    static readonly CLOSED = 3;
+    readyState = 3;
+    onopen = null;
+    onclose = null;
+    onerror = null;
+    onmessage = null;
+    close() {}
+    send() {}
+  }
+  (globalThis as any).WebSocket = NoopWebSocket;
+}
+
 const SUPABASE_URL = process.env.SUPABASE_URL || 'http://127.0.0.1:54321';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '[JWT_2]';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;

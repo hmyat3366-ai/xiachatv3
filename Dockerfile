@@ -2,7 +2,7 @@
 # Xia Chat v3 — Production Dockerfile for Render Deployments
 # ============================================================
 
-FROM node:20-slim AS base
+FROM node:22-slim AS base
 
 WORKDIR /app
 
