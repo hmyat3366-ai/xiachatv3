@@ -71,6 +71,9 @@
     customerProfile: { name: '', email: '', phone: '' },
     pollInterval: null,
     sseSource: null,
+    pendingAttachment: null,
+    isUploadingAttachment: false,
+    lightboxUrl: null,
   };
 
   // -------------------------------------------------------------
@@ -799,6 +802,135 @@
       .xia-send-btn:active { transform: scale(0.95); }
       .xia-send-btn svg { width: 16px; height: 16px; fill: ${contrastText}; }
 
+      .xia-attach-btn {
+        background: transparent;
+        border: none;
+        color: ${textSub};
+        cursor: pointer;
+        padding: 5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        transition: color 0.15s ease, background 0.15s ease;
+        flex-shrink: 0;
+      }
+      .xia-attach-btn:hover {
+        color: ${primaryHex};
+        background: ${primaryHover};
+      }
+      .xia-attach-btn svg { width: 17px; height: 17px; fill: currentColor; }
+
+      .xia-attachment-preview-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 6px 10px;
+        background: ${primaryHover};
+        border: 1px dashed ${primaryBorder};
+        border-radius: 10px;
+        font-size: 11.5px;
+        color: ${textMain};
+      }
+      .xia-att-preview-name {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-weight: 500;
+      }
+      .xia-att-remove-btn {
+        background: none;
+        border: none;
+        color: ${textSub};
+        cursor: pointer;
+        font-size: 15px;
+        font-weight: bold;
+        padding: 0 4px;
+        line-height: 1;
+      }
+      .xia-att-remove-btn:hover { color: #ef4444; }
+
+      /* Message Attachments */
+      .xia-attachments-wrap {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 6px;
+      }
+      .xia-img-thumb-wrap {
+        border-radius: 12px;
+        overflow: hidden;
+        max-width: 220px;
+        max-height: 160px;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+        transition: transform 0.15s ease;
+        border: 1px solid rgba(0,0,0,0.08);
+      }
+      .xia-img-thumb-wrap:hover { transform: scale(1.02); }
+      .xia-img-thumb {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .xia-doc-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        background: rgba(0,0,0,0.05);
+        border-radius: 8px;
+        font-size: 11.5px;
+        color: inherit;
+        text-decoration: none;
+        border: 1px solid rgba(0,0,0,0.08);
+        font-weight: 500;
+      }
+      .xia-doc-pill:hover { text-decoration: underline; }
+
+      /* Lightbox Modal */
+      .xia-lightbox {
+        position: absolute;
+        inset: 0;
+        background: rgba(0,0,0,0.85);
+        backdrop-filter: blur(4px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        padding: 16px;
+        animation: xiaMsgFade 0.2s ease;
+      }
+      .xia-lightbox-img {
+        max-width: 95%;
+        max-height: 85%;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        object-fit: contain;
+      }
+      .xia-lightbox-close {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        background: rgba(255,255,255,0.25);
+        border: none;
+        color: #fff;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 16px;
+        transition: background 0.15s ease;
+      }
+      .xia-lightbox-close:hover { background: rgba(255,255,255,0.4); }
+
       .xia-branding {
         font-size: 10px;
         text-align: center;
@@ -885,7 +1017,14 @@
         <div class="xia-body" id="xia-chat-body"></div>
 
         <div class="xia-footer">
+          <div id="xia-attachment-preview-bar" class="xia-attachment-preview-bar" style="display:none;"></div>
           <div class="xia-input-row">
+            <input type="file" id="xia-file-input" accept="image/*,application/pdf" style="display:none;" />
+            <button type="button" class="xia-attach-btn" id="xia-attach-btn" title="Attach screenshot or document" aria-label="Attach File">
+              <svg viewBox="0 0 24 24">
+                <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .83-.67 1.5-1.5 1.5s-1.5-.67-1.5-1.5V6H9v9.5a3 3 0 0 0 6 0V5a4 4 0 0 0-8 0v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/>
+              </svg>
+            </button>
             <input type="text" class="xia-input" placeholder="Ask a question or track order..." />
             <button class="xia-send-btn" aria-label="Send Message">
               <svg viewBox="0 0 24 24">
@@ -895,6 +1034,8 @@
           </div>
           <div class="xia-branding">Powered by <a href="https://xiachat.ai" target="_blank" rel="noopener">Xia Chat AI</a></div>
         </div>
+
+        <div id="xia-lightbox" class="xia-lightbox" style="display:none;"></div>
       </div>
     `;
 
@@ -926,10 +1067,32 @@
         labelHtml = `<div class="xia-sender-label"><span>${escapeHTML(m.senderName || state.widgetName)}</span></div>`;
       }
 
+      var attachmentsHtml = '';
+      if (m.attachments && (Array.isArray(m.attachments) ? m.attachments.length > 0 : m.attachments !== '[]')) {
+        try {
+          var atts = Array.isArray(m.attachments) ? m.attachments : JSON.parse(m.attachments || '[]');
+          if (atts && atts.length > 0) {
+            attachmentsHtml = '<div class="xia-attachments-wrap">' + atts.map(function (att) {
+              var url = typeof att === 'string' ? att : (att.url || '');
+              var name = typeof att === 'object' && att !== null ? (att.fileName || att.name || 'Attachment') : 'Attachment';
+              var isImg = /\.(png|jpe?g|webp|gif)$/i.test(url) || (att.contentType && att.contentType.startsWith('image/'));
+              if (isImg) {
+                return '<div class="xia-img-thumb-wrap" data-zoom-url="' + escapeHTML(url) + '"><img src="' + escapeHTML(url) + '" alt="' + escapeHTML(name) + '" class="xia-img-thumb" loading="lazy" /></div>';
+              }
+              return '<a href="' + escapeHTML(url) + '" target="_blank" rel="noopener" class="xia-doc-pill">📎 ' + escapeHTML(name) + '</a>';
+            }).join('') + '</div>';
+          }
+        } catch (e) {}
+      }
+
+      var bubbleContent = '';
+      if (attachmentsHtml) bubbleContent += attachmentsHtml;
+      if (m.content) bubbleContent += (attachmentsHtml ? '<div style="margin-top:4px;">' : '') + escapeHTML(m.content) + (attachmentsHtml ? '</div>' : '');
+
       html += `
         <div class="xia-msg-wrap ${type}">
           ${labelHtml}
-          <div class="xia-bubble">${escapeHTML(m.content)}</div>
+          <div class="xia-bubble">${bubbleContent}</div>
           <div class="xia-time">${formatTime(m.createdAt)}</div>
         </div>
       `;
@@ -998,6 +1161,95 @@
     }
   }
 
+  // Update attachment preview bar UI
+  function updateAttachmentPreviewUI(opts) {
+    if (!shadow) return;
+    var previewBar = shadow.querySelector('#xia-attachment-preview-bar');
+    if (!previewBar) return;
+
+    opts = opts || {};
+    if (opts.isUploading) {
+      previewBar.style.display = 'flex';
+      previewBar.innerHTML = `
+        <span style="font-size:13px;">⏳</span>
+        <span class="xia-att-preview-name">Uploading ${escapeHTML(opts.fileName || 'file')}...</span>
+      `;
+      return;
+    }
+
+    if (opts.error) {
+      previewBar.style.display = 'flex';
+      previewBar.innerHTML = `
+        <span style="color:#ef4444;">⚠️</span>
+        <span class="xia-att-preview-name" style="color:#ef4444;">${escapeHTML(opts.error)}</span>
+        <button type="button" class="xia-att-remove-btn" id="xia-att-clear-btn" aria-label="Dismiss">&times;</button>
+      `;
+      return;
+    }
+
+    if (state.pendingAttachment) {
+      previewBar.style.display = 'flex';
+      var isImg = state.pendingAttachment.contentType && state.pendingAttachment.contentType.startsWith('image/');
+      previewBar.innerHTML = `
+        <span>${isImg ? '🖼️' : '📎'}</span>
+        <span class="xia-att-preview-name">${escapeHTML(state.pendingAttachment.fileName || 'Attachment')}</span>
+        <button type="button" class="xia-att-remove-btn" id="xia-att-clear-btn" aria-label="Remove attachment">&times;</button>
+      `;
+    } else {
+      previewBar.style.display = 'none';
+      previewBar.innerHTML = '';
+    }
+  }
+
+  // Handle file selection and direct Supabase Storage upload
+  function handleWidgetFileUpload(file) {
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File size exceeds 10MB limit.');
+      return;
+    }
+
+    state.isUploadingAttachment = true;
+    updateAttachmentPreviewUI({ isUploading: true, fileName: file.name });
+
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var base64Data = e.target.result;
+      fetch(apiBase + '/api/channels/public-widget/' + encodeURIComponent(state.siteKey) + '/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(state.apiKey ? { 'x-api-key': state.apiKey } : {}),
+        },
+        body: JSON.stringify({
+          filename: file.name,
+          contentType: file.type || 'application/octet-stream',
+          base64: base64Data,
+        }),
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error('Upload failed with status ' + res.status);
+          return res.json();
+        })
+        .then(function (data) {
+          state.isUploadingAttachment = false;
+          state.pendingAttachment = {
+            url: data.url,
+            fileName: data.fileName,
+            fileSize: data.fileSize,
+            contentType: data.contentType,
+          };
+          updateAttachmentPreviewUI();
+        })
+        .catch(function (err) {
+          state.isUploadingAttachment = false;
+          updateAttachmentPreviewUI({ error: 'Upload failed' });
+          console.error('[Xia Chat] Upload error:', err);
+        });
+    };
+    reader.readAsDataURL(file);
+  }
+
   // Bind events for launcher, close button, input, starters
   function bindDOMEvents() {
     var launcher = shadow.querySelector('.xia-launcher');
@@ -1005,6 +1257,10 @@
     var sendBtn = shadow.querySelector('.xia-send-btn');
     var input = shadow.querySelector('.xia-input');
     var body = shadow.querySelector('#xia-chat-body');
+    var attachBtn = shadow.querySelector('#xia-attach-btn');
+    var fileInput = shadow.querySelector('#xia-file-input');
+    var previewBar = shadow.querySelector('#xia-attachment-preview-bar');
+    var lightbox = shadow.querySelector('#xia-lightbox');
 
     if (launcher) {
       launcher.onclick = function () {
@@ -1018,11 +1274,42 @@
       };
     }
 
+    if (attachBtn && fileInput) {
+      attachBtn.onclick = function () {
+        fileInput.click();
+      };
+      fileInput.onchange = function () {
+        if (fileInput.files && fileInput.files[0]) {
+          handleWidgetFileUpload(fileInput.files[0]);
+          fileInput.value = '';
+        }
+      };
+    }
+
+    if (previewBar) {
+      previewBar.onclick = function (e) {
+        if (e.target.closest('#xia-att-clear-btn')) {
+          state.pendingAttachment = null;
+          updateAttachmentPreviewUI();
+        }
+      };
+    }
+
+    if (lightbox) {
+      lightbox.onclick = function (e) {
+        if (e.target.closest('.xia-lightbox-close') || e.target === lightbox) {
+          lightbox.style.display = 'none';
+          lightbox.innerHTML = '';
+        }
+      };
+    }
+
     var doSend = function (overrideText) {
       var text = overrideText !== undefined ? overrideText : (input ? input.value : '');
-      if (!text || !text.trim() || state.isSending) return;
+      if ((!text || !text.trim()) && !state.pendingAttachment) return;
+      if (state.isSending || state.isUploadingAttachment) return;
       if (input && overrideText === undefined) input.value = '';
-      XiaChat.sendMessage(text.trim());
+      XiaChat.sendMessage(text ? text.trim() : '');
     };
 
     if (sendBtn) {
@@ -1040,6 +1327,19 @@
 
     if (body) {
       body.onclick = function (e) {
+        var zoomWrap = e.target.closest('[data-zoom-url]');
+        if (zoomWrap && lightbox) {
+          var zoomUrl = zoomWrap.getAttribute('data-zoom-url');
+          if (zoomUrl) {
+            lightbox.style.display = 'flex';
+            lightbox.innerHTML = `
+              <button type="button" class="xia-lightbox-close" aria-label="Close Preview">&times;</button>
+              <img src="${escapeHTML(zoomUrl)}" class="xia-lightbox-img" alt="Screenshot Preview" />
+            `;
+            return;
+          }
+        }
+
         var chip = e.target.closest('.xia-starter-chip');
         if (chip) {
           var starter = chip.getAttribute('data-starter');
@@ -1123,16 +1423,23 @@
 
   function sendMessageToServer(content) {
     state.isSending = true;
+
+    var attsToSend = state.pendingAttachment ? [state.pendingAttachment] : [];
+    state.pendingAttachment = null;
+    updateAttachmentPreviewUI();
+
     state.messages.push({
       senderType: 'customer',
       senderName: state.customerProfile.name || 'You',
       content: content,
+      attachments: attsToSend,
       createdAt: new Date().toISOString(),
     });
     renderMessages();
 
     var payload = {
       message: content,
+      attachments: attsToSend,
       visitorId: visitorIdentity.visitorId,
       sessionId: visitorIdentity.sessionId,
       browserId: visitorIdentity.browserId,

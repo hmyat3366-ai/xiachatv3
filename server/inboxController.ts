@@ -4,7 +4,7 @@ import { EventEmitter } from 'events';
 import { db, DbConversation, DbMessage, DbWorkspace } from './db.js';
 import { AuthRequest } from './authMiddleware.js';
 import { getWorkspaceForUser } from './planLimitMiddleware.js';
-import { syncMessageToSupabase, syncConversationToSupabase } from './supabase.js';
+import { syncMessageToSupabase, syncConversationToSupabase, uploadChatAttachment } from './supabase.js';
 
 // Global Event Emitter for Realtime Server-Sent Events (SSE)
 export const inboxEventEmitter = new EventEmitter();
@@ -839,3 +839,41 @@ export const sseEventsStream = (req: AuthRequest, res: Response) => {
     inboxEventEmitter.off(eventChannel, listener);
   });
 };
+
+// ============================================================
+// Dashboard Inbox Attachment Upload Handler (Supabase Storage)
+// ============================================================
+export const uploadAttachment = async (req: AuthRequest, res: Response) => {
+  try {
+    const { filename, contentType, base64 } = req.body;
+    if (!base64 || typeof base64 !== 'string') {
+      return res.status(400).json({ error: 'Base64 file data is required.' });
+    }
+
+    const requestedWsId = req.query.workspaceId as string | undefined;
+    const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
+    if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
+
+    // Clean base64 header if present (e.g. data:image/png;base64,...)
+    const cleanBase64 = base64.includes(';base64,') ? base64.split(';base64,').pop()! : base64;
+    const fileBuffer = Buffer.from(cleanBase64, 'base64');
+
+    // Limit to 10MB
+    if (fileBuffer.length > 10 * 1024 * 1024) {
+      return res.status(400).json({ error: 'File exceeds 10MB size limit.' });
+    }
+
+    const result = await uploadChatAttachment(
+      fileBuffer,
+      filename || 'screenshot.png',
+      contentType || 'image/png',
+      workspace.id
+    );
+
+    return res.status(200).json(result);
+  } catch (err: any) {
+    console.error('Error in uploadAttachment:', err);
+    return res.status(500).json({ error: err.message || 'Failed to upload attachment.' });
+  }
+};
+

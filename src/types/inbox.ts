@@ -56,7 +56,7 @@ export interface MessageItem {
   senderName: string | null;
   content: string;
   isInternalNote?: boolean;
-  attachments?: Array<{ name: string; url: string; size?: string }>;
+  attachments?: Array<{ name?: string; fileName?: string; url: string; size?: string | number; contentType?: string }> | string[];
   knowledgeSource?: string | null;
   confidenceScore?: number | null;
   createdAt: string;

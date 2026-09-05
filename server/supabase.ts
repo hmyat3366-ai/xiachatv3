@@ -184,3 +184,89 @@ export async function syncMessageToSupabase(msg: any) {
     console.warn('[Supabase Sync] Message sync warning:', err.message || err);
   }
 }
+
+// ============================================================
+// Supabase Cloud Storage Engine (Chat Screenshots & Attachments)
+// ============================================================
+
+export const CHAT_ATTACHMENTS_BUCKET = 'chat-attachments';
+
+export async function ensureStorageBucket(): Promise<boolean> {
+  try {
+    const { data: buckets, error } = await supabaseService.storage.listBuckets();
+    if (error) {
+      console.warn('[Supabase Storage] List buckets warning:', error.message);
+      return false;
+    }
+    const exists = buckets && buckets.some((b) => b.name === CHAT_ATTACHMENTS_BUCKET);
+    if (!exists) {
+      console.log(`[Supabase Storage] Creating public bucket '${CHAT_ATTACHMENTS_BUCKET}'...`);
+      const { error: createErr } = await supabaseService.storage.createBucket(CHAT_ATTACHMENTS_BUCKET, {
+        public: true,
+        fileSizeLimit: 10485760, // 10MB limit
+        allowedMimeTypes: [
+          'image/png',
+          'image/jpeg',
+          'image/jpg',
+          'image/webp',
+          'image/gif',
+          'application/pdf',
+          'text/plain',
+        ],
+      });
+      if (createErr) {
+        console.error('[Supabase Storage] Failed to create bucket:', createErr.message);
+        return false;
+      }
+      console.log(`[Supabase Storage] Bucket '${CHAT_ATTACHMENTS_BUCKET}' created successfully with public access.`);
+    }
+    return true;
+  } catch (err: any) {
+    console.error('[Supabase Storage] ensureStorageBucket error:', err.message);
+    return false;
+  }
+}
+
+export interface UploadAttachmentResult {
+  url: string;
+  fileName: string;
+  fileSize: number;
+  contentType: string;
+}
+
+export async function uploadChatAttachment(
+  fileBuffer: Buffer,
+  originalFilename: string,
+  contentType: string,
+  workspaceId: string = 'default'
+): Promise<UploadAttachmentResult> {
+  await ensureStorageBucket();
+
+  const sanitizedName = (originalFilename || 'attachment').replace(/[^a-zA-Z0-9.-]/g, '_');
+  const ext = sanitizedName.split('.').pop() || 'png';
+  const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const filePath = `workspaces/${workspaceId}/${uniqueId}.${ext}`;
+
+  const { error } = await supabaseService.storage
+    .from(CHAT_ATTACHMENTS_BUCKET)
+    .upload(filePath, fileBuffer, {
+      contentType: contentType || 'application/octet-stream',
+      upsert: false,
+    });
+
+  if (error) {
+    throw new Error(`Failed to upload to Supabase Storage: ${error.message}`);
+  }
+
+  const { data: publicData } = supabaseService.storage
+    .from(CHAT_ATTACHMENTS_BUCKET)
+    .getPublicUrl(filePath);
+
+  return {
+    url: publicData.publicUrl,
+    fileName: originalFilename || sanitizedName,
+    fileSize: fileBuffer.length,
+    contentType: contentType || 'application/octet-stream',
+  };
+}
+

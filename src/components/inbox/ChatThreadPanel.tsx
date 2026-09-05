@@ -29,6 +29,10 @@ import {
   MoreHorizontal,
   X,
   Volume2,
+  Paperclip,
+  Image as ImageIcon,
+  FileText,
+  ExternalLink,
 } from 'lucide-react';
 import { ConversationStatusBadge } from './ConversationStatusBadge';
 import { HandoffButton } from './HandoffButton';
@@ -80,8 +84,14 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
   const [isMuted, setIsMuted] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
 
+  // Attachment states (Supabase Storage)
+  const [attachments, setAttachments] = useState<Array<{ url: string; fileName: string; contentType?: string }>>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [previewImageModal, setPreviewImageModal] = useState<string | null>(null);
+
   const messageContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto scroll to bottom strictly within the message container to avoid shifting parent layout
   useEffect(() => {
@@ -122,12 +132,57 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File size exceeds 10MB limit.');
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      const reader = new FileReader();
+      reader.onload = async (uploadEvt) => {
+        const base64 = uploadEvt.target?.result as string;
+        const res = await fetch(`/api/inbox/upload${conversation?.workspaceId ? `?workspaceId=${conversation.workspaceId}` : ''}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename: file.name,
+            contentType: file.type || 'application/octet-stream',
+            base64,
+          }),
+        });
+
+        if (!res.ok) {
+          throw new Error('Upload failed with status ' + res.status);
+        }
+
+        const data = await res.json();
+        setAttachments((prev) => [...prev, { url: data.url, fileName: data.fileName, contentType: data.contentType }]);
+        setIsUploading(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      console.error('File upload error:', err);
+      alert('Failed to upload file to Supabase Storage: ' + (err.message || 'Unknown error'));
+      setIsUploading(false);
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleSend = async () => {
-    if (!inputText.trim() || isSending) return;
+    const trimmed = inputText.trim();
+    if ((!trimmed && attachments.length === 0) || isSending || isUploading) return;
     try {
       setIsSending(true);
-      await onSendMessage(inputText.trim(), isInternalNote);
+      const attUrls = attachments.map((a) => a.url);
+      await onSendMessage(trimmed || (attachments.length ? 'Sent an attachment' : ''), isInternalNote, attUrls);
       setInputText('');
+      setAttachments([]);
       setIsEmojiOpen(false);
     } finally {
       setIsSending(false);
@@ -576,6 +631,45 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
                         : 'bg-white border border-[#E8E8E5] text-slate-900 rounded-tl-xs'
                     }`}
                   >
+                    {/* Attachments rendering */}
+                    {msg.attachments && (Array.isArray(msg.attachments) ? msg.attachments.length > 0 : Boolean(msg.attachments)) && (
+                      <div className="flex flex-col gap-2 pt-1 pb-1.5">
+                        {(Array.isArray(msg.attachments) ? msg.attachments : [msg.attachments]).map((att: any, attIdx: number) => {
+                          const url = typeof att === 'string' ? att : att?.url;
+                          const name = typeof att === 'string' ? 'Attachment' : (att?.fileName || att?.name || 'Attachment');
+                          const isImg = /\.(png|jpe?g|webp|gif)$/i.test(url) || att?.contentType?.startsWith('image/');
+
+                          if (isImg) {
+                            return (
+                              <div key={attIdx} className="overflow-hidden rounded-xl border border-black/10 max-w-[260px] shadow-2xs group relative">
+                                <img
+                                  src={url}
+                                  alt={name}
+                                  onClick={() => setPreviewImageModal(url)}
+                                  className="w-full h-auto object-cover max-h-[190px] cursor-pointer transition-transform group-hover:scale-105"
+                                  loading="lazy"
+                                />
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <a
+                              key={attIdx}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 p-2 rounded-lg bg-black/5 hover:bg-black/10 transition-colors text-xs font-semibold underline truncate"
+                            >
+                              <FileText className="w-4 h-4 shrink-0" />
+                              <span className="truncate">{name}</span>
+                              <ExternalLink className="w-3 h-3 ml-auto opacity-70" />
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     <p className="whitespace-pre-wrap">{msg.content}</p>
 
                     {/* AI Knowledge Source & Confidence Footer */}
@@ -665,6 +759,31 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
           </div>
         </div>
 
+        {/* Attachment Chips Bar */}
+        {(attachments.length > 0 || isUploading) && (
+          <div className="flex flex-wrap items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl">
+            {attachments.map((att, idx) => (
+              <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs shadow-2xs">
+                <ImageIcon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span className="truncate max-w-[160px] font-medium text-slate-700">{att.fileName}</span>
+                <button
+                  type="button"
+                  onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                  className="text-slate-400 hover:text-red-500 cursor-pointer ml-1"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+            {isUploading && (
+              <div className="flex items-center gap-1.5 text-xs text-blue-600 font-medium px-2 py-0.5">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Uploading to Supabase Storage...</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Text Input & Actions */}
         <div
           className={`relative rounded-2xl border transition-all ${
@@ -697,11 +816,28 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
               >
                 <Smile className="w-4 h-4" />
               </button>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,application/pdf"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-[#171717] hover:bg-white/80 transition-colors cursor-pointer disabled:opacity-50"
+                title="Attach screenshot or file"
+              >
+                <Paperclip className="w-4 h-4" />
+              </button>
             </div>
 
             <button
               onClick={handleSend}
-              disabled={!inputText.trim() || isSending}
+              disabled={(!inputText.trim() && attachments.length === 0) || isSending || isUploading}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                 isInternalNote
                   ? 'bg-amber-600 hover:bg-amber-700 text-white'
@@ -739,6 +875,28 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
           </div>
         )}
       </div>
+
+      {/* Fullscreen Lightbox Image Modal */}
+      {previewImageModal && (
+        <div
+          onClick={() => setPreviewImageModal(null)}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div className="relative max-w-4xl max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setPreviewImageModal(null)}
+              className="absolute -top-10 right-0 text-white hover:text-red-400 p-1.5 rounded-full bg-black/40 cursor-pointer"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img
+              src={previewImageModal}
+              alt="Enlarged screenshot"
+              className="max-w-full max-h-[85vh] rounded-2xl shadow-2xl object-contain"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

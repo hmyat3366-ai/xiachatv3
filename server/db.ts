@@ -31,6 +31,36 @@ function persistToDisk() {
   }
 }
 
+// Flag to prevent echo write-through during Supabase hydration
+export let isHydrating = false;
+export function setHydrating(val: boolean) {
+  isHydrating = val;
+}
+
+// Asynchronous write-through replication to Supabase PostgreSQL (Cloud Primary)
+async function replicateToPostgres(sql: string, params: any[]) {
+  if (!process.env.DATABASE_URL || isHydrating) return;
+  try {
+    const trimmed = sql.trim();
+    if (!/^(INSERT|UPDATE|DELETE)/i.test(trimmed)) return;
+
+    let idx = 1;
+    let pgSql = trimmed.replace(/\?/g, () => `$${idx++}`);
+
+    if (/insert\s+or\s+replace\s+into/i.test(pgSql)) {
+      pgSql = pgSql.replace(/insert\s+or\s+replace\s+into/i, 'INSERT INTO');
+    } else if (/insert\s+or\s+ignore\s+into/i.test(pgSql)) {
+      pgSql = pgSql.replace(/insert\s+or\s+ignore\s+into/i, 'INSERT INTO') + ' ON CONFLICT DO NOTHING';
+    }
+
+    const { pgPool } = await import('./supabase.js');
+    const pgParams = (params || []).map((p) => (p === undefined ? null : p));
+    await pgPool.query(pgSql, pgParams);
+  } catch {
+    // Non-blocking catch to ensure local speed and resilience
+  }
+}
+
 export const db = {
   prepare(sql: string) {
     return {
@@ -60,6 +90,7 @@ export const db = {
         const flatParams = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
         rawDb.run(sql, flatParams);
         persistToDisk();
+        replicateToPostgres(sql, flatParams);
         return { changes: 1, lastInsertRowid: 1 };
       },
     };

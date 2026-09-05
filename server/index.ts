@@ -51,6 +51,7 @@ import {
   updateCustomerDetails,
   generateAIDraft,
   sseEventsStream,
+  uploadAttachment,
 } from './inboxController.js';
 import {
   getAiAgents,
@@ -90,6 +91,7 @@ import {
   updateWebsiteChannelConfig,
   getPublicWidgetConfig,
   handlePublicWidgetMessage,
+  handlePublicWidgetUpload,
   getPublicWidgetConversation,
   identifyPublicWidgetVisitor,
   streamPublicWidgetEvents,
@@ -99,6 +101,9 @@ import {
   verifyWebhookChallenge,
   handleIncomingWebhook,
 } from './channelController.js';
+import { ensureStorageBucket, testSupabaseConnection } from './supabase.js';
+import { ensurePostgresSchema, hydrateFromSupabasePostgres } from './supabaseMigrations.js';
+
 import { getAnalyticsOverview, exportAnalyticsCSV } from './analyticsController.js';
 import {
   getTeamMembers,
@@ -184,7 +189,7 @@ app.use(
 // Stripe raw webhook handler MUST be mounted before express.json() for signature verification
 app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), handleStripeWebhook);
 
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
 app.use(cookieParser());
 
 // Rate limiters
@@ -254,6 +259,7 @@ app.patch('/api/inbox/conversations/:id/status', authenticateToken, updateStatus
 app.post('/api/inbox/conversations/:id/customer-details', authenticateToken, updateCustomerDetails);
 app.post('/api/inbox/conversations/:id/generate-ai-draft', authenticateToken, generateAIDraft);
 app.get('/api/inbox/events', authenticateToken, sseEventsStream);
+app.post('/api/inbox/upload', authenticateToken, uploadAttachment);
 
 // AI Agent Routes (Limit Gated)
 app.get('/api/ai-agents', authenticateToken, getAiAgents);
@@ -298,6 +304,7 @@ app.post('/api/channels/:id/disconnect', authenticateToken, disconnectChannel);
 // Public Browser-Safe Widget Config & Messaging APIs (CORS enabled)
 app.get('/api/channels/public-widget/:siteKey', getPublicWidgetConfig);
 app.post('/api/channels/public-widget/:siteKey/message', widgetLimiter, handlePublicWidgetMessage);
+app.post('/api/channels/public-widget/:siteKey/upload', widgetLimiter, handlePublicWidgetUpload);
 app.get('/api/channels/public-widget/:siteKey/conversation/:conversationId', getPublicWidgetConversation);
 app.post('/api/channels/public-widget/:siteKey/identify', identifyPublicWidgetVisitor);
 app.get('/api/channels/public-widget/:siteKey/conversation/:conversationId/events', streamPublicWidgetEvents);
@@ -360,6 +367,21 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'Xia Chat Auth API', timestamp: new Date().toISOString() });
 });
 
+// Cloud Database & Storage Diagnostic Health Check
+app.get('/api/system/cloud-status', async (req, res) => {
+  const conn = await testSupabaseConnection();
+  const bucketOk = await ensureStorageBucket();
+  res.json({
+    status: 'ok',
+    primaryDatabase: 'Supabase PostgreSQL',
+    supabaseConnected: conn.pgOk,
+    tablesCount: conn.tables,
+    storageBucket: 'chat-attachments',
+    storageBucketReady: bucketOk,
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Production: Serve frontend static assets from dist/
 // Supports both tsx runtime (server/index.ts -> __dirname = server/) and compiled JS (dist-server/index.js -> __dirname = dist-server/)
 const distPath = path.resolve(__dirname, '../dist');
@@ -391,4 +413,17 @@ app.use((req, res, next) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[Xia Chat Server] Running on http://0.0.0.0:${PORT}`);
+  
+  // Cloud Bootstrap: Ensure Supabase Storage bucket and sync Postgres schema/data
+  (async () => {
+    try {
+      await ensureStorageBucket();
+      if (process.env.DATABASE_URL) {
+        await ensurePostgresSchema();
+        await hydrateFromSupabasePostgres();
+      }
+    } catch (err: any) {
+      console.warn('[Cloud Bootstrap] Notice:', err.message);
+    }
+  })();
 });

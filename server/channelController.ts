@@ -5,7 +5,7 @@ import { AuthRequest } from './authMiddleware.js';
 import { getWorkspaceForUser } from './planLimitMiddleware.js';
 import { broadcastInboxEvent, inboxEventEmitter } from './inboxController.js';
 import { processInboundCustomerMessage } from './aiProviderService.js';
-import { syncCustomerToSupabase, syncConversationToSupabase, syncMessageToSupabase } from './supabase.js';
+import { syncCustomerToSupabase, syncConversationToSupabase, syncMessageToSupabase, uploadChatAttachment } from './supabase.js';
 
 // Auto-seed channels for workspace (Website Chat is connected by default, Social channels as not_connected)
 function ensureSeedChannels(workspaceId: string) {
@@ -487,20 +487,22 @@ export const handlePublicWidgetMessage = async (req: Request, res: Response) => 
     }
 
     // 3. Save Customer Message
+    const rawAttachments = req.body.attachments;
+    const attachments = Array.isArray(rawAttachments) ? rawAttachments : [];
     const customerMsgId = crypto.randomUUID();
     db.prepare(`
       INSERT INTO messages (id, conversation_id, sender_type, sender_name, content, is_internal_note, attachments, created_at)
-      VALUES (?, ?, 'customer', ?, ?, 0, NULL, ?)
-    `).run(customerMsgId, convId, customer.name, message.trim(), now);
+      VALUES (?, ?, 'customer', ?, ?, 0, ?, ?)
+    `).run(customerMsgId, convId, customer.name, (message || '').trim(), attachments.length ? JSON.stringify(attachments) : null, now);
 
     const customerMsgObj = {
       id: customerMsgId,
       conversationId: convId,
       senderType: 'customer',
       senderName: customer.name,
-      content: message.trim(),
+      content: (message || '').trim(),
       isInternalNote: false,
-      attachments: [],
+      attachments,
       createdAt: now,
     };
 
@@ -1131,4 +1133,48 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
     return res.status(500).json({ error: 'Webhook processing failed.' });
   }
 };
+
+// ============================================================
+// Public Widget Attachment Upload Handler (Supabase Storage)
+// ============================================================
+export async function handlePublicWidgetUpload(req: Request, res: Response) {
+  try {
+    const { siteKey } = req.params;
+    const { filename, contentType, base64 } = req.body;
+
+    if (!base64 || typeof base64 !== 'string') {
+      return res.status(400).json({ error: 'Base64 file data is required.' });
+    }
+
+    let workspaceId = 'default';
+    if (siteKey && siteKey !== 'auto-detect') {
+      const channel = db.prepare('SELECT workspace_id FROM channels WHERE widget_site_key = ? OR id = ?').get(siteKey, siteKey) as any;
+      if (channel && channel.workspace_id) {
+        workspaceId = channel.workspace_id;
+      }
+    } else {
+      const firstWs = db.prepare('SELECT id FROM workspaces ORDER BY created_at ASC LIMIT 1').get() as any;
+      if (firstWs) workspaceId = firstWs.id;
+    }
+
+    const cleanBase64 = base64.includes(';base64,') ? base64.split(';base64,').pop()! : base64;
+    const fileBuffer = Buffer.from(cleanBase64, 'base64');
+
+    if (fileBuffer.length > 10 * 1024 * 1024) {
+      return res.status(400).json({ error: 'File size exceeds 10MB limit.' });
+    }
+
+    const result = await uploadChatAttachment(
+      fileBuffer,
+      filename || 'chat-upload.png',
+      contentType || 'image/png',
+      workspaceId
+    );
+
+    return res.status(200).json(result);
+  } catch (err: any) {
+    console.error('[Widget Upload] Error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to upload attachment.' });
+  }
+}
 
