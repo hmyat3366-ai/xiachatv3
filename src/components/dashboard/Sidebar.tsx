@@ -105,10 +105,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const sidebarContent = (
-    <div className="h-full flex flex-col justify-between bg-white border-r border-[#E8E8E5] w-64 shrink-0 min-h-0 overflow-hidden">
+    <div className="h-full w-full flex flex-col justify-between bg-white overflow-hidden select-none">
       {/* Brand Header & Primary Nav List */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="p-4 border-b border-[#E8E8E5] flex items-center justify-between shrink-0">
+        <div className="p-4 border-b border-[#E8E8E5] flex items-center justify-between shrink-0 h-16">
           <Logo
             variant="full"
             size="md"
@@ -135,7 +135,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => handleNavClick(item.path)}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-medium text-xs transition-all duration-150 cursor-pointer ${
                   isActive
-                    ? 'bg-[#FFF0E5] text-[#FF8A2A] font-bold'
+                    ? 'bg-[#FFF0E5] text-[#FF8A2A] font-bold shadow-xs'
                     : 'text-[#6B6B6B] hover:bg-[#F7F7F5] hover:text-[#171717]'
                 }`}
               >
@@ -163,7 +163,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => handleNavClick(item.path)}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-medium text-xs transition-all duration-150 cursor-pointer ${
                   isActive
-                    ? 'bg-[#FFF0E5] text-[#FF8A2A] font-bold'
+                    ? 'bg-[#FFF0E5] text-[#FF8A2A] font-bold shadow-xs'
                     : 'text-[#6B6B6B] hover:bg-[#F7F7F5] hover:text-[#171717]'
                 }`}
               >
@@ -191,7 +191,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => handleNavClick(item.path)}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-medium text-xs transition-all duration-150 cursor-pointer ${
                   isActive
-                    ? 'bg-[#FFF0E5] text-[#FF8A2A] font-bold'
+                    ? 'bg-[#FFF0E5] text-[#FF8A2A] font-bold shadow-xs'
                     : 'text-[#6B6B6B] hover:bg-[#F7F7F5] hover:text-[#171717]'
                 }`}
               >
@@ -206,18 +206,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Bottom Area: Workspace Switcher & User Profile */}
-      <div className="p-3 border-t border-[#E8E8E5] space-y-2 bg-[#FAF9F6] shrink-0">
+      <div className="mt-auto p-3 border-t border-[#E8E8E5] space-y-2 bg-[#FAF9F6] shrink-0">
         {/* Workspace Switcher */}
         <button
           onClick={onOpenWorkspaceModal}
-          className="w-full flex items-center justify-between p-2 rounded-xl bg-white border border-[#E8E8E5] hover:border-gray-300 text-left transition-colors cursor-pointer"
+          className="w-full flex items-center justify-between p-2 rounded-xl bg-white border border-[#E8E8E5] hover:border-gray-300 text-left transition-colors cursor-pointer group shadow-xs"
         >
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-7 h-7 rounded-lg bg-[#FF8A2A] text-white font-bold text-xs flex items-center justify-center shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-[#FF8A2A] text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
               {currentWorkspace ? currentWorkspace.name.charAt(0).toUpperCase() : 'W'}
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-bold text-[#171717] truncate">
+              <p className="text-xs font-bold text-[#171717] truncate group-hover:text-[#FF8A2A] transition-colors">
                 {currentWorkspace?.name || 'My Workspace'}
               </p>
               <p className="text-[10px] text-[#6B6B6B] truncate font-mono">
@@ -225,17 +225,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </p>
             </div>
           </div>
-          <ChevronsUpDown className="w-4 h-4 text-gray-400 shrink-0" />
+          <ChevronsUpDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 shrink-0" />
         </button>
 
         {/* User Profile & Logout */}
-        <div className="flex items-center justify-between p-2 bg-white rounded-xl border border-[#E8E8E5]">
+        <div className="flex items-center justify-between p-2 bg-white rounded-xl border border-[#E8E8E5] shadow-xs">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-full bg-[#171717] text-white text-xs font-bold flex items-center justify-center shrink-0">
               {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-bold text-[#171717] truncate">{user?.name}</p>
+              <p className="text-xs font-bold text-[#171717] truncate">{user?.name || 'User'}</p>
               <p className="text-[10px] text-[#6B6B6B] truncate">{user?.email}</p>
             </div>
           </div>
@@ -253,14 +253,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Desktop Persistent Sidebar */}
-      <aside className="hidden md:block h-full shrink-0 z-30">{sidebarContent}</aside>
+      {/* Desktop Persistent Sticky Sidebar */}
+      <aside className="hidden md:flex md:flex-col w-64 shrink-0 h-screen sticky top-0 z-30 bg-white border-r border-[#E8E8E5]">
+        {sidebarContent}
+      </aside>
 
       {/* Mobile Drawer Overlay */}
       {isMobileOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-xs" onClick={onCloseMobile} />
-          <div className="relative z-10">{sidebarContent}</div>
+          <div className="relative z-10 w-64 h-full bg-white flex flex-col shadow-2xl">
+            {sidebarContent}
+          </div>
         </div>
       )}
     </>

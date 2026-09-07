@@ -365,24 +365,24 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
   const selectedConversation = conversations.find((c) => c.id === selectedId) || null;
 
   return (
-    <div className="w-screen h-screen flex flex-col overflow-hidden bg-white select-none">
-      {/* Universal Sticky Top Header */}
-      <TopHeader
-        onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+    <div className="w-screen h-screen flex flex-col md:flex-row overflow-hidden bg-white select-none">
+      {/* Left Navigation Sidebar */}
+      <Sidebar
+        currentPath={currentPath}
+        onNavigate={onNavigate}
         currentWorkspace={currentWorkspace}
         onOpenWorkspaceModal={() => setIsWorkspaceModalOpen(true)}
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
 
       {/* Main Workspace Body */}
-      <div className="flex-1 flex overflow-hidden min-h-0 relative">
-        {/* Left Navigation Sidebar */}
-        <Sidebar
-          currentPath={currentPath}
-          onNavigate={onNavigate}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0 min-h-0 relative">
+        {/* Universal Sticky Top Header */}
+        <TopHeader
+          onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
           currentWorkspace={currentWorkspace}
           onOpenWorkspaceModal={() => setIsWorkspaceModalOpen(true)}
-          isMobileOpen={isMobileSidebarOpen}
-          onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
 
         {/* 3-Panel Desktop Layout / Mobile Responsive Switcher */}
