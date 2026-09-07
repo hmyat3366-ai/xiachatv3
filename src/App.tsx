@@ -72,7 +72,8 @@ function MainApp() {
 
   // Lead / Demo Modal State
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
-  const [leadModalMode, setLeadModalMode] = useState<'start_free' | 'book_demo'>('start_free');
+  const [leadModalMode, setLeadModalMode] = useState<'start_free' | 'book_demo' | 'inquire'>('inquire');
+  const [leadModalPlan, setLeadModalPlan] = useState<string>('growth');
 
   const navigate = (path: string) => {
     window.history.pushState({}, '', path);
@@ -127,19 +128,14 @@ function MainApp() {
     navigate(`/${mode === 'forgot_password' ? 'forgot-password' : mode === 'reset_password' ? 'reset-password' : mode === 'set_password' ? 'set-password' : mode}`);
   };
 
-  const openStartFreeModal = () => {
-    if (!isAuthenticated) {
-      openAuthPage('signup');
-    } else {
-      if (user && !user.onboardingCompleted) {
-        navigate('/onboarding');
-      } else {
-        navigate('/dashboard');
-      }
-    }
+  const openStartFreeModal = (planId = 'growth') => {
+    setLeadModalPlan(planId);
+    setLeadModalMode('inquire');
+    setIsLeadModalOpen(true);
   };
 
-  const openBookDemoModal = () => {
+  const openBookDemoModal = (planId = 'enterprise') => {
+    setLeadModalPlan(planId);
     setLeadModalMode('book_demo');
     setIsLeadModalOpen(true);
   };
@@ -340,6 +336,7 @@ function MainApp() {
         isOpen={isLeadModalOpen}
         onClose={() => setIsLeadModalOpen(false)}
         initialMode={leadModalMode}
+        initialPlan={leadModalPlan}
       />
 
       {/* Floating Usability Feedback Widget */}

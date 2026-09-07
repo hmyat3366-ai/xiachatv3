@@ -149,6 +149,7 @@ import {
   cancelSubscription,
   resumeSubscription,
   handleStripeWebhook,
+  submitPlanInquiry,
 } from './billingController.js';
 import {
   checkAiAgentLimit,
@@ -351,6 +352,7 @@ app.post('/api/billing/change-plan', authenticateToken, changePlan);
 app.post('/api/billing/customer-portal', authenticateToken, createCustomerPortalSession);
 app.post('/api/billing/cancel', authenticateToken, cancelSubscription);
 app.post('/api/billing/resume', authenticateToken, resumeSubscription);
+app.post('/api/billing/inquiry', submitPlanInquiry);
 
 // Workspace Administration Settings Routes
 app.get('/api/settings/workspace', authenticateToken, getWorkspaceSettings);

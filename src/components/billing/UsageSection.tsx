@@ -14,7 +14,8 @@ import {
 interface UsageSectionProps {
   usage: UsageMetrics;
   limits: PlanLimits;
-  onScrollToPlans: () => void;
+  onScrollToPlans?: () => void;
+  onOpenInquiry?: () => void;
   canManageBilling: boolean;
 }
 
@@ -22,6 +23,7 @@ export const UsageSection: React.FC<UsageSectionProps> = ({
   usage,
   limits,
   onScrollToPlans,
+  onOpenInquiry,
   canManageBilling,
 }) => {
   const usageItems = [
@@ -102,10 +104,10 @@ export const UsageSection: React.FC<UsageSectionProps> = ({
           </div>
           {canManageBilling && (
             <button
-              onClick={onScrollToPlans}
+              onClick={() => (onOpenInquiry ? onOpenInquiry() : onScrollToPlans?.())}
               className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1"
             >
-              <span>Upgrade Plan</span>
+              <span>Inquire Upgrade</span>
               <ArrowUpRight className="w-3.5 h-3.5" />
             </button>
           )}
@@ -122,16 +124,16 @@ export const UsageSection: React.FC<UsageSectionProps> = ({
                 {exceededResource.label} Limit Reached
               </p>
               <p className="text-xs text-rose-800 mt-0.5">
-                You've reached your plan limit ({exceededResource.current.toLocaleString()} / {exceededResource.max.toLocaleString()} {exceededResource.unit}). Upgrade your plan to continue creating additional resources.
+                You've reached your plan limit ({exceededResource.current.toLocaleString()} / {exceededResource.max.toLocaleString()} {exceededResource.unit}). Contact our sales team to expand your capacity immediately.
               </p>
             </div>
           </div>
           {canManageBilling && (
             <button
-              onClick={onScrollToPlans}
+              onClick={() => (onOpenInquiry ? onOpenInquiry() : onScrollToPlans?.())}
               className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1"
             >
-              <span>Upgrade Plan</span>
+              <span>Contact to Expand Limit</span>
               <ArrowUpRight className="w-3.5 h-3.5" />
             </button>
           )}

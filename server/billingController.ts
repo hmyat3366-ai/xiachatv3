@@ -562,3 +562,52 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
     return res.status(500).send('Webhook Processing Failure');
   }
 };
+
+// POST /api/billing/inquiry (Public or Authenticated)
+export const submitPlanInquiry = async (req: Request, res: Response) => {
+  try {
+    const { name, email, phone, company, planId, message, workspaceId } = req.body;
+
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      return res.status(400).json({ error: 'A valid email address is required.' });
+    }
+
+    const now = new Date().toISOString();
+    const inquiryId = crypto.randomUUID();
+
+    // Persist inquiry record in webhook_events for audit log and CRM export
+    try {
+      db.prepare(`
+        INSERT INTO webhook_events (id, event_type, processed_at, payload)
+        VALUES (?, 'plan_inquiry', ?, ?)
+      `).run(
+        inquiryId,
+        now,
+        JSON.stringify({
+          name: name || 'Anonymous',
+          email: email.trim().toLowerCase(),
+          phone: phone || null,
+          company: company || null,
+          planId: planId || 'general',
+          message: message || null,
+          workspaceId: workspaceId || null,
+          submittedAt: now,
+        })
+      );
+    } catch (dbErr) {
+      console.warn('[Billing Inquiry] Could not insert to webhook_events:', dbErr);
+    }
+
+    console.log(`[Billing Inquiry] New inquiry from ${name || 'User'} (${email}) for plan "${planId || 'custom'}".`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Inquiry received successfully! Our team will contact you shortly.',
+      inquiryId,
+    });
+  } catch (err: any) {
+    console.error('Error handling plan inquiry:', err);
+    return res.status(500).json({ error: 'Failed to submit inquiry.' });
+  }
+};
+

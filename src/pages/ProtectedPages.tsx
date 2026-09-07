@@ -811,17 +811,16 @@ export const TeamPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onN
 };
 
 import type { BillingOverview, BillingInterval, DowngradeConflict } from '../types/billing';
+import { useAuth } from '../context/AuthContext';
 import { CurrentPlanCard } from '../components/billing/CurrentPlanCard';
 import { UsageSection } from '../components/billing/UsageSection';
-import { PlanComparisonSection } from '../components/billing/PlanComparisonSection';
-import { PaymentMethodSection } from '../components/billing/PaymentMethodSection';
+import { PlanInquiryModal } from '../components/billing/PlanInquiryModal';
 import { InvoiceHistoryTable } from '../components/billing/InvoiceHistoryTable';
-import { CancelModal } from '../components/billing/CancelModal';
-import { DowngradeModal } from '../components/billing/DowngradeModal';
-import { CheckCircle2, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, ShieldAlert, Sparkles, ArrowRight, Zap, Building, Check } from 'lucide-react';
 
 // 5. Billing Page
 export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => {
+  const { user } = useAuth();
   const [workspaces, setWorkspaces] = React.useState<WorkspaceItem[]>([]);
   const [currentWorkspace, setCurrentWorkspace] = React.useState<WorkspaceItem | null>(null);
 
@@ -830,15 +829,14 @@ export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ 
   const [error, setError] = React.useState<string | null>(null);
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
 
-  // Modal & Loading States
-  const [isLoadingPlanId, setIsLoadingPlanId] = React.useState<string | null>(null);
-  const [isActionLoading, setIsActionLoading] = React.useState(false);
-  const [isCancelModalOpen, setIsCancelModalOpen] = React.useState(false);
-  const [isDowngradeModalOpen, setIsDowngradeModalOpen] = React.useState(false);
-  const [targetDowngradePlan, setTargetDowngradePlan] = React.useState<{ id: string; name: string; interval: BillingInterval } | null>(null);
-  const [downgradeConflicts, setDowngradeConflicts] = React.useState<DowngradeConflict[]>([]);
+  // Inquiry Modal State
+  const [isInquiryModalOpen, setIsInquiryModalOpen] = React.useState(false);
+  const [selectedInquiryPlan, setSelectedInquiryPlan] = React.useState('growth');
 
-  const plansSectionRef = React.useRef<HTMLDivElement>(null);
+  const handleOpenInquiry = (planId = 'growth') => {
+    setSelectedInquiryPlan(planId);
+    setIsInquiryModalOpen(true);
+  };
 
   const fetchBillingOverview = React.useCallback(async (wsId?: string | null) => {
     try {
@@ -883,157 +881,6 @@ export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ 
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [fetchBillingOverview, billingWsId]);
-
-  const handleScrollToPlans = () => {
-    if (plansSectionRef.current) {
-      plansSectionRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
-  const handleOpenPortal = async () => {
-    try {
-      setIsActionLoading(true);
-      setError(null);
-      let portalUrl = '/api/billing/customer-portal';
-      if (billingWsId) portalUrl += `?workspaceId=${billingWsId}`;
-
-      const res = await apiFetch(portalUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to generate billing portal link.');
-
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    } catch (err: any) {
-      setError(err.message || 'Customer portal unavailable.');
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
-
-  const handleSelectPlan = async (planId: string, interval: BillingInterval) => {
-    if (!overview) return;
-    setIsLoadingPlanId(planId);
-    setError(null);
-    try {
-      let checkoutUrl = '/api/billing/checkout-session';
-      if (billingWsId) checkoutUrl += `?workspaceId=${billingWsId}`;
-
-      const res = await apiFetch(checkoutUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId, interval }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        // Check for downgrade conflicts
-        if (res.status === 409 && data.conflicts) {
-          setDowngradeConflicts(data.conflicts);
-          setTargetDowngradePlan({
-            id: planId,
-            name: data.planName || planId.toUpperCase(),
-            interval,
-          });
-          setIsDowngradeModalOpen(true);
-          return;
-        }
-        throw new Error(data.error || 'Failed to initialize subscription checkout.');
-      }
-
-      if (data.mock) {
-        setSuccessMessage(`Plan updated to ${planId.toUpperCase()} (${interval}).`);
-        await fetchBillingOverview(billingWsId);
-      } else if (data.url) {
-        window.location.href = data.url;
-      }
-    } catch (err: any) {
-      setError(err.message || 'Subscription change failed. Please try again.');
-    } finally {
-      setIsLoadingPlanId(null);
-    }
-  };
-
-  const handleConfirmDowngrade = async () => {
-    if (!targetDowngradePlan) return;
-    setIsActionLoading(true);
-    setError(null);
-    try {
-      let changePlanUrl = '/api/billing/change-plan';
-      if (billingWsId) changePlanUrl += `?workspaceId=${billingWsId}`;
-
-      const res = await apiFetch(changePlanUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          planId: targetDowngradePlan.id,
-          interval: targetDowngradePlan.interval,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to downgrade plan.');
-
-      setSuccessMessage(`Plan successfully changed to ${targetDowngradePlan.name}.`);
-      setIsDowngradeModalOpen(false);
-      setTargetDowngradePlan(null);
-      await fetchBillingOverview(billingWsId);
-    } catch (err: any) {
-      setError(err.message || 'Downgrade failed.');
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
-
-  const handleConfirmCancel = async (reason?: string) => {
-    setIsActionLoading(true);
-    setError(null);
-    try {
-      let cancelUrl = '/api/billing/cancel';
-      if (billingWsId) cancelUrl += `?workspaceId=${billingWsId}`;
-
-      const res = await apiFetch(cancelUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to cancel subscription.');
-
-      setSuccessMessage('Subscription set to cancel at end of current period.');
-      setIsCancelModalOpen(false);
-      await fetchBillingOverview(billingWsId);
-    } catch (err: any) {
-      setError(err.message || 'Subscription cancellation failed.');
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
-
-  const handleResumeSubscription = async () => {
-    setIsActionLoading(true);
-    setError(null);
-    try {
-      let resumeUrl = '/api/billing/resume';
-      if (billingWsId) resumeUrl += `?workspaceId=${billingWsId}`;
-
-      const res = await apiFetch(resumeUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to resume subscription.');
-
-      setSuccessMessage('Subscription reinstated successfully.');
-      await fetchBillingOverview(billingWsId);
-    } catch (err: any) {
-      setError(err.message || 'Failed to resume subscription.');
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
 
   return (
     <DashboardLayout
@@ -1117,72 +964,155 @@ export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ 
             {/* 1. Top Current Plan Summary */}
             <CurrentPlanCard
               overview={overview}
-              onOpenPortal={handleOpenPortal}
-              onScrollToPlans={handleScrollToPlans}
-              onResumeSubscription={handleResumeSubscription}
-              isActionLoading={isActionLoading}
+              onOpenInquiry={handleOpenInquiry}
             />
 
             {/* 2. Usage & Capacity Metrics */}
             <UsageSection
               usage={overview.usage}
               limits={overview.limits}
-              onScrollToPlans={handleScrollToPlans}
+              onOpenInquiry={() => handleOpenInquiry('growth')}
               canManageBilling={overview.workspace.canManageBilling}
             />
 
-            {/* 3. Pricing Cards & Capacity Comparison Table */}
-            <PlanComparisonSection
-              overview={overview}
-              onSelectPlan={handleSelectPlan}
-              isLoadingPlanId={isLoadingPlanId}
-              sectionRef={plansSectionRef}
-            />
+            {/* 3. Explore Upgrade & Custom Inquiries Showcase */}
+            <div className="bg-white rounded-[32px] border border-[#E8E8E5] p-6 sm:p-8 space-y-6 shadow-2xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[#E8E8E5]">
+                <div>
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FFF0E5] text-[#D96512] text-xs font-black mb-2 border border-[#FF8A2A]/30">
+                    <Sparkles className="w-3.5 h-3.5 fill-[#FF8A2A]" />
+                    <span>Plan Options & Upgrades • အစီအစဉ်များ စုံစမ်းရန်</span>
+                  </div>
+                  <h3 className="text-2xl font-black text-[#171717] tracking-tight">
+                    Looking to Upgrade or Expand Limits?
+                  </h3>
+                  <p className="text-xs sm:text-sm text-[#6B6B6B] mt-1 font-medium leading-relaxed">
+                    သင့်လုပ်ငန်းလိုအပ်ချက်အရ စကားပြောပမာဏ (Conversation Volume)၊ Agent နေရာများ သို့မဟုတ် Multi-channel များ ထပ်မံတိုးမြှင့်လိုပါက စုံစမ်းမေးမြန်းနိုင်ပါသည်။
+                  </p>
+                </div>
+              </div>
 
-            {/* 4. Payment Method Card */}
-            <PaymentMethodSection
-              paymentMethod={overview.subscription.paymentMethod}
-              onOpenPortal={handleOpenPortal}
-              canManageBilling={overview.workspace.canManageBilling}
-              isActionLoading={isActionLoading}
-            />
-
-            {/* 5. Historical Invoices & Receipts */}
-            <InvoiceHistoryTable invoices={overview.invoices} />
-
-            {/* 6. Cancel Subscription Secondary Action */}
-            {overview.workspace.canManageBilling &&
-              overview.subscription.planId !== 'free' &&
-              !overview.subscription.cancelAtPeriodEnd && (
-                <div className="pt-4 flex justify-end">
+              {/* 3 Inquiry Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                {/* Starter */}
+                <div className="p-6 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] flex flex-col justify-between hover:border-gray-300 transition-all">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black uppercase tracking-wider text-[#171717]">Starter Tier</span>
+                      <Zap className="w-4 h-4 text-[#FF8A2A]" />
+                    </div>
+                    <p className="text-xs text-[#6B6B6B] font-medium leading-relaxed">
+                      For small stores and individual brands starting customer chat automation.
+                    </p>
+                    <ul className="space-y-2 text-xs font-semibold text-[#171717] pt-2 border-t border-[#E8E8E5]">
+                      <li className="flex items-center gap-2">
+                        <Check className="w-3.5 h-3.5 text-[#FF8A2A]" /> 1,000 AI Conversations / mo
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="w-3.5 h-3.5 text-[#FF8A2A]" /> 2 Human Agent Seats
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="w-3.5 h-3.5 text-[#FF8A2A]" /> Website Chat Widget
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="w-3.5 h-3.5 text-[#FF8A2A]" /> Standard Knowledge Base
+                      </li>
+                    </ul>
+                  </div>
                   <button
-                    onClick={() => setIsCancelModalOpen(true)}
-                    className="text-xs text-gray-500 hover:text-rose-600 font-bold transition-colors cursor-pointer"
+                    type="button"
+                    onClick={() => handleOpenInquiry('starter')}
+                    className="mt-6 w-full py-2.5 rounded-xl bg-white border border-[#E8E8E5] hover:border-[#FF8A2A] text-[#171717] hover:text-[#FF8A2A] text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
                   >
-                    Cancel subscription
+                    <span>Inquire Starter • စုံစမ်းရန်</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
-              )}
 
-            {/* Modals */}
-            <CancelModal
-              isOpen={isCancelModalOpen}
-              onClose={() => setIsCancelModalOpen(false)}
-              onConfirmCancel={handleConfirmCancel}
-              isCanceling={isActionLoading}
-              effectiveDate={overview.subscription.currentPeriodEnd}
-            />
+                {/* Growth */}
+                <div className="p-6 rounded-2xl bg-gradient-to-b from-[#FFFDFB] to-white border-2 border-[#FF8A2A]/40 shadow-sm flex flex-col justify-between relative">
+                  <span className="absolute -top-2.5 right-4 bg-[#FF8A2A] text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-2xs">
+                    Recommended • လူကြိုက်အများဆုံး
+                  </span>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black uppercase tracking-wider text-[#D96512]">Growth Tier</span>
+                      <Sparkles className="w-4 h-4 text-[#FF8A2A] fill-current" />
+                    </div>
+                    <p className="text-xs text-[#6B6B6B] font-medium leading-relaxed">
+                      Multi-channel AI + Human customer service hub for busy businesses.
+                    </p>
+                    <ul className="space-y-2 text-xs font-semibold text-[#171717] pt-2 border-t border-[#E8E8E5]">
+                      <li className="flex items-center gap-2">
+                        <Check className="w-3.5 h-3.5 text-[#FF8A2A]" /> 5,000 AI Conversations / mo
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="w-3.5 h-3.5 text-[#FF8A2A]" /> 5 Human Agent Seats
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="w-3.5 h-3.5 text-[#FF8A2A]" /> WhatsApp + Web + Messenger
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="w-3.5 h-3.5 text-[#FF8A2A]" /> Smart Human Handoff Triage
+                      </li>
+                    </ul>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenInquiry('growth')}
+                    className="mt-6 w-full py-2.5 rounded-xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <span>Inquire Growth • အခုပဲ စုံစမ်းမည်</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
 
-            <DowngradeModal
-              isOpen={isDowngradeModalOpen}
-              onClose={() => {
-                setIsDowngradeModalOpen(false);
-                setTargetDowngradePlan(null);
-              }}
-              onConfirmDowngrade={handleConfirmDowngrade}
-              targetPlanName={targetDowngradePlan?.name || 'Target'}
-              conflicts={downgradeConflicts}
-              isDowngrading={isActionLoading}
+                {/* Enterprise */}
+                <div className="p-6 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] flex flex-col justify-between hover:border-gray-300 transition-all">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black uppercase tracking-wider text-[#171717]">Custom Enterprise</span>
+                      <Building className="w-4 h-4 text-[#FF8A2A]" />
+                    </div>
+                    <p className="text-xs text-[#6B6B6B] font-medium leading-relaxed">
+                      High volume limits, custom model prompts, dedicated success manager.
+                    </p>
+                    <ul className="space-y-2 text-xs font-semibold text-[#171717] pt-2 border-t border-[#E8E8E5]">
+                      <li className="flex items-center gap-2">
+                        <Check className="w-3.5 h-3.5 text-[#FF8A2A]" /> 25,000+ Custom Conversations
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="w-3.5 h-3.5 text-[#FF8A2A]" /> Unlimited Agent Seats
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="w-3.5 h-3.5 text-[#FF8A2A]" /> Custom Webhooks & ERP Sync
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="w-3.5 h-3.5 text-[#FF8A2A]" /> 99.9% Dedicated SLA
+                      </li>
+                    </ul>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenInquiry('enterprise')}
+                    className="mt-6 w-full py-2.5 rounded-xl bg-[#171717] hover:bg-black text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <span>Talk to Sales • ဆွေးနွေးရန်</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Plan Inquiry Modal */}
+            <PlanInquiryModal
+              isOpen={isInquiryModalOpen}
+              onClose={() => setIsInquiryModalOpen(false)}
+              defaultPlanId={selectedInquiryPlan}
+              workspaceName={currentWorkspace?.name || overview.workspace.name}
+              workspaceId={billingWsId || overview.workspace.id}
+              userEmail={user?.email || ''}
+              userName={user?.name || ''}
             />
           </>
         ) : (
