@@ -50,15 +50,16 @@ export const ResolveButton: React.FC<ResolveButtonProps> = ({
         type="button"
         onClick={handleReopen}
         disabled={disabled || isLoading}
-        className={`px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer border border-slate-300 shadow-xs flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+        className={`min-h-[38px] min-w-[38px] sm:min-h-[36px] px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer border border-slate-300 shadow-xs flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 ${className}`}
         title="Reopen this resolved conversation"
+        aria-label="Reopen this resolved conversation"
       >
         {isLoading ? (
-          <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-600" />
+          <Loader2 className="w-4 h-4 sm:w-3.5 sm:h-3.5 animate-spin text-slate-600" />
         ) : (
-          <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
+          <RotateCcw className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-slate-600" />
         )}
-        <span>Reopen</span>
+        <span className="hidden sm:inline">Reopen</span>
       </button>
     );
   }
@@ -69,11 +70,12 @@ export const ResolveButton: React.FC<ResolveButtonProps> = ({
         type="button"
         onClick={() => setIsModalOpen(true)}
         disabled={disabled || isLoading}
-        className={`px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 text-emerald-700 border border-emerald-200 text-xs font-bold transition-all cursor-pointer shadow-xs flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+        className={`min-h-[38px] min-w-[38px] sm:min-h-[36px] px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 text-emerald-700 border border-emerald-200 text-xs font-bold transition-all cursor-pointer shadow-xs flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 ${className}`}
         title="Resolve this conversation"
+        aria-label="Resolve this conversation"
       >
-        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-        <span>Resolve</span>
+        <CheckCircle2 className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-emerald-600" />
+        <span className="hidden sm:inline">Resolve</span>
       </button>
 
       {/* Confirmation Modal */}

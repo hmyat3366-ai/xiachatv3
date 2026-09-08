@@ -41,15 +41,16 @@ export const HandoffButton: React.FC<HandoffButtonProps> = ({
         type="button"
         onClick={handleClick}
         disabled={disabled || isLoading}
-        className={`px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-[#171717] hover:bg-black active:bg-gray-800 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed group ${className}`}
+        className={`min-h-[38px] min-w-[38px] sm:min-h-[36px] px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-[#171717] hover:bg-black active:bg-gray-800 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed group shrink-0 ${className}`}
         title="Take over this conversation from AI"
+        aria-label="Take over this conversation from AI"
       >
         {isLoading ? (
-          <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+          <Loader2 className="w-4 h-4 sm:w-3.5 sm:h-3.5 animate-spin text-white" />
         ) : (
-          <UserCheck className="w-3.5 h-3.5 text-[#FF8A3D] transition-transform group-hover:scale-110" />
+          <UserCheck className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[#FF8A3D] transition-transform group-hover:scale-110" />
         )}
-        <span>Take Over</span>
+        <span className="hidden sm:inline">Take Over</span>
       </button>
     );
   }
@@ -59,15 +60,16 @@ export const HandoffButton: React.FC<HandoffButtonProps> = ({
       type="button"
       onClick={handleClick}
       disabled={disabled || isLoading}
-      className={`px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-700 border border-purple-200 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+      className={`min-h-[38px] min-w-[38px] sm:min-h-[36px] px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-700 border border-purple-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed shrink-0 ${className}`}
       title="Return conversation to Xia AI autonomous handling"
+      aria-label="Return conversation to Xia AI autonomous handling"
     >
       {isLoading ? (
-        <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-600" />
+        <Loader2 className="w-4 h-4 sm:w-3.5 sm:h-3.5 animate-spin text-purple-600" />
       ) : (
-        <RotateCcw className="w-3.5 h-3.5 text-purple-600" />
+        <RotateCcw className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-purple-600" />
       )}
-      <span>Return to AI</span>
+      <span className="hidden sm:inline">Return to AI</span>
     </button>
   );
 };

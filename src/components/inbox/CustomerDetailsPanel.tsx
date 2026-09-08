@@ -101,15 +101,18 @@ export const CustomerDetailsPanel: React.FC<CustomerDetailsPanelProps> = ({
 
         {onClose && (
           <button
+            type="button"
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 lg:hidden cursor-pointer"
+            className="min-h-[36px] min-w-[36px] p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 lg:hidden cursor-pointer flex items-center justify-center transition-colors"
+            title="Close details"
+            aria-label="Close details"
           >
             <X className="w-4 h-4" />
           </button>
         )}
       </div>
 
-      <div className="p-4 space-y-4 flex-1 overflow-y-auto min-h-0">
+      <div className="p-4 space-y-4 flex-1 overflow-y-auto min-h-0 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         {/* ─────────────────────────────────────────────────────────────
             2. CUSTOMER INFO CARD (Section: Customer Info)
            ───────────────────────────────────────────────────────────── */}

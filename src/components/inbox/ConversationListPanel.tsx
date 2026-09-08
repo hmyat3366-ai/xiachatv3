@@ -171,13 +171,14 @@ export const ConversationListPanel: React.FC<ConversationListPanelProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
             {onOpenLiveVisitors && (
               <button
                 type="button"
                 onClick={onOpenLiveVisitors}
-                className="px-2 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-2xs"
+                className="min-h-[38px] px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 text-emerald-800 border border-emerald-200 shadow-2xs shrink-0"
                 title="View active live website visitors"
+                aria-label="View active live website visitors"
               >
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                 <span className="hidden sm:inline">Visitors</span>
@@ -190,13 +191,15 @@ export const ConversationListPanel: React.FC<ConversationListPanelProps> = ({
             )}
 
             <button
+              type="button"
               onClick={() => setIsFilterModalOpen(!isFilterModalOpen)}
-              className={`p-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+              className={`min-h-[38px] px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border shrink-0 ${
                 activeFilterCount > 0
                   ? 'bg-[#FFF0E5] border-[#FF8A2A] text-[#D96512] ring-2 ring-[#FF8A2A]/20'
-                  : 'bg-white border-[#E8E8E5] text-[#6B6B6B] hover:text-[#171717]'
+                  : 'bg-white border-[#E8E8E5] text-[#6B6B6B] hover:text-[#171717] active:bg-slate-50'
               }`}
               title="Filter conversations"
+              aria-label="Filter conversations"
             >
               <SlidersHorizontal className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Filter</span>
