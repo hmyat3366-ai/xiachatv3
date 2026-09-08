@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { WebsiteWidgetConfig } from '../../types/channel';
+import { useWorkspace } from '../../context/WorkspaceContext';
+import { apiFetch } from '../../utils/api';
 import {
   ArrowLeft,
   Globe,
@@ -18,6 +20,11 @@ import {
   Monitor,
   Plus,
   Trash2,
+  Upload,
+  FileText,
+  Database,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 
 function getLuminance(hex: string): number {
@@ -112,6 +119,132 @@ export const WebsiteWidgetConfigurator: React.FC<WebsiteWidgetConfiguratorProps>
     }
     return PRESET_STARTERS.portfolio.items;
   });
+
+  const { currentWorkspace } = useWorkspace();
+  const [knowledgeSources, setKnowledgeSources] = useState<Array<{ id: string; name: string; type: string }>>([]);
+  const [selectedSourceId, setSelectedSourceId] = useState<string>('all');
+  const [isGeneratingStarters, setIsGeneratingStarters] = useState(false);
+  const [generationStatus, setGenerationStatus] = useState<string | null>(null);
+  const [saveUploadedToKnowledge, setSaveUploadedToKnowledge] = useState(true);
+  const [fileUploadError, setFileUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch active workspace knowledge sources
+  useEffect(() => {
+    if (!currentWorkspace?.id) return;
+    apiFetch(`/api/knowledge-base?workspaceId=${currentWorkspace.id}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setKnowledgeSources(data);
+        }
+      })
+      .catch(() => {});
+  }, [currentWorkspace?.id]);
+
+  // Generate Quick Action Starters from Knowledge Base
+  const handleGenerateFromKnowledgeBase = async (sourceId?: string) => {
+    setIsGeneratingStarters(true);
+    setGenerationStatus(null);
+    setFileUploadError(null);
+    try {
+      const url = `/api/channels/generate-starters${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
+      const payload: any = {};
+      if (sourceId && sourceId !== 'all') {
+        payload.sourceId = sourceId;
+      }
+      const res = await apiFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.starters && Array.isArray(data.starters) && data.starters.length > 0) {
+          setConversationStarters(data.starters);
+          setGenerationStatus(`✨ Generated 4 Quick Action buttons from ${data.sourceName || 'Knowledge Base'}!`);
+          setTimeout(() => setGenerationStatus(null), 5000);
+        }
+      } else {
+        const err = await res.json();
+        setFileUploadError(err.error || 'Failed to generate starters.');
+      }
+    } catch (e: any) {
+      setFileUploadError(e.message || 'Error communicating with server.');
+    } finally {
+      setIsGeneratingStarters(false);
+    }
+  };
+
+  // Generate Quick Action Starters from Uploaded File
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsGeneratingStarters(true);
+    setGenerationStatus(null);
+    setFileUploadError(null);
+
+    try {
+      let textContent = '';
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+
+      if (['txt', 'md', 'json', 'csv', 'html', 'xml', 'log'].includes(ext)) {
+        textContent = await file.text();
+      } else {
+        const buffer = await file.arrayBuffer();
+        const dec = new TextDecoder('utf-8', { fatal: false });
+        const raw = dec.decode(buffer);
+        textContent = raw.replace(/[^\x20-\x7E\r\n\t\u1000-\u109F]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (textContent.length < 50) {
+          textContent = `Document: ${file.name}\nSize: ${(file.size / 1024).toFixed(1)} KB`;
+        }
+      }
+
+      const url = `/api/channels/generate-starters${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
+      const res = await apiFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileText: textContent,
+          saveToKnowledgeBase: saveUploadedToKnowledge,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.starters && Array.isArray(data.starters) && data.starters.length > 0) {
+          setConversationStarters(data.starters);
+          const msg = data.savedToKnowledgeBase
+            ? `✨ Generated 4 Quick Actions & saved "${file.name}" to Knowledge Base!`
+            : `✨ Generated 4 Quick Action buttons from "${file.name}"!`;
+          setGenerationStatus(msg);
+          setTimeout(() => setGenerationStatus(null), 6000);
+
+          if (data.savedToKnowledgeBase && currentWorkspace?.id) {
+            apiFetch(`/api/knowledge-base?workspaceId=${currentWorkspace.id}`)
+              .then((r) => r.json())
+              .then((items) => {
+                if (Array.isArray(items)) setKnowledgeSources(items);
+              })
+              .catch(() => {});
+          }
+        }
+      } else {
+        const err = await res.json();
+        setFileUploadError(err.error || 'Failed to generate starters from file.');
+      }
+    } catch (err: any) {
+      setFileUploadError(err.message || 'Failed to read and process file.');
+    } finally {
+      setIsGeneratingStarters(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   // Simulated auto-detected color from host website
   const detectedWebsiteColor = '#C2691E';
@@ -329,6 +462,107 @@ export const WebsiteWidgetConfigurator: React.FC<WebsiteWidgetConfiguratorProps>
                   >
                     <Plus className="w-3.5 h-3.5" /> Add Choice
                   </button>
+                </div>
+
+                {/* AI & Knowledge Base Auto-Generation Banner */}
+                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-[#FFF8F3] to-[#FFF0E5] border border-[#FFD9BE] space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-xl bg-[#FF8A2A] text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-[#171717] block">
+                          Auto-Generate from Knowledge Base or Files
+                        </span>
+                        <span className="text-[11px] text-[#6B6B6B]">
+                          Don&apos;t want to type manually? Extract top questions automatically from your documents.
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* Upload File Button */}
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileUpload}
+                        accept=".txt,.md,.pdf,.doc,.docx,.csv,.json"
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isGeneratingStarters}
+                        className="px-3 py-1.5 rounded-xl bg-white border border-[#FFD9BE] text-[#171717] hover:border-[#FF8A2A] hover:text-[#FF8A2A] text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+                        title="Upload PDF, Word, TXT, or CSV file"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-[#FF8A2A]" />
+                        <span>Upload File</span>
+                      </button>
+
+                      {/* Generate from Knowledge Base Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleGenerateFromKnowledgeBase(selectedSourceId)}
+                        disabled={isGeneratingStarters}
+                        className="px-3 py-1.5 rounded-xl bg-[#FF8A2A] text-white hover:bg-[#E67319] text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
+                      >
+                        {isGeneratingStarters ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Database className="w-3.5 h-3.5" />
+                        )}
+                        <span>{isGeneratingStarters ? 'Generating...' : 'From Knowledge Base'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Options bar: Source selector & Save to KB checkbox */}
+                  <div className="flex flex-wrap items-center justify-between pt-2 border-t border-[#FFE4CF] text-[11px] text-[#6B6B6B] gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-gray-600">Source:</span>
+                      <select
+                        value={selectedSourceId}
+                        onChange={(e) => setSelectedSourceId(e.target.value)}
+                        disabled={isGeneratingStarters}
+                        className="px-2 py-0.5 rounded-lg bg-white border border-[#FFD9BE] text-[11px] font-medium text-[#171717] focus:outline-none focus:border-[#FF8A2A]"
+                      >
+                        <option value="all">📚 All Knowledge Sources ({knowledgeSources.length})</option>
+                        {knowledgeSources.map((ks) => (
+                          <option key={ks.id} value={ks.id}>
+                            📄 {ks.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={saveUploadedToKnowledge}
+                        onChange={(e) => setSaveUploadedToKnowledge(e.target.checked)}
+                        className="w-3.5 h-3.5 accent-[#FF8A2A] rounded cursor-pointer"
+                      />
+                      <span>Also save uploaded file to Knowledge Base for AI answers</span>
+                    </label>
+                  </div>
+
+                  {/* Feedback Message */}
+                  {generationStatus && (
+                    <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>{generationStatus}</span>
+                    </div>
+                  )}
+
+                  {fileUploadError && (
+                    <div className="p-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[11px] font-semibold flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                      <span>{fileUploadError}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Presets Bar */}

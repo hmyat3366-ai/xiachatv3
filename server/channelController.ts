@@ -1,11 +1,12 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
-import { db, DbChannel, DbCustomerIdentity, DbWorkspace, DbAiAssistant, ensureSeedAgents, DbAgent, ensureSeedProductsAndOrders } from './db.js';
+import { db, DbChannel, DbCustomerIdentity, DbWorkspace, DbAiAssistant, ensureSeedAgents, DbAgent, ensureSeedProductsAndOrders, DbKnowledgeSource } from './db.js';
 import { AuthRequest } from './authMiddleware.js';
 import { getWorkspaceForUser } from './planLimitMiddleware.js';
 import { broadcastInboxEvent, inboxEventEmitter } from './inboxController.js';
 import { processInboundCustomerMessage } from './aiProviderService.js';
 import { syncCustomerToSupabase, syncConversationToSupabase, syncMessageToSupabase, uploadChatAttachment } from './supabase.js';
+import { createTextChunks } from './knowledgeController.js';
 
 // Auto-seed channels for workspace (Website Chat is connected by default, Social channels as not_connected)
 function ensureSeedChannels(workspaceId: string) {
@@ -282,6 +283,256 @@ export const updateWebsiteChannelConfig = async (req: AuthRequest, res: Response
   } catch (err) {
     console.error('Error updating website channel config:', err);
     return res.status(500).json({ error: 'Failed to update website widget configuration.' });
+  }
+};
+
+// Domain-Aware Heuristic Conversation Starters Generator
+function extractHeuristicStarters(text: string, sourceName: string): Array<{ label: string; prompt: string }> {
+  const lower = (text + ' ' + sourceName).toLowerCase();
+
+  // 1. Try to extract explicit FAQ questions from the text
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const faqQuestions: string[] = [];
+  for (const line of lines) {
+    const clean = line.replace(/^(\d+[\.\)]\s*|Q:\s*|Question:\s*|-|\*)\s*/i, '').trim();
+    if (clean.endsWith('?') && clean.length > 10 && clean.length < 120) {
+      if (!faqQuestions.includes(clean)) {
+        faqQuestions.push(clean);
+      }
+    }
+  }
+
+  if (faqQuestions.length >= 3) {
+    return faqQuestions.slice(0, 4).map((q) => {
+      let emoji = '❓';
+      const qLower = q.toLowerCase();
+      if (qLower.includes('price') || qLower.includes('cost') || qLower.includes('fee')) emoji = '💰';
+      else if (qLower.includes('hour') || qLower.includes('time') || qLower.includes('open')) emoji = '🕒';
+      else if (qLower.includes('menu') || qLower.includes('coffee') || qLower.includes('food')) emoji = '☕';
+      else if (qLower.includes('order') || qLower.includes('track') || qLower.includes('deliver')) emoji = '📦';
+      else if (qLower.includes('contact') || qLower.includes('reach') || qLower.includes('phone') || qLower.includes('email')) emoji = '✉️';
+      else if (qLower.includes('service') || qLower.includes('feature')) emoji = '⚡';
+      else if (qLower.includes('how') || qLower.includes('what')) emoji = '💡';
+
+      const words = q.replace(/[?]/g, '').split(/\s+/).slice(0, 4).join(' ');
+      const label = `${emoji} ${words.length > 22 ? words.slice(0, 20) + '...' : words}`;
+      return { label, prompt: q };
+    });
+  }
+
+  // 2. Domain classification based on vocabulary
+  if (/\b(coffee|espresso|latte|cappuccino|roast|beans|cafe|barista|pastry|bakery|restaurant|tea|brew)\b/.test(lower)) {
+    return [
+      { label: '☕ View Menu', prompt: 'Can I see your coffee menu, specials, and signature blends?' },
+      { label: '📦 Track Order', prompt: 'Where is my order? Can you help me check the status?' },
+      { label: '🛒 Place Order', prompt: 'How do I place an order for fresh beans or takeaway?' },
+      { label: '🕒 Hours & Location', prompt: 'What are your opening hours and where are you located?' },
+    ];
+  }
+
+  if (/\b(doctor|clinic|patient|appointment|dental|medical|medicine|hospital|treatment|therapy|dentist)\b/.test(lower)) {
+    return [
+      { label: '📅 Book Appointment', prompt: 'How can I schedule a consultation or appointment?' },
+      { label: '🩺 Services & Care', prompt: 'What medical treatments and health services do you provide?' },
+      { label: '🕒 Clinic Hours', prompt: 'What are your clinic opening hours and emergency contacts?' },
+      { label: '💳 Fees & Insurance', prompt: 'What are your consultation fees and insurance coverage options?' },
+    ];
+  }
+
+  if (/\b(portfolio|resume|designer|developer|freelance|projects|github|frontend|backend|case study)\b/.test(lower)) {
+    return [
+      { label: '💼 View Projects', prompt: 'Can you show me your featured projects and past work?' },
+      { label: '📄 Resume & Skills', prompt: 'What are your core technical skills, stack, and experience?' },
+      { label: '💡 Work with Me', prompt: 'I would like to discuss a project or collaboration opportunity.' },
+      { label: '✉️ Contact Details', prompt: 'How can I reach you directly or book an introductory call?' },
+    ];
+  }
+
+  if (/\b(software|api|saas|platform|sdk|cloud|integration|developer|docs|dashboard|webhook)\b/.test(lower)) {
+    return [
+      { label: '🚀 Explore Features', prompt: 'What are the core features and capabilities of your software?' },
+      { label: '💰 Pricing & Plans', prompt: 'Can you explain your pricing tiers and subscription options?' },
+      { label: '⚡ Getting Started', prompt: 'How do I get started or integrate with my existing workflow?' },
+      { label: '🧑‍💻 Technical Support', prompt: 'I need technical assistance or have a question about API integration.' },
+    ];
+  }
+
+  if (/\b(shipping|returns|refund|cart|checkout|store|catalog|voucher|coupon|promo|apparel|clothes|shop)\b/.test(lower)) {
+    return [
+      { label: '🛍️ Best Sellers', prompt: 'Can you recommend your bestselling products and top recommendations?' },
+      { label: '📦 Track My Order', prompt: 'Where is my order? Can you help check the delivery status?' },
+      { label: '💰 Discounts & Deals', prompt: 'Do you have any active coupons, discounts, or promotions?' },
+      { label: '🔄 Returns & Support', prompt: 'What is your return and refund policy, or can I speak with support?' },
+    ];
+  }
+
+  if (/\b(hotel|resort|room|booking|vacation|travel|tour|flight|check-in|stay|suite)\b/.test(lower)) {
+    return [
+      { label: '🏨 Room Rates & Types', prompt: 'What types of rooms are available and what are the rates?' },
+      { label: '📅 Check Availability', prompt: 'Can you help me check availability for upcoming dates?' },
+      { label: '🏊 Amenities & Dining', prompt: 'What amenities, dining options, and facilities do you offer?' },
+      { label: '🛎️ Concierge & Help', prompt: 'How can I contact concierge or arrange airport pickup?' },
+    ];
+  }
+
+  // 3. Fallback for general business
+  return [
+    { label: 'ℹ️ About Services', prompt: 'Can you tell me more about your company and the services you offer?' },
+    { label: '💰 Pricing & Quotes', prompt: 'How much do your services cost and can I get a customized quote?' },
+    { label: '❓ Frequently Asked', prompt: 'What are the most common questions customers ask about your services?' },
+    { label: '📞 Contact Support', prompt: 'How can I get in touch with a human representative or support team?' },
+  ];
+}
+
+// POST /api/channels/generate-starters
+export const generateQuickActionStarters = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
+
+    const requestedWsId = req.query.workspaceId as string | undefined;
+    const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
+    if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
+
+    const { sourceId, fileText, fileName, saveToKnowledgeBase } = req.body;
+
+    let targetText = '';
+    let sourceLabel = '';
+    let savedToKnowledge = false;
+
+    // 1. Direct file content provided
+    if (fileText && typeof fileText === 'string' && fileText.trim().length > 0) {
+      targetText = fileText.trim();
+      sourceLabel = fileName ? fileName.trim() : 'Uploaded Document';
+
+      if (saveToKnowledgeBase) {
+        try {
+          const now = new Date().toISOString();
+          const newSourceId = crypto.randomUUID();
+          const cleanFileName = fileName ? fileName.trim() : 'Uploaded Document.txt';
+          const ext = cleanFileName.split('.').pop()?.toUpperCase() || 'DOC';
+          const typeLabel = ext === 'PDF' ? 'PDF' : 'Document';
+
+          db.prepare(`
+            INSERT INTO knowledge_sources (
+              id, workspace_id, name, type, status, content, original_url,
+              file_metadata, chunk_count, created_by, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, 'ready', ?, NULL, ?, 1, ?, ?, ?)
+          `).run(
+            newSourceId,
+            workspace.id,
+            cleanFileName,
+            typeLabel,
+            targetText,
+            JSON.stringify({ filename: cleanFileName, size: `${Math.ceil(targetText.length / 1024)} KB`, ext }),
+            req.user.name,
+            now,
+            now
+          );
+
+          const count = createTextChunks(newSourceId, workspace.id, cleanFileName, typeLabel, targetText);
+          db.prepare('UPDATE knowledge_sources SET chunk_count = ? WHERE id = ?').run(count, newSourceId);
+          savedToKnowledge = true;
+        } catch (saveErr) {
+          console.warn('[Generate Starters] Failed to persist knowledge source:', saveErr);
+        }
+      }
+    } else if (sourceId && typeof sourceId === 'string') {
+      // 2. Specific Knowledge Source selected
+      const source = db.prepare('SELECT name, content, type FROM knowledge_sources WHERE id = ? AND workspace_id = ?').get(sourceId, workspace.id) as DbKnowledgeSource | undefined;
+      if (source && source.content) {
+        targetText = source.content;
+        sourceLabel = source.name;
+      }
+    }
+
+    // 3. Fallback to active workspace's knowledge sources
+    if (!targetText) {
+      const sources = db.prepare('SELECT name, content, type FROM knowledge_sources WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 5').all(workspace.id) as DbKnowledgeSource[];
+      if (sources && sources.length > 0) {
+        targetText = sources.map((s) => `=== ${s.name} (${s.type}) ===\n${s.content}`).join('\n\n');
+        sourceLabel = sources.length === 1 ? sources[0].name : `${sources.length} Knowledge Sources`;
+      }
+    }
+
+    // 4. Fallback to product catalog or workspace context
+    if (!targetText) {
+      ensureSeedProductsAndOrders(workspace.id);
+      const products = db.prepare('SELECT name, category, price, description FROM products WHERE workspace_id = ? LIMIT 5').all(workspace.id) as any[];
+      if (products && products.length > 0) {
+        targetText = `Catalog for ${workspace.name}:\n` + products.map((p) => `- ${p.name} ($${p.price}): ${p.description}`).join('\n');
+        sourceLabel = 'Product Catalog';
+      } else {
+        targetText = `Workspace ${workspace.name} providing customer support and business services.`;
+        sourceLabel = workspace.name;
+      }
+    }
+
+    // 5. Try AI completion if GEMINI_API_KEY is available
+    let generatedStarters: Array<{ label: string; prompt: string }> = [];
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    if (apiKey && apiKey !== 'mock_key') {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 9000);
+
+        const promptMessage = `You are a conversational UX specialist for customer support widgets.
+Analyze the following business knowledge base document / content:
+"""
+${targetText.slice(0, 5000)}
+"""
+
+Task: Generate 4 high-converting, natural conversation starter choices (quick action buttons) for website visitors opening the chat widget.
+Each choice must have:
+- "label": Short, punchy button text with an appropriate leading emoji (max 25 characters, e.g. "☕ View Menu", "📦 Track Order", "💼 View Projects", "💰 Pricing & Plans", "🕒 Hours & Location", "💳 Payment Help")
+- "prompt": The complete, natural question or message the visitor sends when clicking this button (1 clear sentence, e.g. "Can I see your coffee menu and signature blends?")
+
+Output format: Return ONLY a valid JSON array of exactly 4 objects with keys "label" and "prompt". No markdown fences, no explanatory text.`;
+
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+            body: JSON.stringify({
+              contents: [{ role: 'user', parts: [{ text: promptMessage }] }],
+            }),
+          }
+        );
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const data = (await res.json()) as any;
+          const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+          const parsed = JSON.parse(cleaned);
+          if (Array.isArray(parsed) && parsed.length >= 2) {
+            generatedStarters = parsed.slice(0, 4).map((item: any) => ({
+              label: String(item.label || item.prompt || 'Question').slice(0, 35),
+              prompt: String(item.prompt || item.label || 'How can you help me?').slice(0, 150),
+            }));
+          }
+        }
+      } catch (aiErr) {
+        console.warn('[Generate Starters] AI call failed, falling back to heuristic engine:', aiErr);
+      }
+    }
+
+    // 6. Intelligent heuristic NLP fallback if AI response wasn't parsed
+    if (generatedStarters.length === 0) {
+      generatedStarters = extractHeuristicStarters(targetText, sourceLabel);
+    }
+
+    return res.status(200).json({
+      success: true,
+      starters: generatedStarters,
+      sourceName: sourceLabel,
+      savedToKnowledgeBase: savedToKnowledge,
+    });
+  } catch (err: any) {
+    console.error('Error generating quick action starters:', err);
+    return res.status(500).json({ error: 'Failed to generate conversation starters.' });
   }
 };
 

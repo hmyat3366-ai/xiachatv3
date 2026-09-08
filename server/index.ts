@@ -104,6 +104,7 @@ import {
   connectChannel,
   verifyWebhookChallenge,
   handleIncomingWebhook,
+  generateQuickActionStarters,
 } from './channelController.js';
 import { ensureStorageBucket, testSupabaseConnection } from './supabase.js';
 import { ensurePostgresSchema, hydrateFromSupabasePostgres } from './supabaseMigrations.js';
@@ -304,6 +305,7 @@ app.post('/api/customers/merge', authenticateToken, mergeCustomers);
 app.get('/api/channels', authenticateToken, getChannels);
 app.get('/api/channels/:id', authenticateToken, getChannelById);
 app.put('/api/channels/website-config', authenticateToken, updateWebsiteChannelConfig);
+app.post('/api/channels/generate-starters', authenticateToken, generateQuickActionStarters);
 app.post('/api/channels/:provider/connect', authenticateToken, checkChannelLimit, connectChannel);
 app.post('/api/channels/:id/test', authenticateToken, testChannelConnection);
 app.post('/api/channels/:id/disconnect', authenticateToken, disconnectChannel);

@@ -60,7 +60,7 @@ function isSafeUrl(urlStr: string): { safe: boolean; reason?: string; parsedUrl?
 }
 
 // Text Chunking Engine Helper
-function createTextChunks(sourceId: string, workspaceId: string, sourceName: string, sourceType: string, text: string) {
+export function createTextChunks(sourceId: string, workspaceId: string, sourceName: string, sourceType: string, text: string) {
   // Delete old chunks for this source first to prevent orphaned records
   db.prepare('DELETE FROM knowledge_chunks WHERE source_id = ?').run(sourceId);
 
