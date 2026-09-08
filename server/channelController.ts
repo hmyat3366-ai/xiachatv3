@@ -9,7 +9,7 @@ import { syncCustomerToSupabase, syncConversationToSupabase, syncMessageToSupaba
 import { createTextChunks } from './knowledgeController.js';
 
 // Auto-seed channels for workspace (Website Chat is connected by default, Social channels as not_connected)
-function ensureSeedChannels(workspaceId: string) {
+export function ensureSeedChannels(workspaceId: string) {
   const countStmt = db.prepare('SELECT COUNT(*) as count FROM channels WHERE workspace_id = ?');
   const countRes = countStmt.get(workspaceId) as { count: number };
 
@@ -545,8 +545,25 @@ export const getPublicWidgetConfig = async (req: Request, res: Response) => {
       : db.prepare("SELECT c.*, w.name as workspace_name FROM channels c JOIN workspaces w ON c.workspace_id = w.id WHERE c.id = ? AND c.type = 'website'").get(siteKey)
     ) as (DbChannel & { workspace_name: string }) | undefined;
 
-    if (!channel && siteKey === 'auto-detect') {
+    // Check if siteKey is workspace ID or slug
+    if (!channel && siteKey && siteKey !== 'auto-detect') {
+      channel = db.prepare("SELECT c.*, w.name as workspace_name FROM channels c JOIN workspaces w ON c.workspace_id = w.id WHERE (c.workspace_id = ? OR w.slug = ?) AND c.type = 'website'").get(siteKey, siteKey) as any;
+    }
+
+    if (!channel) {
       channel = db.prepare("SELECT c.*, w.name as workspace_name FROM channels c JOIN workspaces w ON c.workspace_id = w.id WHERE c.type = 'website' LIMIT 1").get() as any;
+    }
+
+    // If channel still not found, auto-seed for target or first workspace
+    if (!channel) {
+      const targetWs = (siteKey && siteKey !== 'auto-detect'
+        ? db.prepare('SELECT id FROM workspaces WHERE id = ? OR slug = ?').get(siteKey, siteKey)
+        : null) || (db.prepare('SELECT id FROM workspaces ORDER BY created_at ASC LIMIT 1').get() as { id: string } | undefined);
+
+      if (targetWs) {
+        ensureSeedChannels(targetWs.id);
+        channel = db.prepare("SELECT c.*, w.name as workspace_name FROM channels c JOIN workspaces w ON c.workspace_id = w.id WHERE c.workspace_id = ? AND c.type = 'website'").get(targetWs.id) as any;
+      }
     }
 
     if (!channel || channel.status === 'disconnected') {
@@ -641,15 +658,32 @@ export const handlePublicWidgetMessage = async (req: Request, res: Response) => 
       : db.prepare("SELECT c.*, w.name as workspace_name FROM channels c JOIN workspaces w ON c.workspace_id = w.id WHERE c.id = ? AND c.type = 'website'").get(siteKey)
     ) as (DbChannel & { workspace_name: string }) | undefined;
 
+    // Check if siteKey is workspace ID or slug
+    if (!channel && siteKey && siteKey !== 'auto-detect') {
+      channel = db.prepare("SELECT c.*, w.name as workspace_name FROM channels c JOIN workspaces w ON c.workspace_id = w.id WHERE (c.workspace_id = ? OR w.slug = ?) AND c.type = 'website'").get(siteKey, siteKey) as any;
+    }
+
     if (!channel) {
       channel = db.prepare("SELECT c.*, w.name as workspace_name FROM channels c JOIN workspaces w ON c.workspace_id = w.id WHERE c.type = 'website' LIMIT 1").get() as any;
+    }
+
+    // If channel still not found, auto-seed for target or first workspace
+    if (!channel) {
+      const targetWs = (siteKey && siteKey !== 'auto-detect'
+        ? db.prepare('SELECT id FROM workspaces WHERE id = ? OR slug = ?').get(siteKey, siteKey)
+        : null) || (db.prepare('SELECT id FROM workspaces ORDER BY created_at ASC LIMIT 1').get() as { id: string } | undefined);
+
+      if (targetWs) {
+        ensureSeedChannels(targetWs.id);
+        channel = db.prepare("SELECT c.*, w.name as workspace_name FROM channels c JOIN workspaces w ON c.workspace_id = w.id WHERE c.workspace_id = ? AND c.type = 'website'").get(targetWs.id) as any;
+      }
     }
 
     if (!channel || channel.status === 'disconnected') {
       return res.status(404).json({ error: 'Widget channel not found or inactive.' });
     }
 
-    const workspaceId = channel.workspace_id;
+    let workspaceId = channel.workspace_id;
     const now = new Date().toISOString();
 
     // 1. Resolve or Create Customer
@@ -693,7 +727,10 @@ export const handlePublicWidgetMessage = async (req: Request, res: Response) => 
     let conv: any = null;
 
     if (convId) {
-      conv = db.prepare('SELECT * FROM conversations WHERE id = ? AND workspace_id = ?').get(convId, workspaceId);
+      conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(convId);
+      if (conv) {
+        workspaceId = conv.workspace_id;
+      }
     }
 
     if (!conv) {

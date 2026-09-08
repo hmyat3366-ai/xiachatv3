@@ -95,16 +95,23 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
       setStats(data.stats || { total: 0, open: 0, assigned: 0, ai: 0, resolved: 0 });
       setTeamMembers(data.teamMembers || []);
 
-      // Auto-select first conversation if none selected
-      if (!selectedId && data.conversations && data.conversations.length > 0) {
-        setSelectedId(data.conversations[0].id);
-      }
+      // Auto-select valid conversation for active workspace
+      setSelectedId((prevSelectedId) => {
+        if (data.conversations && data.conversations.length > 0) {
+          const stillExists = data.conversations.some((c: any) => c.id === prevSelectedId);
+          return stillExists && prevSelectedId ? prevSelectedId : data.conversations[0].id;
+        } else {
+          setActiveMessages([]);
+          setActiveCustomer(null);
+          return null;
+        }
+      });
     } catch (err) {
       console.error('Error loading conversations:', err);
     } finally {
       if (!silent) setIsLoadingList(false);
     }
-  }, [filters, selectedId]);
+  }, [filters]);
 
   // Fetch Thread Messages for selected conversation
   const fetchThreadMessages = useCallback(async (convId: string, wsId?: string | null, silent: boolean = false) => {
@@ -211,16 +218,23 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
 
   const handleSendMessage = async (content: string, isInternalNote: boolean, attachments?: string[]) => {
     if (!selectedId) return;
-    const res = await apiFetch(`/api/inbox/conversations/${selectedId}/messages?workspaceId=${currentWorkspace?.id || ''}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content, isInternalNote, attachments }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setActiveMessages((prev) => [...prev, data.message]);
-      playInboxChime('outgoing');
-      fetchConversations(currentWorkspace?.id, filters);
+    try {
+      const res = await apiFetch(`/api/inbox/conversations/${selectedId}/messages?workspaceId=${currentWorkspace?.id || ''}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, isInternalNote, attachments }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setActiveMessages((prev) => [...prev, data.message]);
+        playInboxChime('outgoing');
+        fetchConversations(currentWorkspace?.id, filters, true);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        console.error('Failed to send message:', err);
+      }
+    } catch (err) {
+      console.error('Error sending message:', err);
     }
   };
 

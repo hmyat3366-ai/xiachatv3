@@ -5,6 +5,8 @@ import { db, DbConversation, DbMessage, DbWorkspace } from './db.js';
 import { AuthRequest } from './authMiddleware.js';
 import { getWorkspaceForUser } from './planLimitMiddleware.js';
 import { syncMessageToSupabase, syncConversationToSupabase, uploadChatAttachment } from './supabase.js';
+import { ensureSeedChannels } from './channelController.js';
+import { ensureSyncedCustomers } from './customerController.js';
 
 // Global Event Emitter for Realtime Server-Sent Events (SSE)
 export const inboxEventEmitter = new EventEmitter();
@@ -96,6 +98,10 @@ export const getInboxConversations = async (req: AuthRequest, res: Response) => 
     if (!workspace) {
       return res.status(404).json({ error: 'Workspace not found or unauthorized access.' });
     }
+
+    // Ensure channels and sample conversations are seeded for workspace
+    ensureSeedChannels(workspace.id);
+    ensureSyncedCustomers(workspace.id);
 
     // Query parameters
     const search = ((req.query.search as string) || '').trim().toLowerCase();
@@ -261,14 +267,14 @@ export const getConversationMessages = async (req: AuthRequest, res: Response) =
     if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
 
     const conversationId = req.params.id;
-    const requestedWsId = req.query.workspaceId as string | undefined;
-    const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
-
-    if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
-
-    // Fetch conversation record scoped to workspace
-    const conv = db.prepare('SELECT * FROM conversations WHERE id = ? AND workspace_id = ?').get(conversationId, workspace.id) as DbConversation | undefined;
+    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(conversationId) as DbConversation | undefined;
     if (!conv) return res.status(404).json({ error: 'Conversation not found.' });
+
+    const workspace = getWorkspaceForUser(req.user.id, conv.workspace_id);
+    if (!workspace) return res.status(403).json({ error: 'Unauthorized access to this conversation.' });
+
+    // Ensure seed messages exist for realistic display
+    ensureSeedMessages(conv.id, conv.customer_name, conv.customer_email, conv.last_message, conv.status);
 
     // Mark conversation read (reset unread_count and needs_attention)
     db.prepare('UPDATE conversations SET unread_count = 0, needs_attention = 0 WHERE id = ?').run(conversationId);
@@ -385,12 +391,11 @@ export const postMessage = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Message content is required.' });
     }
 
-    const requestedWsId = req.query.workspaceId as string | undefined;
-    const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
-    if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
-
-    const conv = db.prepare('SELECT * FROM conversations WHERE id = ? AND workspace_id = ?').get(conversationId, workspace.id) as DbConversation | undefined;
+    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(conversationId) as DbConversation | undefined;
     if (!conv) return res.status(404).json({ error: 'Conversation not found.' });
+
+    const workspace = getWorkspaceForUser(req.user.id, conv.workspace_id);
+    if (!workspace) return res.status(403).json({ error: 'Unauthorized access to this conversation.' });
 
     const now = new Date().toISOString();
     const messageId = crypto.randomUUID();
@@ -468,12 +473,11 @@ export const takeoverConversation = async (req: AuthRequest, res: Response) => {
     if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
 
     const conversationId = req.params.id;
-    const requestedWsId = req.query.workspaceId as string | undefined;
-    const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
-    if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
-
-    const conv = db.prepare('SELECT * FROM conversations WHERE id = ? AND workspace_id = ?').get(conversationId, workspace.id) as DbConversation | undefined;
+    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(conversationId) as DbConversation | undefined;
     if (!conv) return res.status(404).json({ error: 'Conversation not found.' });
+
+    const workspace = getWorkspaceForUser(req.user.id, conv.workspace_id);
+    if (!workspace) return res.status(403).json({ error: 'Unauthorized access to this conversation.' });
 
     const now = new Date().toISOString();
     const agentName = req.user.name;
@@ -543,9 +547,11 @@ export const returnToAI = async (req: AuthRequest, res: Response) => {
     if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
 
     const conversationId = req.params.id;
-    const requestedWsId = req.query.workspaceId as string | undefined;
-    const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
-    if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
+    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(conversationId) as DbConversation | undefined;
+    if (!conv) return res.status(404).json({ error: 'Conversation not found.' });
+
+    const workspace = getWorkspaceForUser(req.user.id, conv.workspace_id);
+    if (!workspace) return res.status(403).json({ error: 'Unauthorized access to this conversation.' });
 
     const now = new Date().toISOString();
 
@@ -616,9 +622,11 @@ export const updateAssignment = async (req: AuthRequest, res: Response) => {
     const { assignee } = req.body; // 'Me' | 'Xia AI' | 'Alex Rivera' | 'Unassigned'
     if (!assignee) return res.status(400).json({ error: 'Assignee is required.' });
 
-    const requestedWsId = req.query.workspaceId as string | undefined;
-    const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
-    if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
+    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(conversationId) as DbConversation | undefined;
+    if (!conv) return res.status(404).json({ error: 'Conversation not found.' });
+
+    const workspace = getWorkspaceForUser(req.user.id, conv.workspace_id);
+    if (!workspace) return res.status(403).json({ error: 'Unauthorized access to this conversation.' });
 
     const targetAssignee = assignee === 'Me' ? req.user.name : assignee;
     const now = new Date().toISOString();
@@ -668,9 +676,11 @@ export const updateStatus = async (req: AuthRequest, res: Response) => {
     const { status } = req.body; // 'AI_HANDLING' | 'HUMAN_HANDLING' | 'WAITING' | 'RESOLVED' | 'CLOSED'
     if (!status) return res.status(400).json({ error: 'Status is required.' });
 
-    const requestedWsId = req.query.workspaceId as string | undefined;
-    const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
-    if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
+    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(conversationId) as DbConversation | undefined;
+    if (!conv) return res.status(404).json({ error: 'Conversation not found.' });
+
+    const workspace = getWorkspaceForUser(req.user.id, conv.workspace_id);
+    if (!workspace) return res.status(403).json({ error: 'Unauthorized access to this conversation.' });
 
     const now = new Date().toISOString();
     const isResolved = status === 'RESOLVED' || status === 'resolved';
@@ -732,9 +742,11 @@ export const updateCustomerDetails = async (req: AuthRequest, res: Response) => 
     const conversationId = req.params.id;
     const { tags, notes } = req.body;
 
-    const requestedWsId = req.query.workspaceId as string | undefined;
-    const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
-    if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
+    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(conversationId) as DbConversation | undefined;
+    if (!conv) return res.status(404).json({ error: 'Conversation not found.' });
+
+    const workspace = getWorkspaceForUser(req.user.id, conv.workspace_id);
+    if (!workspace) return res.status(403).json({ error: 'Unauthorized access to this conversation.' });
 
     const now = new Date().toISOString();
 
@@ -767,12 +779,11 @@ export const generateAIDraft = async (req: AuthRequest, res: Response) => {
     if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
 
     const conversationId = req.params.id;
-    const requestedWsId = req.query.workspaceId as string | undefined;
-    const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
-    if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
-
-    const conv = db.prepare('SELECT * FROM conversations WHERE id = ? AND workspace_id = ?').get(conversationId, workspace.id) as DbConversation | undefined;
+    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(conversationId) as DbConversation | undefined;
     if (!conv) return res.status(404).json({ error: 'Conversation not found.' });
+
+    const workspace = getWorkspaceForUser(req.user.id, conv.workspace_id);
+    if (!workspace) return res.status(403).json({ error: 'Unauthorized access to this conversation.' });
 
     // Generate intelligent suggested response based on last message
     let draftText = `Hi ${conv.customer_name.split(' ')[0]}, thanks for reaching out! I've reviewed your request and am happy to assist.`;

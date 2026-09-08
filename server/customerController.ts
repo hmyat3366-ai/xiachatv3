@@ -5,7 +5,7 @@ import { AuthRequest } from './authMiddleware.js';
 import { getWorkspaceForUser } from './planLimitMiddleware.js';
 
 // Auto-seed and sync customer contacts for workspace
-function ensureSyncedCustomers(workspaceId: string) {
+export function ensureSyncedCustomers(workspaceId: string) {
   // First check if customers table has any records for this workspace
   const custCountStmt = db.prepare('SELECT COUNT(*) as count FROM customers WHERE workspace_id = ?');
   const custCount = (custCountStmt.get(workspaceId) as { count: number }).count;
