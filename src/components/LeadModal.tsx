@@ -114,7 +114,7 @@ export const LeadModal: React.FC<LeadModalProps> = ({
             <div className="mb-6">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FFF0E5] text-[#D96512] text-xs font-black mb-3 border border-[#FF8A2A]/30">
                 <Sparkles className="w-3.5 h-3.5 fill-[#FF8A2A]" />
-                <span>Contact Sales & Inquiry • စုံစမ်းရန်</span>
+                <span>Contact Sales & Inquiry</span>
               </div>
               <h3 className="text-2xl sm:text-3xl font-black text-[#171717] tracking-tight">
                 {initialMode === 'book_demo'
@@ -122,7 +122,7 @@ export const LeadModal: React.FC<LeadModalProps> = ({
                   : 'Contact Sales for Custom Setup'}
               </h3>
               <p className="text-xs sm:text-sm text-[#6B6B6B] mt-2 leading-relaxed font-medium">
-                သင့်လုပ်ငန်းလိုအပ်ချက်နှင့် ကိုက်ညီသော စနစ်သတ်မှတ်ချက်များ၊ တိုက်ရိုက် Demo နှင့် စျေးနှုန်းများကို ဆွေးနွေးနိုင်ရန် ဆက်သွယ်ပေးပါ။
+                Connect with our sales specialists to discuss tailored configurations, live demos, and custom enterprise pricing.
               </p>
             </div>
 
@@ -254,7 +254,7 @@ export const LeadModal: React.FC<LeadModalProps> = ({
                   <span>Sending Inquiry...</span>
                 ) : (
                   <>
-                    <span>Submit Inquiry • စုံစမ်းရန် ပို့မည်</span>
+                    <span>Submit Inquiry</span>
                     <Send className="w-4 h-4" />
                   </>
                 )}

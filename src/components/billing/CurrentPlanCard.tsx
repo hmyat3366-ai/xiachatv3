@@ -38,7 +38,7 @@ export const CurrentPlanCard: React.FC<CurrentPlanCardProps> = ({
     switch (status) {
       case 'active':
         return {
-          label: 'Active Plan • လက်ရှိ အသုံးပြုနေသည်',
+          label: 'Active Plan',
           style: 'bg-emerald-50 text-emerald-800 border-emerald-200/80',
           dot: 'bg-emerald-500',
         };
@@ -96,7 +96,7 @@ export const CurrentPlanCard: React.FC<CurrentPlanCardProps> = ({
             className="px-5 py-3 rounded-full bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-black shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer"
           >
             <Sparkles className="w-4 h-4 fill-white" />
-            <span>Inquire Plan Upgrade • အစီအစဉ် ပြောင်းလဲရန်</span>
+            <span>Inquire Plan Upgrade</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

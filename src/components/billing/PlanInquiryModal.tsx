@@ -146,13 +146,13 @@ export const PlanInquiryModal: React.FC<PlanInquiryModalProps> = ({
             <div className="mb-6">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FFF0E5] text-[#D96512] text-xs font-black mb-3 border border-[#FF8A2A]/30">
                 <Sparkles className="w-3.5 h-3.5 fill-[#FF8A2A]" />
-                <span>Direct Sales & Plan Inquiry • စုံစမ်းရန်</span>
+                <span>Direct Sales & Plan Inquiry</span>
               </div>
               <h3 className="text-2xl sm:text-3xl font-black text-[#171717] tracking-tight">
                 Get a Custom Plan Quote
               </h3>
               <p className="text-xs sm:text-sm text-[#6B6B6B] mt-2 leading-relaxed font-medium">
-                အစီအစဉ်အသစ်ပြောင်းလဲလိုပါက (သို့မဟုတ်) အသေးစိတ်စုံစမ်းလိုပါက အချက်အလက်များ ဖြည့်စွက်ပေးပါ။ ကျွန်ုပ်တို့ Sales Team မှ ၁၅ မိနစ်အတွင်း အမြန်ဆုံး ဆက်သွယ်ပေးပါမည်။
+                Looking to upgrade your plan or have custom requirements? Share your details below and our sales team will reach out within 15 minutes.
               </p>
             </div>
 
@@ -166,7 +166,7 @@ export const PlanInquiryModal: React.FC<PlanInquiryModalProps> = ({
             {/* Plan Selector */}
             <div className="mb-5">
               <label className="block text-xs font-black text-[#171717] uppercase tracking-wider mb-2">
-                Interested Plan / စိတ်ဝင်စားသော အစီအစဉ်
+                Interested Plan
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 {AVAILABLE_PLANS.map((p) => {
@@ -202,7 +202,7 @@ export const PlanInquiryModal: React.FC<PlanInquiryModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
                   <label className="block text-xs font-bold text-[#171717] mb-1">
-                    Your Name / အမည် <span className="text-rose-500">*</span>
+                    Your Name <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
                     <User className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -211,7 +211,7 @@ export const PlanInquiryModal: React.FC<PlanInquiryModalProps> = ({
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. Ko Min"
+                      placeholder="e.g. Min Thant"
                       className="w-full pl-10 pr-4 py-2.5 bg-[#FAF9F6] border border-[#E8E8E5] rounded-xl text-xs sm:text-sm font-medium focus:outline-none focus:border-[#FF8A2A] transition-colors"
                     />
                   </div>
@@ -219,15 +219,16 @@ export const PlanInquiryModal: React.FC<PlanInquiryModalProps> = ({
 
                 <div>
                   <label className="block text-xs font-bold text-[#171717] mb-1">
-                    Business / Store Name
+                    Work Email <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
-                    <Building2 className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
-                      type="text"
-                      value={company}
-                      onChange={(e) => setCompany(e.target.value)}
-                      placeholder="e.g. Velvet Roast Cafe"
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="alex@company.com"
                       className="w-full pl-10 pr-4 py-2.5 bg-[#FAF9F6] border border-[#E8E8E5] rounded-xl text-xs sm:text-sm font-medium focus:outline-none focus:border-[#FF8A2A] transition-colors"
                     />
                   </div>
@@ -237,16 +238,15 @@ export const PlanInquiryModal: React.FC<PlanInquiryModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
                   <label className="block text-xs font-bold text-[#171717] mb-1">
-                    Email Address <span className="text-rose-500">*</span>
+                    Company / Organization
                   </label>
                   <div className="relative">
-                    <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <Building2 className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@company.com"
+                      type="text"
+                      value={company}
+                      onChange={(e) => setCompany(e.target.value)}
+                      placeholder="e.g. Acme Retail"
                       className="w-full pl-10 pr-4 py-2.5 bg-[#FAF9F6] border border-[#E8E8E5] rounded-xl text-xs sm:text-sm font-medium focus:outline-none focus:border-[#FF8A2A] transition-colors"
                     />
                   </div>
@@ -254,7 +254,7 @@ export const PlanInquiryModal: React.FC<PlanInquiryModalProps> = ({
 
                 <div>
                   <label className="block text-xs font-bold text-[#171717] mb-1">
-                    Phone / Telegram / Viber
+                    Phone / Telegram Handle
                   </label>
                   <div className="relative">
                     <Phone className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -262,7 +262,7 @@ export const PlanInquiryModal: React.FC<PlanInquiryModalProps> = ({
                       type="text"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder="e.g. 09xxxxxxxxx or @telegram"
+                      placeholder="e.g. +959xxxxxxxxx or @telegram"
                       className="w-full pl-10 pr-4 py-2.5 bg-[#FAF9F6] border border-[#E8E8E5] rounded-xl text-xs sm:text-sm font-medium focus:outline-none focus:border-[#FF8A2A] transition-colors"
                     />
                   </div>
@@ -271,7 +271,7 @@ export const PlanInquiryModal: React.FC<PlanInquiryModalProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-[#171717] mb-1">
-                  Requirements / မေးမြန်းလိုသောအချက်အလက် (Optional)
+                  Requirements & Notes (Optional)
                 </label>
                 <textarea
                   rows={2}
@@ -292,7 +292,7 @@ export const PlanInquiryModal: React.FC<PlanInquiryModalProps> = ({
                 ) : (
                   <>
                     <Send className="w-4 h-4" />
-                    <span>Send Inquiry • စုံစမ်းရန် ပို့မည်</span>
+                    <span>Send Inquiry</span>
                   </>
                 )}
               </button>
@@ -336,7 +336,7 @@ export const PlanInquiryModal: React.FC<PlanInquiryModalProps> = ({
                 Inquiry Received Successfully!
               </h3>
               <p className="text-xs sm:text-sm text-[#6B6B6B] max-w-[400px] mx-auto font-medium leading-relaxed">
-                စုံစမ်းမေးမြန်းမှုအား လက်ခံရရှိပြီးဖြစ်ပါသည်။ ကျွန်ုပ်တို့၏ Support Team မှ <span className="font-bold text-[#171717]">{email}</span> (သို့မဟုတ်) ဖုန်းနံပါတ်သို့ အမြန်ဆုံး အကြောင်းပြန်ပေးပါမည်။
+                Thank you for reaching out! Our sales and support team has received your inquiry and will follow up with you at <span className="font-bold text-[#171717]">{email}</span> or your phone shortly.
               </p>
             </div>
 

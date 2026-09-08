@@ -30,7 +30,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onStartFree, onC
     {
       id: 'starter',
       name: 'Starter Plan',
-      tagline: 'အသေးစားလုပ်ငန်းများနှင့် Single Store များအတွက်',
+      tagline: 'Ideal for small businesses and single stores',
       description: 'Essential AI customer concierge to handle frequent customer inquiries automatically 24/7.',
       capacityLabel: 'Starter Tier',
       popular: false,
@@ -44,16 +44,16 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onStartFree, onC
         'Order & Policy Q&A Automation',
         'Standard Email Support',
       ],
-      ctaText: 'Inquire Starter • စုံစမ်းရန်',
+      ctaText: 'Inquire Starter',
     },
     {
       id: 'growth',
       name: 'Growth Plan',
-      tagline: 'အရောင်းဆိုင်ကြီးများနှင့် Multi-Channel လုပ်ငန်းများအတွက်',
+      tagline: 'For growing retail stores and multi-channel brands',
       description: 'Comprehensive omni-channel customer suite with smart AI-to-human handoff triage and high volume.',
       capacityLabel: 'Best Value',
       popular: true,
-      badge: 'Recommended • လူကြိုက်အများဆုံး',
+      badge: 'Most Popular',
       icon: Sparkles,
       features: [
         'Multi-Channel Unified Inbox',
@@ -65,12 +65,12 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onStartFree, onC
         'Unlimited Knowledge Base Documents',
         'Priority 24/7 Support Service',
       ],
-      ctaText: 'Inquire Growth • အခုပဲ စုံစမ်းမည်',
+      ctaText: 'Inquire Growth',
     },
     {
       id: 'enterprise',
       name: 'Custom Enterprise',
-      tagline: 'ကုမ္ပဏီကြီးများ၊ Agency များနှင့် High-Volume များအတွက်',
+      tagline: 'For large enterprises, agencies, and high-volume brands',
       description: 'Bespoke AI configurations, custom volume limits, dedicated integrations, and personalized onboarding.',
       capacityLabel: 'Tailored Scope',
       popular: false,
@@ -86,7 +86,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onStartFree, onC
         '99.9% Uptime Guarantee & SLA',
         'Custom Team Training & Setup',
       ],
-      ctaText: 'Talk to Sales • တိုက်ရိုက်ဆွေးနွေးရန်',
+      ctaText: 'Talk to Sales',
     },
   ];
 
@@ -96,7 +96,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onStartFree, onC
       <div className="text-center max-w-[840px] mx-auto mb-16 sm:mb-20">
         <div className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-wider text-[#FF8A2A] bg-[#FFF0E5] px-4 py-1.5 rounded-full border border-[#FF8A2A]/30 mb-4 shadow-2xs">
           <Sparkles className="w-3.5 h-3.5 fill-[#FF8A2A]" />
-          <span>Flexible Plans & Inquiries • စုံစမ်းမေးမြန်းရန်</span>
+          <span>Flexible Plans & Inquiries</span>
         </div>
 
         <h2 className="text-3xl sm:text-5xl lg:text-6xl font-black text-[#171717] tracking-tight leading-tight">
@@ -104,22 +104,22 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onStartFree, onC
         </h2>
 
         <p className="text-base sm:text-lg text-[#6B6B6B] mt-5 font-normal max-w-[680px] mx-auto leading-relaxed">
-          သင့်လုပ်ငန်း၏ အရွယ်အစားနှင့် သုံးစွဲလိုသည့် ပမာဏအလိုက် သင့်တော်သော အစီအစဉ်ကို စုံစမ်းနိုင်ပါသည်။ ကျွန်ုပ်တို့ Sales Team မှ သင့်လုပ်ငန်းနှင့် အကိုက်ညီဆုံးဖြစ်အောင် တိုက်ရိုက် ဆွေးနွေးပြင်ဆင်ပေးပါမည်။
+          Choose a plan tailored to your team size and monthly conversation volume. Our sales specialists will help configure the ideal setup for your business.
         </p>
 
         {/* Highlight Badges */}
         <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 mt-8 text-xs font-bold text-[#171717]">
           <div className="flex items-center gap-2 bg-[#FAF9F6] px-3.5 py-1.5 rounded-full border border-[#E8E8E5]">
             <CheckCircle2 className="w-4 h-4 text-[#FF8A2A]" />
-            <span>တိုက်ရိုက် အစမ်းသပ်အသုံးပြုနိုင်ခြင်း</span>
+            <span>Instant Setup & Free Trial</span>
           </div>
           <div className="flex items-center gap-2 bg-[#FAF9F6] px-3.5 py-1.5 rounded-full border border-[#E8E8E5]">
             <CheckCircle2 className="w-4 h-4 text-[#FF8A2A]" />
-            <span>Credit Card မလိုခြင်း</span>
+            <span>No Credit Card Required</span>
           </div>
           <div className="flex items-center gap-2 bg-[#FAF9F6] px-3.5 py-1.5 rounded-full border border-[#E8E8E5]">
             <CheckCircle2 className="w-4 h-4 text-[#FF8A2A]" />
-            <span>၁၅ မိနစ်အတွင်း အကြောင်းပြန်ပေးခြင်း</span>
+            <span>Response Within 15 Minutes</span>
           </div>
         </div>
       </div>
@@ -208,7 +208,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onStartFree, onC
               Need a Custom Solution or High-Volume Enterprise Setup?
             </h4>
             <p className="text-xs text-[#6B6B6B] mt-1 font-medium">
-              ကျွန်ုပ်တို့ အဖွဲ့နှင့် တိုက်ရိုက် မေးမြန်းဆွေးနွေးနိုင်ပါသည်။ အထူးစိတ်ကြိုက်ပြင်ဆင်မှုများနှင့် SLA များကို ချိန်ညှိပေးပါသည်။
+              Chat directly with our enterprise team for bespoke custom prompts, integrations, and tailored SLA agreements.
             </p>
           </div>
         </div>

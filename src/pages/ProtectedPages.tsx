@@ -981,13 +981,13 @@ export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ 
                 <div>
                   <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FFF0E5] text-[#D96512] text-xs font-black mb-2 border border-[#FF8A2A]/30">
                     <Sparkles className="w-3.5 h-3.5 fill-[#FF8A2A]" />
-                    <span>Plan Options & Upgrades • အစီအစဉ်များ စုံစမ်းရန်</span>
+                    <span>Plan Options & Upgrades</span>
                   </div>
                   <h3 className="text-2xl font-black text-[#171717] tracking-tight">
                     Looking to Upgrade or Expand Limits?
                   </h3>
                   <p className="text-xs sm:text-sm text-[#6B6B6B] mt-1 font-medium leading-relaxed">
-                    သင့်လုပ်ငန်းလိုအပ်ချက်အရ စကားပြောပမာဏ (Conversation Volume)၊ Agent နေရာများ သို့မဟုတ် Multi-channel များ ထပ်မံတိုးမြှင့်လိုပါက စုံစမ်းမေးမြန်းနိုင်ပါသည်။
+                    Need higher conversation volume, more agent seats, or custom integrations? Explore our flexible upgrade options below.
                   </p>
                 </div>
               </div>
@@ -1024,7 +1024,7 @@ export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ 
                     onClick={() => handleOpenInquiry('starter')}
                     className="mt-6 w-full py-2.5 rounded-xl bg-white border border-[#E8E8E5] hover:border-[#FF8A2A] text-[#171717] hover:text-[#FF8A2A] text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
                   >
-                    <span>Inquire Starter • စုံစမ်းရန်</span>
+                    <span>Inquire Starter</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -1032,7 +1032,7 @@ export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ 
                 {/* Growth */}
                 <div className="p-6 rounded-2xl bg-gradient-to-b from-[#FFFDFB] to-white border-2 border-[#FF8A2A]/40 shadow-sm flex flex-col justify-between relative">
                   <span className="absolute -top-2.5 right-4 bg-[#FF8A2A] text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-2xs">
-                    Recommended • လူကြိုက်အများဆုံး
+                    Most Popular
                   </span>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -1062,7 +1062,7 @@ export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ 
                     onClick={() => handleOpenInquiry('growth')}
                     className="mt-6 w-full py-2.5 rounded-xl bg-[#FF8A2A] hover:bg-[#D96512] text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                   >
-                    <span>Inquire Growth • အခုပဲ စုံစမ်းမည်</span>
+                    <span>Inquire Growth</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -1097,7 +1097,7 @@ export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ 
                     onClick={() => handleOpenInquiry('enterprise')}
                     className="mt-6 w-full py-2.5 rounded-xl bg-[#171717] hover:bg-black text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                   >
-                    <span>Talk to Sales • ဆွေးနွေးရန်</span>
+                    <span>Talk to Sales</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
