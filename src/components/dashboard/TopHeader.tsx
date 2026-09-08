@@ -67,7 +67,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         </div>
 
         {/* Center: Search Input */}
-        <div className="flex-1 max-w-xs md:max-w-sm lg:max-w-md mx-3 lg:mx-6 hidden md:block">
+        <div className="flex-1 max-w-xs md:max-w-sm lg:max-w-md mx-3 lg:mx-6 hidden lg:block">
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
             <input

@@ -50,7 +50,7 @@ export const ResolveButton: React.FC<ResolveButtonProps> = ({
         type="button"
         onClick={handleReopen}
         disabled={disabled || isLoading}
-        className={`px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer border border-slate-300 shadow-xs flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+        className={`px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer border border-slate-300 shadow-xs flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
         title="Reopen this resolved conversation"
       >
         {isLoading ? (
@@ -69,7 +69,7 @@ export const ResolveButton: React.FC<ResolveButtonProps> = ({
         type="button"
         onClick={() => setIsModalOpen(true)}
         disabled={disabled || isLoading}
-        className={`px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 text-emerald-700 border border-emerald-200 text-xs font-bold transition-all cursor-pointer shadow-xs flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+        className={`px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 text-emerald-700 border border-emerald-200 text-xs font-bold transition-all cursor-pointer shadow-xs flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
         title="Resolve this conversation"
       >
         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />

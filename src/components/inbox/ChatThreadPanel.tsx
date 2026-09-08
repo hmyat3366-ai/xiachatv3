@@ -300,7 +300,8 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
          ───────────────────────────────────────────────────────────── */}
       <div className="shrink-0 bg-white border-b border-[#E8E8E5] z-30 shadow-2xs flex flex-col select-none">
         {/* TIER 1: Top AI / Human Status Bar */}
-        <div className="px-4 sm:px-6 py-2 bg-slate-50/90 border-b border-[#E8E8E5]/70 flex items-center justify-between text-xs gap-3">
+        {/* TIER 1: Top AI / Human Status Bar */}
+        <div className="px-3.5 sm:px-6 py-2 bg-slate-50/90 border-b border-[#E8E8E5]/70 flex items-center justify-between text-xs gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             {isAIActive ? (
               <div className="flex items-center gap-2 min-w-0">
@@ -311,8 +312,8 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
                 <span className="font-extrabold text-[#8B5CF6] shrink-0 text-[11px] uppercase tracking-wider">
                   AI Autonomous Mode
                 </span>
-                <span className="text-slate-300 text-xs hidden sm:inline">•</span>
-                <span className="text-slate-500 font-medium truncate text-xs hidden sm:inline">
+                <span className="text-slate-300 text-xs hidden xl:inline">•</span>
+                <span className="text-slate-500 font-medium truncate text-xs hidden xl:inline">
                   Xia AI is auto-replying with Knowledge Base
                 </span>
               </div>
@@ -322,8 +323,8 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
                 <span className="font-extrabold text-[#2563EB] shrink-0 text-[11px] uppercase tracking-wider">
                   Human Control Mode
                 </span>
-                <span className="text-slate-300 text-xs hidden sm:inline">•</span>
-                <span className="text-slate-500 font-medium truncate text-xs hidden sm:inline">
+                <span className="text-slate-300 text-xs hidden xl:inline">•</span>
+                <span className="text-slate-500 font-medium truncate text-xs hidden xl:inline">
                   Handled by <strong className="text-slate-700 font-semibold">{conversation.assignee || 'Human Agent'}</strong>. AI auto-replies paused.
                 </span>
               </div>
@@ -333,8 +334,8 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
                 <span className="font-extrabold text-emerald-800 shrink-0 text-[11px] uppercase tracking-wider">
                   Conversation Resolved
                 </span>
-                <span className="text-slate-300 text-xs hidden sm:inline">•</span>
-                <span className="text-slate-500 font-medium truncate text-xs hidden sm:inline">
+                <span className="text-slate-300 text-xs hidden xl:inline">•</span>
+                <span className="text-slate-500 font-medium truncate text-xs hidden xl:inline">
                   Archived. Automatically reopens upon new customer message.
                 </span>
               </div>
@@ -387,11 +388,11 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
         )}
 
         {/* TIER 2: Main Conversation Header Toolbar */}
-        <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3 sm:gap-4">
+        <div className="px-3.5 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2.5 sm:gap-4">
           {/* Left: Customer avatar + Online indicator + Name + Channel */}
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
             <div className="relative shrink-0">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#171717] to-slate-700 text-white font-black text-sm flex items-center justify-center shadow-xs">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-[#171717] to-slate-700 text-white font-black text-xs sm:text-sm flex items-center justify-center shadow-xs">
                 {conversation.customerName ? conversation.customerName.charAt(0).toUpperCase() : 'C'}
               </div>
               {/* Online Indicator */}
@@ -401,54 +402,56 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
               />
             </div>
 
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="font-bold text-sm text-slate-900 truncate">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <h2 className="font-bold text-xs sm:text-sm text-slate-900 truncate">
                   {conversation.customerName}
                 </h2>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
+                <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
                   {conversation.channel}
                 </span>
-                <ConversationStatusBadge status={conversation.status} size="xs" />
               </div>
-              <p className="text-[11px] text-slate-500 truncate font-medium mt-0.5">
-                {conversation.customerEmail || conversation.customerPhone || 'Direct Channel Visitor'}
-              </p>
+              <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+                <ConversationStatusBadge status={conversation.status} size="xs" />
+                <span className="text-[11px] text-slate-400 truncate hidden md:inline">
+                  {conversation.customerEmail || conversation.customerPhone || 'Direct Channel Visitor'}
+                </span>
+              </div>
             </div>
           </div>
 
           {/* Right Action Controls Toolbar */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* Voice Call Button */}
+            {/* Voice Call Button (Desktop) */}
             <button
               onClick={() => setIsVoiceCallActive(true)}
-              className="p-2 rounded-xl border border-[#E8E8E5] bg-white hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 text-slate-600 transition-colors cursor-pointer shadow-2xs"
+              className="hidden md:flex p-2 rounded-xl border border-[#E8E8E5] bg-white hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 text-slate-600 transition-colors cursor-pointer shadow-2xs"
               title="Start Voice Call"
             >
               <Phone className="w-4 h-4" />
             </button>
 
-            {/* Video Call Button */}
+            {/* Video Call Button (Desktop) */}
             <button
               onClick={() => setIsVideoCallActive(true)}
-              className="p-2 rounded-xl border border-[#E8E8E5] bg-white hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 text-slate-600 transition-colors cursor-pointer shadow-2xs"
+              className="hidden md:flex p-2 rounded-xl border border-[#E8E8E5] bg-white hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 text-slate-600 transition-colors cursor-pointer shadow-2xs"
               title="Start Video Call"
             >
               <Video className="w-4 h-4" />
             </button>
 
-            <div className="h-5 w-px bg-slate-200 mx-0.5 hidden sm:block" />
+            <div className="h-5 w-px bg-slate-200 mx-0.5 hidden lg:block" />
 
             {/* Assign Agent Dropdown */}
             <div className="relative">
               <button
                 onClick={() => setIsAssigneeDropdownOpen(!isAssigneeDropdownOpen)}
-                className="px-2.5 sm:px-3 py-1.5 rounded-xl border border-[#E8E8E5] bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                className="px-2 sm:px-2.5 py-1.5 rounded-xl border border-[#E8E8E5] bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 flex items-center gap-1 sm:gap-1.5 transition-colors cursor-pointer shadow-2xs"
                 title="Assign Agent"
               >
                 <User className="w-3.5 h-3.5 text-slate-500" />
-                <span className="hidden sm:inline max-w-[100px] truncate">{conversation.assignee || 'Unassigned'}</span>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                <span className="hidden md:inline max-w-[90px] truncate">{conversation.assignee || 'Unassigned'}</span>
+                <ChevronDown className="w-3 h-3 text-slate-400" />
               </button>
 
               {isAssigneeDropdownOpen && (
@@ -496,7 +499,7 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
             <div className="relative">
               <button
                 onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
-                className="p-2 rounded-xl border border-[#E8E8E5] bg-white hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer shadow-2xs"
+                className="p-1.5 sm:p-2 rounded-xl border border-[#E8E8E5] bg-white hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer shadow-2xs"
                 title="More Options"
               >
                 <MoreHorizontal className="w-4 h-4" />
@@ -504,6 +507,27 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
 
               {isMoreMenuOpen && (
                 <div className="absolute right-0 top-full mt-1.5 w-48 bg-white border border-[#E8E8E5] rounded-xl shadow-xl p-1 z-40 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-100">
+                  {/* Call options on mobile */}
+                  <button
+                    onClick={() => {
+                      setIsVoiceCallActive(true);
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-1.5 rounded-lg text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 cursor-pointer md:hidden"
+                  >
+                    <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Start Voice Call</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsVideoCallActive(true);
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-1.5 rounded-lg text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 cursor-pointer md:hidden"
+                  >
+                    <Video className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Start Video Call</span>
+                  </button>
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(window.location.href);
@@ -541,7 +565,7 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
             {/* Customer Details Panel Toggle (Desktop) */}
             <button
               onClick={onToggleCustomerPanel}
-              className={`p-2 rounded-xl border transition-colors cursor-pointer hidden md:flex ${
+              className={`p-2 rounded-xl border transition-colors cursor-pointer hidden lg:flex ${
                 isCustomerPanelOpen
                   ? 'bg-slate-900 text-white border-black'
                   : 'bg-white text-slate-600 hover:text-black border-[#E8E8E5]'

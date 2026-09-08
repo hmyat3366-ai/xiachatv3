@@ -41,7 +41,7 @@ export const HandoffButton: React.FC<HandoffButtonProps> = ({
         type="button"
         onClick={handleClick}
         disabled={disabled || isLoading}
-        className={`px-3.5 py-1.5 rounded-xl bg-[#171717] hover:bg-black active:bg-gray-800 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed group ${className}`}
+        className={`px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-[#171717] hover:bg-black active:bg-gray-800 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed group ${className}`}
         title="Take over this conversation from AI"
       >
         {isLoading ? (
@@ -59,7 +59,7 @@ export const HandoffButton: React.FC<HandoffButtonProps> = ({
       type="button"
       onClick={handleClick}
       disabled={disabled || isLoading}
-      className={`px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-700 border border-purple-200 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+      className={`px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-700 border border-purple-200 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
       title="Return conversation to Xia AI autonomous handling"
     >
       {isLoading ? (

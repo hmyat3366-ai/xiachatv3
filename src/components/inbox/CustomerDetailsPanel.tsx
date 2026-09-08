@@ -89,7 +89,7 @@ export const CustomerDetailsPanel: React.FC<CustomerDetailsPanelProps> = ({
   ];
 
   return (
-    <div className="w-full md:w-[320px] lg:w-[360px] shrink-0 border-l border-[#E8E8E5] bg-white flex flex-col h-full min-h-0 overflow-hidden select-none">
+    <div className="w-full lg:w-[320px] xl:w-[360px] shrink-0 border-l border-[#E8E8E5] bg-white flex flex-col h-full min-h-0 overflow-hidden select-none">
       {/* ─────────────────────────────────────────────────────────────
           1. PANEL HEADER
          ───────────────────────────────────────────────────────────── */}
@@ -102,7 +102,7 @@ export const CustomerDetailsPanel: React.FC<CustomerDetailsPanelProps> = ({
         {onClose && (
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 md:hidden cursor-pointer"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 lg:hidden cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>

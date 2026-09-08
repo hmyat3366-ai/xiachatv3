@@ -365,7 +365,7 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
   const selectedConversation = conversations.find((c) => c.id === selectedId) || null;
 
   return (
-    <div className="w-screen h-screen flex flex-col md:flex-row overflow-hidden bg-white select-none">
+    <div className="w-screen h-screen flex flex-col lg:flex-row overflow-hidden bg-white select-none">
       {/* Left Navigation Sidebar */}
       <Sidebar
         currentPath={currentPath}
@@ -388,7 +388,7 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
         {/* 3-Panel Desktop Layout / Mobile Responsive Switcher */}
         <div className="flex-1 flex overflow-hidden min-w-0 min-h-0">
           {/* Panel 1: Conversation List */}
-          <div className={`${mobileView === 'list' ? 'flex' : 'hidden md:flex'} flex-col h-full shrink-0 min-h-0 overflow-hidden`}>
+          <div className={`${mobileView === 'list' ? 'flex' : 'hidden lg:flex'} flex-col h-full shrink-0 min-h-0 overflow-hidden`}>
             <ConversationListPanel
               conversations={conversations}
               selectedId={selectedId}
@@ -404,12 +404,12 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
           </div>
 
           {/* Panel 2: Chat Thread */}
-          <div className={`${mobileView === 'thread' ? 'flex' : 'hidden md:flex'} flex-col flex-1 h-full min-w-0 min-h-0 overflow-hidden relative`}>
-            {/* Mobile Back Button to list */}
-            <div className="md:hidden p-2 bg-white border-b border-[#E8E8E5] flex items-center justify-between shrink-0 z-10">
+          <div className={`${mobileView === 'thread' ? 'flex' : 'hidden lg:flex'} flex-col flex-1 h-full min-w-0 min-h-0 overflow-hidden relative`}>
+            {/* Mobile / Tablet Back Button to list */}
+            <div className="lg:hidden p-2.5 bg-white border-b border-[#E8E8E5] flex items-center justify-between shrink-0 z-10">
               <button
                 onClick={() => setMobileView('list')}
-                className="text-xs font-bold text-[#FF8A2A] hover:underline"
+                className="text-xs font-bold text-[#FF8A2A] hover:underline flex items-center gap-1 cursor-pointer"
               >
                 ← Back to Conversations
               </button>
