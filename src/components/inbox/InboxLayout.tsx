@@ -8,9 +8,9 @@ import { CustomerDetailsPanel } from './CustomerDetailsPanel';
 import { LiveVisitorsDrawer } from './LiveVisitorsDrawer';
 import { playInboxChime } from '../../utils/audioChimes';
 import type { ConversationItem, MessageItem, CustomerProfile, FilterState, TeamMember, InboxStats } from '../../types/inbox';
-import type { WorkspaceItem } from '../../types/dashboard';
 import { apiFetch } from '../../utils/api';
 import { useSSE } from '../../utils/useSSE';
+import { useWorkspace } from '../../context/WorkspaceContext';
 import { ChevronLeft, ChevronRight, User } from 'lucide-react';
 
 interface InboxLayoutProps {
@@ -27,9 +27,8 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
   const [isCustomerPanelOpen, setIsCustomerPanelOpen] = useState(true);
   const [mobileView, setMobileView] = useState<'list' | 'thread' | 'customer'>('list');
 
-  // Workspaces & active workspace selection
-  const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([]);
-  const [currentWorkspace, setCurrentWorkspace] = useState<WorkspaceItem | null>(null);
+  // Workspaces from shared context
+  const { currentWorkspace, workspaces, selectWorkspace, createWorkspace } = useWorkspace();
 
   // Conversations Data State
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
@@ -96,13 +95,6 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
       setStats(data.stats || { total: 0, open: 0, assigned: 0, ai: 0, resolved: 0 });
       setTeamMembers(data.teamMembers || []);
 
-      if (data.workspace && !currentWorkspace) {
-        setCurrentWorkspace(data.workspace);
-      }
-      if (data.workspaces) {
-        setWorkspaces(data.workspaces);
-      }
-
       // Auto-select first conversation if none selected
       if (!selectedId && data.conversations && data.conversations.length > 0) {
         setSelectedId(data.conversations[0].id);
@@ -112,7 +104,7 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
     } finally {
       if (!silent) setIsLoadingList(false);
     }
-  }, [filters, currentWorkspace, selectedId]);
+  }, [filters, selectedId]);
 
   // Fetch Thread Messages for selected conversation
   const fetchThreadMessages = useCallback(async (convId: string, wsId?: string | null, silent: boolean = false) => {
@@ -199,31 +191,12 @@ export const InboxLayout: React.FC<InboxLayoutProps> = ({ currentPath, onNavigat
 
   // Handle Workspace Switch
   const handleSelectWorkspace = (workspaceId: string) => {
-    const ws = workspaces.find((w) => w.id === workspaceId);
-    if (ws) {
-      setCurrentWorkspace(ws);
-      setSelectedId(null);
-      fetchConversations(workspaceId, filters);
-    }
+    setSelectedId(null);
+    selectWorkspace(workspaceId);
   };
 
   const handleCreateWorkspace = async (name: string): Promise<boolean> => {
-    try {
-      const res = await apiFetch('/api/dashboard/workspaces', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      });
-      if (res.ok) {
-        const resData = await res.json();
-        setCurrentWorkspace(resData.workspace);
-        fetchConversations(resData.workspace.id, filters);
-        return true;
-      }
-      return false;
-    } catch {
-      return false;
-    }
+    return await createWorkspace(name);
   };
 
   // Actions on Active Conversation

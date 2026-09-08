@@ -7,21 +7,31 @@ export function getAuthHeaders(extra?: Record<string, string>): Record<string, s
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
+  const activeWsId = localStorage.getItem('xia_active_workspace_id');
+  if (activeWsId && !headers['X-Workspace-Id']) {
+    headers['X-Workspace-Id'] = activeWsId;
+  }
   return headers;
 }
 
 /**
  * Core fetch wrapper for Xia Chat API.
  * - Adds Bearer token automatically
+ * - Adds X-Workspace-Id header automatically from active workspace
  * - Applies a 10-second AbortController timeout
  * - Intercepts 401 responses → clears auth token → redirects to /login
  */
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = localStorage.getItem('xia_auth_token');
+  const activeWsId = localStorage.getItem('xia_active_workspace_id');
   const headers = new Headers(options.headers || {});
 
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  if (activeWsId && !headers.has('X-Workspace-Id')) {
+    headers.set('X-Workspace-Id', activeWsId);
   }
 
   const url = path.startsWith('http') ? path : `${API_BASE}${path.startsWith('/') ? '' : '/'}${path}`;

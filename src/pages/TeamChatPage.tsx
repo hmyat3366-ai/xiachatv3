@@ -5,14 +5,14 @@ import { ChatArea, type TeamMessageItem, type ConversationDetail } from '../comp
 import { NewConversationModal } from '../components/teamChat/NewConversationModal';
 import type { WorkspaceItem } from '../types/dashboard';
 import { apiFetch } from '../utils/api';
+import { useWorkspace } from '../context/WorkspaceContext';
 
 interface TeamChatPageProps {
   onNavigate: (path: string) => void;
 }
 
 export const TeamChatPage: React.FC<TeamChatPageProps> = ({ onNavigate }) => {
-  const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([]);
-  const [currentWorkspace, setCurrentWorkspace] = useState<WorkspaceItem | null>(null);
+  const { currentWorkspace, workspaces, selectWorkspace, createWorkspace } = useWorkspace();
 
   const [conversations, setConversations] = useState<TeamConversationItem[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
@@ -44,28 +44,10 @@ export const TeamChatPage: React.FC<TeamChatPageProps> = ({ onNavigate }) => {
     }
   }, []);
 
-  // Initial load
+  // Initial and reactive load whenever active workspace changes
   useEffect(() => {
-    const initWorkspaceAndConvs = async () => {
-      try {
-        const res = await apiFetch('/api/dashboard/overview', { method: 'GET' });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.workspaces) setWorkspaces(data.workspaces);
-          if (data.workspace) {
-            setCurrentWorkspace(data.workspace);
-            fetchConversations(data.workspace.id);
-            return;
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching overview for workspace info:', err);
-      }
-      fetchConversations(null);
-    };
-
-    initWorkspaceAndConvs();
-  }, [fetchConversations]);
+    fetchConversations(currentWorkspace?.id);
+  }, [fetchConversations, currentWorkspace?.id]);
 
   // Fetch messages when selectedConversationId changes
   const fetchMessages = useCallback(
@@ -177,27 +159,10 @@ export const TeamChatPage: React.FC<TeamChatPageProps> = ({ onNavigate }) => {
       workspaces={workspaces}
       currentWorkspace={currentWorkspace}
       onSelectWorkspace={(id) => {
-        const ws = workspaces.find((w) => w.id === id);
-        if (ws) {
-          setCurrentWorkspace(ws);
-          setSelectedConversationId(null);
-          fetchConversations(id);
-        }
+        selectWorkspace(id);
+        setSelectedConversationId(null);
       }}
-      onCreateWorkspace={async (name) => {
-        const res = await apiFetch('/api/dashboard/workspaces', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setCurrentWorkspace(data.workspace);
-          fetchConversations(data.workspace.id);
-          return true;
-        }
-        return false;
-      }}
+      onCreateWorkspace={createWorkspace}
     >
       <div className="bg-white border border-[#E8E8E5] rounded-2xl overflow-hidden shadow-xs h-[calc(100vh-140px)] min-h-[500px] flex flex-col md:flex-row">
         {/* Mobile View logic: show list on small screens if mobileView === 'list' */}

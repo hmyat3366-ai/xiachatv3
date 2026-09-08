@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { WorkspaceProvider } from './context/WorkspaceContext';
 import { Navbar } from './components/Navbar';
 import { HeroSection } from './components/HeroSection';
 import { SocialProofSection } from './components/SocialProofSection';
@@ -348,7 +349,9 @@ function MainApp() {
 export function App() {
   return (
     <AuthProvider>
-      <MainApp />
+      <WorkspaceProvider>
+        <MainApp />
+      </WorkspaceProvider>
     </AuthProvider>
   );
 }

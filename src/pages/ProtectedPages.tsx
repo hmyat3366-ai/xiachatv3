@@ -1,6 +1,7 @@
 import React from 'react';
 import { InboxLayout } from '../components/inbox/InboxLayout';
 import { apiFetch } from '../utils/api';
+import { useWorkspace } from '../context/WorkspaceContext';
 
 
 // 1. Unified Inbox
@@ -21,9 +22,8 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
   const [viewMode, setViewMode] = React.useState<'list' | 'new' | 'detail'>('list');
   const [selectedSourceId, setSelectedSourceId] = React.useState<string | null>(null);
 
-  // Workspaces state
-  const [workspaces, setWorkspaces] = React.useState<WorkspaceItem[]>([]);
-  const [currentWorkspace, setCurrentWorkspace] = React.useState<WorkspaceItem | null>(null);
+  // Workspaces state from shared context
+  const { currentWorkspace, workspaces, selectWorkspace, createWorkspace } = useWorkspace();
 
   // Sources state
   const [sources, setSources] = React.useState<KnowledgeSource[]>([]);
@@ -49,10 +49,6 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
         const data = await res.json();
         setSources(data.sources || []);
         setStats(data.stats || { total: 0, ready: 0, processing: 0, totalChunks: 0 });
-        setCurrentWorkspace((prev) => prev || data.workspace || null);
-        if (data.workspaces) {
-          setWorkspaces(data.workspaces);
-        }
       }
     } catch (err) {
       console.error('Error loading knowledge sources:', err);
@@ -210,26 +206,9 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
       workspaces={workspaces}
       currentWorkspace={currentWorkspace}
       onSelectWorkspace={(id) => {
-        const ws = workspaces.find((w) => w.id === id);
-        if (ws) {
-          setCurrentWorkspace(ws);
-          fetchSources(id);
-        }
+        selectWorkspace(id);
       }}
-      onCreateWorkspace={async (name) => {
-        const res = await apiFetch('/api/dashboard/workspaces', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setCurrentWorkspace(data.workspace);
-          fetchSources(data.workspace.id);
-          return true;
-        }
-        return false;
-      }}
+      onCreateWorkspace={createWorkspace}
     >
       {viewMode === 'list' && (
         <KnowledgeList
@@ -302,8 +281,7 @@ import type { AnalyticsData, AnalyticsPreset } from '../types/analytics';
 
 // 3. Analytics SaaS Reporting Module Page
 export const AnalyticsPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => {
-  const [workspaces, setWorkspaces] = React.useState<WorkspaceItem[]>([]);
-  const [currentWorkspace, setCurrentWorkspace] = React.useState<WorkspaceItem | null>(null);
+  const { currentWorkspace, workspaces, selectWorkspace, createWorkspace } = useWorkspace();
 
   const [analyticsData, setAnalyticsData] = React.useState<AnalyticsData | null>(null);
   const [preset, setPreset] = React.useState<AnalyticsPreset>('30d');
@@ -325,10 +303,6 @@ export const AnalyticsPage: React.FC<{ onNavigate: (path: string) => void }> = (
         if (res.ok) {
           const data = await res.json();
           setAnalyticsData(data);
-          setCurrentWorkspace((prev) => prev || data.workspace || null);
-          if (data.workspaces) {
-            setWorkspaces(data.workspaces);
-          }
           if (data.agentPerformance) {
             setAvailableAgents(data.agentPerformance.map((a: any) => ({ id: a.id, name: a.name })));
           }
@@ -380,26 +354,9 @@ export const AnalyticsPage: React.FC<{ onNavigate: (path: string) => void }> = (
       workspaces={workspaces}
       currentWorkspace={currentWorkspace}
       onSelectWorkspace={(id) => {
-        const ws = workspaces.find((w) => w.id === id);
-        if (ws) {
-          setCurrentWorkspace(ws);
-          fetchAnalytics(id);
-        }
+        selectWorkspace(id);
       }}
-      onCreateWorkspace={async (name) => {
-        const res = await apiFetch('/api/dashboard/workspaces', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setCurrentWorkspace(data.workspace);
-          fetchAnalytics(data.workspace.id);
-          return true;
-        }
-        return false;
-      }}
+      onCreateWorkspace={createWorkspace}
     >
       <AnalyticsDashboard
         data={analyticsData}
@@ -442,8 +399,7 @@ import type { WorkspaceMember, WorkspaceInvitation, WorkspaceRole, WorkspaceSett
 
 // 4. Team Members & Roles Page
 export const TeamPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => {
-  const [workspaces, setWorkspaces] = React.useState<WorkspaceItem[]>([]);
-  const [currentWorkspace, setCurrentWorkspace] = React.useState<WorkspaceItem | null>(null);
+  const { currentWorkspace, workspaces, selectWorkspace, createWorkspace } = useWorkspace();
 
   const [members, setMembers] = React.useState<WorkspaceMember[]>([]);
   const [invitations, setInvitations] = React.useState<WorkspaceInvitation[]>([]);
@@ -498,10 +454,6 @@ export const TeamPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onN
           setInvitations(data.invitations || []);
           setStats(data.stats || { totalMembers: 0, activeMembers: 0, pendingInvitations: 0 });
           if (data.actorRole) setActorRole(data.actorRole);
-          setCurrentWorkspace((prev) => prev || data.workspace || null);
-          if (data.workspaces) {
-            setWorkspaces(data.workspaces);
-          }
         }
 
         // Fetch audit logs
@@ -698,26 +650,9 @@ export const TeamPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onN
       workspaces={workspaces}
       currentWorkspace={currentWorkspace}
       onSelectWorkspace={(id) => {
-        const ws = workspaces.find((w) => w.id === id);
-        if (ws) {
-          setCurrentWorkspace(ws);
-          fetchTeamData(id);
-        }
+        selectWorkspace(id);
       }}
-      onCreateWorkspace={async (name) => {
-        const res = await apiFetch('/api/dashboard/workspaces', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setCurrentWorkspace(data.workspace);
-          fetchTeamData(data.workspace.id);
-          return true;
-        }
-        return false;
-      }}
+      onCreateWorkspace={createWorkspace}
     >
       <TeamMemberList
         members={members}
@@ -821,8 +756,7 @@ import { CheckCircle2, AlertTriangle, ShieldAlert, Sparkles, ArrowRight, Zap, Bu
 // 5. Billing Page
 export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => {
   const { user } = useAuth();
-  const [workspaces, setWorkspaces] = React.useState<WorkspaceItem[]>([]);
-  const [currentWorkspace, setCurrentWorkspace] = React.useState<WorkspaceItem | null>(null);
+  const { currentWorkspace, workspaces, selectWorkspace, createWorkspace } = useWorkspace();
 
   const [overview, setOverview] = React.useState<BillingOverview | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -852,16 +786,6 @@ export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ 
       }
       const data = await res.json();
       setOverview(data);
-
-      // Fetch user's workspaces for WorkspaceSwitcher context
-      let teamUrl = '/api/team/members';
-      if (wsId) teamUrl += `?workspaceId=${wsId}`;
-      const wsRes = await apiFetch(teamUrl);
-      if (wsRes.ok) {
-        const wsData = await wsRes.json();
-        if (wsData.workspaces) setWorkspaces(wsData.workspaces);
-        setCurrentWorkspace((prev) => prev || wsData.workspace || (wsData.workspaces && wsData.workspaces[0]) || null);
-      }
     } catch (err: any) {
       setError(err.message || 'Failed to load billing state.');
     } finally {
@@ -889,26 +813,9 @@ export const BillingPage: React.FC<{ onNavigate: (path: string) => void }> = ({ 
       workspaces={workspaces}
       currentWorkspace={currentWorkspace}
       onSelectWorkspace={(id) => {
-        const ws = workspaces.find((w) => w.id === id);
-        if (ws) {
-          setCurrentWorkspace(ws);
-          fetchBillingOverview(id);
-        }
+        selectWorkspace(id);
       }}
-      onCreateWorkspace={async (name) => {
-        const res = await apiFetch('/api/dashboard/workspaces', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setCurrentWorkspace(data.workspace);
-          fetchBillingOverview(data.workspace.id);
-          return true;
-        }
-        return false;
-      }}
+      onCreateWorkspace={createWorkspace}
     >
       <div className="space-y-8 pb-16">
         {/* Success Alert Toast Banner */}
@@ -1136,8 +1043,7 @@ import type { SettingsTab, SettingsOverviewData, NotificationPreferences, Worksp
 
 // 6. Workspace Administration Settings Page (/settings/workspace)
 export const WorkspaceSettingsPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => {
-  const [workspaces, setWorkspaces] = React.useState<WorkspaceItem[]>([]);
-  const [currentWorkspace, setCurrentWorkspace] = React.useState<WorkspaceItem | null>(null);
+  const { currentWorkspace, workspaces, selectWorkspace, createWorkspace } = useWorkspace();
 
   const [settings, setSettings] = React.useState<WorkspaceSettings | null>(null);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -1151,10 +1057,6 @@ export const WorkspaceSettingsPage: React.FC<{ onNavigate: (path: string) => voi
       if (res.ok) {
         const data = await res.json();
         setSettings(data.workspace);
-        setCurrentWorkspace((prev) => prev || data.workspace || null);
-        if (data.workspaces) {
-          setWorkspaces(data.workspaces);
-        }
       }
     } catch (err) {
       console.error('Error loading workspace settings:', err);
@@ -1200,26 +1102,9 @@ export const WorkspaceSettingsPage: React.FC<{ onNavigate: (path: string) => voi
       workspaces={workspaces}
       currentWorkspace={currentWorkspace}
       onSelectWorkspace={(id) => {
-        const ws = workspaces.find((w) => w.id === id);
-        if (ws) {
-          setCurrentWorkspace(ws);
-          fetchSettings(id);
-        }
+        selectWorkspace(id);
       }}
-      onCreateWorkspace={async (name) => {
-        const res = await apiFetch('/api/dashboard/workspaces', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setCurrentWorkspace(data.workspace);
-          fetchSettings(data.workspace.id);
-          return true;
-        }
-        return false;
-      }}
+      onCreateWorkspace={createWorkspace}
     >
       <WorkspaceSettingsForm
         settings={settings}
@@ -1232,8 +1117,7 @@ export const WorkspaceSettingsPage: React.FC<{ onNavigate: (path: string) => voi
 
 // 7. Central Settings Page (/settings)
 export const SettingsPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => {
-  const [workspaces, setWorkspaces] = React.useState<WorkspaceItem[]>([]);
-  const [currentWorkspace, setCurrentWorkspace] = React.useState<WorkspaceItem | null>(null);
+  const { currentWorkspace, workspaces, selectWorkspace, createWorkspace } = useWorkspace();
 
   const getInitialTab = (): SettingsTab => {
     const path = window.location.pathname;
@@ -1261,10 +1145,6 @@ export const SettingsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
       if (res.ok) {
         const data = await res.json();
         setOverviewData(data);
-        setCurrentWorkspace((prev) => prev || data.workspace || null);
-        if (data.workspaces) {
-          setWorkspaces(data.workspaces);
-        }
       }
     } catch (err) {
       console.error('Error loading user settings overview:', err);
@@ -1400,26 +1280,9 @@ export const SettingsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
       workspaces={workspaces}
       currentWorkspace={currentWorkspace}
       onSelectWorkspace={(id) => {
-        const ws = workspaces.find((w) => w.id === id);
-        if (ws) {
-          setCurrentWorkspace(ws);
-          fetchCentralSettings(id);
-        }
+        selectWorkspace(id);
       }}
-      onCreateWorkspace={async (name) => {
-        const res = await apiFetch('/api/dashboard/workspaces', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setCurrentWorkspace(data.workspace);
-          fetchCentralSettings(data.workspace.id);
-          return true;
-        }
-        return false;
-      }}
+      onCreateWorkspace={createWorkspace}
     >
       <SettingsLayout
         data={overviewData}
@@ -1458,10 +1321,7 @@ import type {
 export const CustomersPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => {
   const [viewMode, setViewMode] = React.useState<'list' | 'detail'>('list');
   const [selectedCustomerId, setSelectedCustomerId] = React.useState<string | null>(null);
-
-  // Workspaces state
-  const [workspaces, setWorkspaces] = React.useState<WorkspaceItem[]>([]);
-  const [currentWorkspace, setCurrentWorkspace] = React.useState<WorkspaceItem | null>(null);
+  const { currentWorkspace, workspaces, selectWorkspace, createWorkspace } = useWorkspace();
 
   // Customers state
   const [customers, setCustomers] = React.useState<Customer[]>([]);
@@ -1513,10 +1373,6 @@ export const CustomersPage: React.FC<{ onNavigate: (path: string) => void }> = (
           setPage(data.page || 1);
           setTotalPages(data.totalPages || 1);
           setStats(data.stats || { total: 0, active: 0, new: 0, vip: 0 });
-          setCurrentWorkspace((prev) => prev || data.workspace || null);
-          if (data.workspaces) {
-            setWorkspaces(data.workspaces);
-          }
         }
       } catch (err) {
         console.error('Error loading customers list:', err);
@@ -1685,26 +1541,9 @@ export const CustomersPage: React.FC<{ onNavigate: (path: string) => void }> = (
       workspaces={workspaces}
       currentWorkspace={currentWorkspace}
       onSelectWorkspace={(id) => {
-        const ws = workspaces.find((w) => w.id === id);
-        if (ws) {
-          setCurrentWorkspace(ws);
-          fetchCustomers(id);
-        }
+        selectWorkspace(id);
       }}
-      onCreateWorkspace={async (name) => {
-        const res = await apiFetch('/api/dashboard/workspaces', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setCurrentWorkspace(data.workspace);
-          fetchCustomers(data.workspace.id);
-          return true;
-        }
-        return false;
-      }}
+      onCreateWorkspace={createWorkspace}
     >
       {viewMode === 'list' && (
         <CustomerList
@@ -1801,10 +1640,7 @@ import type { WorkspaceItem } from '../types/dashboard';
 export const AIAgentsPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => {
   const [viewMode, setViewMode] = React.useState<'list' | 'new' | 'detail'>('list');
   const [selectedAgentId, setSelectedAgentId] = React.useState<string | null>(null);
-
-  // Workspaces state
-  const [workspaces, setWorkspaces] = React.useState<WorkspaceItem[]>([]);
-  const [currentWorkspace, setCurrentWorkspace] = React.useState<WorkspaceItem | null>(null);
+  const { currentWorkspace, workspaces, selectWorkspace, createWorkspace } = useWorkspace();
 
   // Agents state
   const [agents, setAgents] = React.useState<AIAgent[]>([]);
@@ -1826,10 +1662,6 @@ export const AIAgentsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
       if (res.ok) {
         const data = await res.json();
         setAgents(data.agents || []);
-        setCurrentWorkspace((prev) => prev || data.workspace || null);
-        if (data.workspaces) {
-          setWorkspaces(data.workspaces);
-        }
       }
     } catch (err) {
       console.error('Error loading AI agents:', err);
@@ -1974,26 +1806,9 @@ export const AIAgentsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
       workspaces={workspaces}
       currentWorkspace={currentWorkspace}
       onSelectWorkspace={(id) => {
-        const ws = workspaces.find((w) => w.id === id);
-        if (ws) {
-          setCurrentWorkspace(ws);
-          fetchAgents(id);
-        }
+        selectWorkspace(id);
       }}
-      onCreateWorkspace={async (name) => {
-        const res = await apiFetch('/api/dashboard/workspaces', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setCurrentWorkspace(data.workspace);
-          fetchAgents(data.workspace.id);
-          return true;
-        }
-        return false;
-      }}
+      onCreateWorkspace={createWorkspace}
     >
       {viewMode === 'list' && (
         <AgentList
@@ -2051,10 +1866,7 @@ export const ChannelsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
   const [viewMode, setViewMode] = React.useState<'list' | 'website_config' | 'detail'>('list');
   const [selectedChannelId, setSelectedChannelId] = React.useState<string | null>(null);
   const [isConnectModalOpen, setIsConnectModalOpen] = React.useState<boolean>(false);
-
-  // Workspaces state
-  const [workspaces, setWorkspaces] = React.useState<WorkspaceItem[]>([]);
-  const [currentWorkspace, setCurrentWorkspace] = React.useState<WorkspaceItem | null>(null);
+  const { currentWorkspace, workspaces, selectWorkspace, createWorkspace } = useWorkspace();
 
   // Channels state
   const [channels, setChannels] = React.useState<Channel[]>([]);
@@ -2085,10 +1897,6 @@ export const ChannelsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
         const data = await res.json();
         setChannels(data.channels || []);
         setStats(data.stats || { total: 0, connected: 0 });
-        setCurrentWorkspace((prev) => prev || data.workspace || null);
-        if (data.workspaces) {
-          setWorkspaces(data.workspaces);
-        }
       }
     } catch (err) {
       console.error('Error loading channels list:', err);
@@ -2196,26 +2004,9 @@ export const ChannelsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
       workspaces={workspaces}
       currentWorkspace={currentWorkspace}
       onSelectWorkspace={(id) => {
-        const ws = workspaces.find((w) => w.id === id);
-        if (ws) {
-          setCurrentWorkspace(ws);
-          fetchChannels(id);
-        }
+        selectWorkspace(id);
       }}
-      onCreateWorkspace={async (name) => {
-        const res = await apiFetch('/api/dashboard/workspaces', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setCurrentWorkspace(data.workspace);
-          fetchChannels(data.workspace.id);
-          return true;
-        }
-        return false;
-      }}
+      onCreateWorkspace={createWorkspace}
     >
       {viewMode === 'list' && (
         <ChannelList

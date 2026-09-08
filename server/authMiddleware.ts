@@ -67,6 +67,12 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
     }
 
     req.user = sanitizeUser(user);
+
+    // Fallback: If no workspaceId query parameter is provided, check X-Workspace-Id header
+    if (!req.query.workspaceId && req.headers['x-workspace-id']) {
+      req.query.workspaceId = req.headers['x-workspace-id'] as string;
+    }
+
     next();
   } catch {
     res.clearCookie('auth_token');

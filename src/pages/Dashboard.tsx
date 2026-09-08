@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useWorkspace } from '../context/WorkspaceContext';
 import { DashboardLayout } from '../components/dashboard/DashboardLayout';
 import { MetricCard } from '../components/dashboard/MetricCard';
 import { ConversationActivity } from '../components/dashboard/ConversationActivity';
@@ -21,6 +22,7 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ currentPath, onNavigate }) => {
   const { user, resendVerification } = useAuth();
+  const { currentWorkspace, workspaces, selectWorkspace, createWorkspace } = useWorkspace();
 
   // Dashboard Data State
   const [data, setData] = useState<DashboardOverviewResponse | null>(null);
@@ -28,7 +30,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentPath, onNavigate })
   const [isError, setIsError] = useState<boolean>(false);
 
   // Filters State
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
   const [period, setPeriod] = useState<DateRangePeriod>('7d');
 
   // Email verification resend state
@@ -62,45 +63,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentPath, onNavigate })
 
       const resData: DashboardOverviewResponse = await res.json();
       setData(resData);
-
-      if (resData.workspace && !activeWorkspaceId) {
-        setActiveWorkspaceId(resData.workspace.id);
-      }
     } catch (err) {
       console.error('Error loading dashboard overview:', err);
       setIsError(true);
     } finally {
       setIsLoading(false);
     }
-  }, [activeWorkspaceId, period]);
+  }, [period]);
 
   useEffect(() => {
-    fetchDashboardData(activeWorkspaceId, period);
-  }, [fetchDashboardData, activeWorkspaceId, period]);
+    fetchDashboardData(currentWorkspace?.id, period);
+  }, [fetchDashboardData, currentWorkspace?.id, period]);
 
   const handleSelectWorkspace = (workspaceId: string) => {
-    setActiveWorkspaceId(workspaceId);
-    fetchDashboardData(workspaceId, period);
+    selectWorkspace(workspaceId);
   };
 
   const handleCreateWorkspace = async (name: string): Promise<boolean> => {
-    try {
-      const res = await apiFetch('/api/dashboard/workspaces', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      });
-
-      if (res.ok) {
-        const resData = await res.json();
-        setActiveWorkspaceId(resData.workspace.id);
-        fetchDashboardData(resData.workspace.id, period);
-        return true;
-      }
-      return false;
-    } catch {
-      return false;
-    }
+    return await createWorkspace(name);
   };
 
   const handleResendVerification = async () => {
@@ -124,8 +104,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentPath, onNavigate })
     <DashboardLayout
       currentPath={currentPath}
       onNavigate={onNavigate}
-      workspaces={data?.workspaces || []}
-      currentWorkspace={data?.workspace || null}
+      workspaces={workspaces.length > 0 ? workspaces : (data?.workspaces || [])}
+      currentWorkspace={currentWorkspace || data?.workspace || null}
       onSelectWorkspace={handleSelectWorkspace}
       onCreateWorkspace={handleCreateWorkspace}
     >
@@ -161,7 +141,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentPath, onNavigate })
 
       {/* Error State */}
       {!isLoading && isError && (
-        <ErrorState onRetry={() => fetchDashboardData(activeWorkspaceId, period)} />
+        <ErrorState onRetry={() => fetchDashboardData(currentWorkspace?.id, period)} />
       )}
 
       {/* Empty State for Brand New Workspaces */}
