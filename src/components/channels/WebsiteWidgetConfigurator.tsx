@@ -79,7 +79,9 @@ export const WebsiteWidgetConfigurator: React.FC<WebsiteWidgetConfiguratorProps>
   type EmbedPlatform = 'html' | 'react' | 'wordpress' | 'shopify' | 'gtm';
   const [embedPlatform, setEmbedPlatform] = useState<EmbedPlatform>('html');
 
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://xiachat.ai';
+  const origin = typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')
+    ? window.location.origin
+    : 'https://xiachatv3.vercel.app';
 
   const platformSnippets: Record<EmbedPlatform, { label: string; title: string; desc: string; code: string; ext: string }> = {
     html: {

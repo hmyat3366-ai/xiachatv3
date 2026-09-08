@@ -9,9 +9,15 @@
   var scriptSrc = currentScript && currentScript.src ? currentScript.src : '';
   var apiBase = '';
   try {
-    apiBase = new URL(scriptSrc).origin;
+    if (scriptSrc && (scriptSrc.startsWith('http://') || scriptSrc.startsWith('https://'))) {
+      apiBase = new URL(scriptSrc).origin;
+    } else if (typeof window !== 'undefined' && window.location.origin && window.location.origin !== 'null' && !window.location.protocol.startsWith('file')) {
+      apiBase = window.location.origin;
+    } else {
+      apiBase = 'https://xiachatv3.vercel.app';
+    }
   } catch (e) {
-    apiBase = window.location.origin;
+    apiBase = 'https://xiachatv3.vercel.app';
   }
 
   // 2. Session Management (localStorage)

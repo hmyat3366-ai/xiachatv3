@@ -10,13 +10,33 @@
   var XiaChat = window.XiaChat || {};
 
   // Resolve Script & Default Attributes
-  var currentScript = document.currentScript || document.querySelector('script[src*="widget.js"]');
+  var currentScript = (function () {
+    if (document.currentScript) return document.currentScript;
+    var scripts = document.getElementsByTagName('script');
+    for (var i = scripts.length - 1; i >= 0; i--) {
+      var s = scripts[i];
+      if (s.src && (s.src.indexOf('widget.js') !== -1 || s.src.indexOf('widget') !== -1 || s.getAttribute('data-site-key'))) {
+        return s;
+      }
+    }
+    return null;
+  })();
+
   var scriptSrc = currentScript && currentScript.src ? currentScript.src : '';
-  var apiBase = '';
-  try {
-    apiBase = new URL(scriptSrc).origin;
-  } catch (e) {
-    apiBase = window.location.origin;
+  var explicitApiBase = currentScript ? (currentScript.getAttribute('data-api-base') || currentScript.getAttribute('data-host') || currentScript.getAttribute('data-server') || '') : '';
+  var apiBase = explicitApiBase;
+  if (!apiBase) {
+    try {
+      if (scriptSrc && (scriptSrc.startsWith('http://') || scriptSrc.startsWith('https://'))) {
+        apiBase = new URL(scriptSrc).origin;
+      } else if (typeof window !== 'undefined' && window.location.origin && window.location.origin !== 'null' && !window.location.protocol.startsWith('file')) {
+        apiBase = window.location.origin;
+      } else {
+        apiBase = 'https://xiachatv3.vercel.app';
+      }
+    } catch (e) {
+      apiBase = 'https://xiachatv3.vercel.app';
+    }
   }
 
   // Pre-configured Industry Quick Actions
@@ -385,14 +405,33 @@
   var shadow = null;
 
   function ensureShadowRoot() {
-    if (container && shadow) return;
+    if (container && shadow && document.body && document.body.contains(container)) {
+      return shadow;
+    }
+
+    var targetParent = document.body || document.documentElement;
+    if (!targetParent) {
+      return null;
+    }
+
     container = document.getElementById('xia-chat-widget-root');
     if (!container) {
       container = document.createElement('div');
       container.id = 'xia-chat-widget-root';
-      document.body.appendChild(container);
+      container.setAttribute('style', 'position: relative; z-index: 2147483647; display: block;');
+      targetParent.appendChild(container);
+    } else if (!targetParent.contains(container)) {
+      targetParent.appendChild(container);
     }
-    shadow = container.attachShadow ? container.attachShadow({ mode: 'open' }) : container;
+
+    if (!shadow) {
+      try {
+        shadow = container.attachShadow ? container.attachShadow({ mode: 'open' }) : container;
+      } catch (e) {
+        shadow = container;
+      }
+    }
+    return shadow;
   }
 
   // -------------------------------------------------------------
@@ -1225,7 +1264,19 @@
 
   // Render DOM into Shadow Root
   function renderDOM() {
-    ensureShadowRoot();
+    var root = ensureShadowRoot();
+    if (!root) {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () {
+          renderDOM();
+        }, { once: true });
+      } else {
+        window.addEventListener('load', function () {
+          renderDOM();
+        }, { once: true });
+      }
+      return;
+    }
 
     state.currentEffectiveColor = resolveEffectivePrimaryColor();
     state.currentEffectiveTheme = resolveEffectiveTheme();
