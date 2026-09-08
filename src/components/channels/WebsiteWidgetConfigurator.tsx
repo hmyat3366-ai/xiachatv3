@@ -16,6 +16,8 @@ import {
   Sun,
   Moon,
   Monitor,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 
 function getLuminance(hex: string): number {
@@ -28,25 +30,67 @@ function getLuminance(hex: string): number {
   return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
 }
 
+const PRESET_STARTERS: Record<string, { label: string; items: Array<{ label: string; prompt: string }> }> = {
+  portfolio: {
+    label: '💼 Portfolio / CV',
+    items: [
+      { label: '💼 View Projects', prompt: 'Can you show me your featured projects and work?' },
+      { label: '📄 Resume & Skills', prompt: 'What are your core technical skills and experience?' },
+      { label: '💡 Work with Me', prompt: 'I would like to discuss a project or collaboration.' },
+      { label: '✉️ Contact Details', prompt: 'How can I reach you directly?' },
+    ],
+  },
+  ecommerce: {
+    label: '🛍 E-Commerce Store',
+    items: [
+      { label: '🛍 Best Sellers', prompt: 'Can you recommend your bestselling products?' },
+      { label: '📦 Track My Order', prompt: 'Where is my order?' },
+      { label: '💰 Discounts & Deals', prompt: 'Do you have any active coupons or promotions?' },
+      { label: '👤 Human Support', prompt: 'I want to talk with human support please.' },
+    ],
+  },
+  coffee_shop: {
+    label: '☕ Cafe & Restaurant',
+    items: [
+      { label: '☕ View Menu', prompt: 'Can I see your coffee menu and signature blends?' },
+      { label: '📦 Track Order', prompt: 'Where is my order?' },
+      { label: '🛒 Place Order', prompt: 'How do I place an order for freshly roasted beans?' },
+      { label: '💳 Payment Help', prompt: 'What payment methods do you accept?' },
+    ],
+  },
+  saas: {
+    label: '🚀 SaaS & Tech Product',
+    items: [
+      { label: '🚀 Product Demo', prompt: 'Can you give me a quick product demo?' },
+      { label: '💰 Pricing Plans', prompt: 'What are your pricing plans and features?' },
+      { label: '🔧 Tech Support', prompt: 'I need technical support with my integration.' },
+      { label: '👤 Talk to Sales', prompt: 'I would like to speak with your sales team.' },
+    ],
+  },
+};
+
 interface WebsiteWidgetConfiguratorProps {
   channelId: string;
   initialConfig: WebsiteWidgetConfig;
-  availableAgents: Array<{ id: string; name: string }>;
+  availableAgents?: Array<{ id: string; name: string }>;
   defaultAgentId?: string | null;
-  onBack: () => void;
   onSave: (config: WebsiteWidgetConfig, agentId?: string) => Promise<void>;
-  isSaving: boolean;
+  onCancel?: () => void;
+  onBack?: () => void;
+  isSaving?: boolean;
 }
 
 export const WebsiteWidgetConfigurator: React.FC<WebsiteWidgetConfiguratorProps> = ({
   channelId,
   initialConfig,
-  availableAgents,
+  availableAgents = [],
   defaultAgentId,
-  onBack,
   onSave,
-  isSaving,
+  onCancel,
+  onBack,
+  isSaving = false,
 }) => {
+  const handleBackAction = onBack || onCancel || (() => {});
   const [widgetName, setWidgetName] = useState(initialConfig.widgetName || 'Xia Support Chat');
   const [welcomeMessage, setWelcomeMessage] = useState(initialConfig.welcomeMessage || 'Hello! How can we help you today?');
   const [primaryColor, setPrimaryColor] = useState(initialConfig.primaryColor || '#6366F1');
@@ -59,6 +103,15 @@ export const WebsiteWidgetConfigurator: React.FC<WebsiteWidgetConfiguratorProps>
   const [enableAI, setEnableAI] = useState(initialConfig.enableAI !== false);
   const [enableHandoff, setEnableHandoff] = useState(initialConfig.enableHandoff !== false);
   const [showAgentAvailability, setShowAgentAvailability] = useState(initialConfig.showAgentAvailability !== false);
+
+  const [conversationStarters, setConversationStarters] = useState<Array<{ label: string; prompt: string }>>(() => {
+    if (initialConfig.conversationStarters && Array.isArray(initialConfig.conversationStarters)) {
+      return initialConfig.conversationStarters.map((s: any) =>
+        typeof s === 'string' ? { label: s, prompt: s } : { label: s.label || s.prompt || '', prompt: s.prompt || s.label || '' }
+      );
+    }
+    return PRESET_STARTERS.portfolio.items;
+  });
 
   // Simulated auto-detected color from host website
   const detectedWebsiteColor = '#C2691E';
@@ -151,6 +204,7 @@ export const WebsiteWidgetConfigurator: React.FC<WebsiteWidgetConfiguratorProps>
         enableAI,
         enableHandoff,
         showAgentAvailability,
+        conversationStarters,
       },
       selectedAgentId
     );
@@ -176,50 +230,61 @@ export const WebsiteWidgetConfigurator: React.FC<WebsiteWidgetConfiguratorProps>
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12">
-      {/* Top Header & Save Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-[#E8E8E5] shadow-2xs">
+    <div className="space-y-6 animate-in fade-in duration-200">
+      {/* Top Breadcrumb & Action Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E8E8E5]">
         <div className="flex items-center gap-3">
           <button
-            onClick={onBack}
-            className="p-2 rounded-xl bg-[#FAF9F6] border border-[#E8E8E5] hover:bg-[#F0EFEA] text-[#171717] transition-colors cursor-pointer"
+            onClick={handleBackAction}
+            className="p-2 rounded-xl border border-[#E8E8E5] hover:bg-[#FAF9F6] text-[#6B6B6B] hover:text-[#171717] transition-colors cursor-pointer"
+            title="Back to Channels"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-black text-xl text-[#171717]">Website Live Chat Widget</h1>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                Connected
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#FFF0E5] text-[#FF8A2A]">
+                Public Embed SDK
               </span>
             </div>
-            <p className="text-xs text-[#6B6B6B] mt-0.5">
-              Customize appearance, automatic brand color inheritance, AI agent routing, and embed code.
+            <p className="text-xs text-[#6B6B6B]">
+              Customize live chat appearance, brand colors, automated greetings, and embed code for any website.
             </p>
           </div>
         </div>
 
-        <button
-          onClick={handleSaveConfig}
-          disabled={isSaving}
-          className="px-6 py-2.5 rounded-2xl bg-[#FF8A2A] hover:bg-[#E5781E] text-white text-xs font-bold shadow-xs hover:shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-        >
-          {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-          <span>{isSaving ? 'Saving...' : 'Save Configuration'}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleBackAction}
+            className="px-4 py-2 rounded-xl border border-[#E8E8E5] text-xs font-bold text-[#6B6B6B] hover:text-[#171717] hover:bg-[#FAF9F6] transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSaveConfig}
+            disabled={isSaving}
+            className="px-5 py-2 rounded-xl bg-[#FF8A2A] text-white text-xs font-bold hover:bg-[#E6781E] disabled:opacity-50 transition-colors shadow-xs cursor-pointer flex items-center gap-1.5"
+          >
+            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+            Save &amp; Publish
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Left Columns (2 cols): Settings Forms */}
         <div className="lg:col-span-2 space-y-6">
           {/* SECTION 1 — GENERAL IDENTITY */}
-          <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-4">
+          <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 shadow-2xs space-y-5">
             <div className="flex items-center gap-2 pb-3 border-b border-[#E8E8E5]">
               <Globe className="w-5 h-5 text-[#FF8A2A]" />
-              <h2 className="font-extrabold text-base text-[#171717]">1. General Identity & Greeting</h2>
+              <h2 className="font-extrabold text-base text-[#171717]">1. General Identity &amp; Quick Actions</h2>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className="space-y-1">
                 <label className="block text-xs font-bold text-[#171717]">Widget Title / Header Name</label>
                 <input
@@ -239,6 +304,94 @@ export const WebsiteWidgetConfigurator: React.FC<WebsiteWidgetConfiguratorProps>
                   onChange={(e) => setWelcomeMessage(e.target.value)}
                   className="w-full p-3 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#171717] focus:outline-none focus:border-[#FF8A2A]"
                 />
+              </div>
+
+              {/* Conversation Starter Choices */}
+              <div className="pt-4 border-t border-[#E8E8E5] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-xs font-bold text-[#171717]">
+                      Conversation Starters / Quick Action Buttons
+                    </label>
+                    <p className="text-[11px] text-[#6B6B6B]">
+                      Choices shown under &quot;How can I help you?&quot; when visitors open the chat widget.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setConversationStarters((prev) => [
+                        ...prev,
+                        { label: '❓ New Question', prompt: 'Tell me more about your services' },
+                      ])
+                    }
+                    className="px-2.5 py-1 rounded-xl bg-[#FFF0E5] text-[#FF8A2A] text-xs font-bold hover:bg-[#FFE0CC] transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Choice
+                  </button>
+                </div>
+
+                {/* Presets Bar */}
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mr-1">
+                    Presets:
+                  </span>
+                  {Object.entries(PRESET_STARTERS).map(([key, preset]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setConversationStarters(preset.items)}
+                      className="px-2.5 py-1 rounded-lg bg-[#FAF9F6] border border-[#E8E8E5] hover:border-[#FF8A2A] hover:text-[#FF8A2A] text-[11px] font-medium text-[#171717] transition-colors cursor-pointer"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Starter Items List */}
+                <div className="space-y-2">
+                  {conversationStarters.map((starter, idx) => (
+                    <div
+                      key={idx}
+                      className="p-2.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] flex items-center gap-2"
+                    >
+                      <input
+                        type="text"
+                        value={starter.label}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setConversationStarters((prev) =>
+                            prev.map((item, i) => (i === idx ? { ...item, label: val } : item))
+                          );
+                        }}
+                        placeholder="Button Label (e.g. 💼 View Projects)"
+                        className="w-1/3 px-3 py-1.5 rounded-xl bg-white border border-[#E8E8E5] text-xs text-[#171717] font-semibold focus:outline-none focus:border-[#FF8A2A]"
+                      />
+                      <input
+                        type="text"
+                        value={starter.prompt}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setConversationStarters((prev) =>
+                            prev.map((item, i) => (i === idx ? { ...item, prompt: val } : item))
+                          );
+                        }}
+                        placeholder="Question prompt sent when clicked"
+                        className="flex-1 px-3 py-1.5 rounded-xl bg-white border border-[#E8E8E5] text-xs text-[#6B6B6B] focus:outline-none focus:border-[#FF8A2A]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setConversationStarters((prev) => prev.filter((_, i) => i !== idx))
+                        }
+                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                        title="Delete Choice"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -690,15 +843,15 @@ export const WebsiteWidgetConfigurator: React.FC<WebsiteWidgetConfiguratorProps>
                 previewTheme === 'dark' ? 'bg-[#111827] border-gray-800' : 'bg-white border-[#E8E8E5]'
               }`}
             >
-              {['☕ View Menu', '📦 Track Order', '💳 Help'].map((starter) => (
+              {conversationStarters.map((starter, idx) => (
                 <button
-                  key={starter}
+                  key={idx}
                   type="button"
                   onClick={() => {
                     setTestMessages((prev) => [
                       ...prev,
-                      { sender: 'user', text: starter },
-                      { sender: 'agent', text: `Here is the info for: ${starter}` },
+                      { sender: 'user', text: starter.prompt || starter.label },
+                      { sender: 'agent', text: `Here is the info for "${starter.label}": As configured in your Knowledge Base, I am ready to help with this inquiry!` },
                     ]);
                   }}
                   className="px-2.5 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap cursor-pointer transition-all border"
@@ -708,7 +861,7 @@ export const WebsiteWidgetConfigurator: React.FC<WebsiteWidgetConfiguratorProps>
                     color: previewTheme === 'dark' ? '#F3F4F6' : primaryColor,
                   }}
                 >
-                  {starter}
+                  {starter.label}
                 </button>
               ))}
             </div>
