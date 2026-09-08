@@ -117,7 +117,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {onCloseMobile && (
             <button
               onClick={onCloseMobile}
-              className="p-1 rounded-lg text-gray-400 hover:text-[#171717] md:hidden cursor-pointer"
+              className="p-1 rounded-lg text-gray-400 hover:text-[#171717] lg:hidden cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -254,13 +254,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <>
       {/* Desktop Persistent Sticky Sidebar */}
-      <aside className="hidden md:flex md:flex-col w-64 shrink-0 h-screen sticky top-0 z-30 bg-white border-r border-[#E8E8E5]">
+      <aside className="hidden lg:flex lg:flex-col w-60 xl:w-64 shrink-0 h-screen sticky top-0 z-30 bg-white border-r border-[#E8E8E5]">
         {sidebarContent}
       </aside>
 
-      {/* Mobile Drawer Overlay */}
+      {/* Mobile / Tablet Drawer Overlay */}
       {isMobileOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden">
+        <div className="fixed inset-0 z-50 flex lg:hidden">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-xs" onClick={onCloseMobile} />
           <div className="relative z-10 w-64 h-full bg-white flex flex-col shadow-2xl">
             {sidebarContent}

@@ -29,7 +29,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#F7F7F5] text-[#171717] flex flex-col md:flex-row font-sans selection:bg-[#FFF0E5] selection:text-[#D96512]">
+    <div className="min-h-screen bg-[#F7F7F5] text-[#171717] flex flex-col lg:flex-row font-sans selection:bg-[#FFF0E5] selection:text-[#D96512]">
       {/* Sidebar Navigation */}
       <Sidebar
         currentPath={currentPath}

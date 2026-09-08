@@ -49,7 +49,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={onToggleMobileSidebar}
-            className="p-1.5 sm:p-2 text-gray-500 hover:text-[#171717] hover:bg-[#FAF9F6] rounded-xl md:hidden cursor-pointer"
+            className="p-1.5 sm:p-2 text-gray-500 hover:text-[#171717] hover:bg-[#FAF9F6] rounded-xl lg:hidden cursor-pointer"
             title="Open Menu"
           >
             <Menu className="w-5 h-5" />
@@ -67,7 +67,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         </div>
 
         {/* Center: Search Input */}
-        <div className="flex-1 max-w-xs md:max-w-sm lg:max-w-md mx-3 lg:mx-6 hidden sm:block">
+        <div className="flex-1 max-w-xs md:max-w-sm lg:max-w-md mx-3 lg:mx-6 hidden md:block">
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
             <input

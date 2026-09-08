@@ -68,7 +68,7 @@ export const ConversationActivity: React.FC<ConversationActivityProps> = ({
   return (
     <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 space-y-6 shadow-2xs">
       {/* Header & Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#E8E8E5]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E8E8E5]">
         <div>
           <h3 className="font-bold text-base sm:text-lg text-[#171717]">Conversation Activity</h3>
           <p className="text-xs text-[#6B6B6B]">

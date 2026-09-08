@@ -36,7 +36,7 @@ export const AIPerformance: React.FC<AIPerformanceProps> = ({ data, onNavigate }
       </div>
 
       {/* Grid Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <div className="p-3.5 sm:p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] space-y-1">
           <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-[#6B6B6B] uppercase tracking-wider">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
