@@ -68,17 +68,17 @@ export const ConversationActivity: React.FC<ConversationActivityProps> = ({
   return (
     <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 space-y-6 shadow-2xs">
       {/* Header & Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E8E8E5]">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#E8E8E5]">
         <div>
-          <h3 className="font-bold text-lg text-[#171717]">Conversation Activity</h3>
+          <h3 className="font-bold text-base sm:text-lg text-[#171717]">Conversation Activity</h3>
           <p className="text-xs text-[#6B6B6B]">
             Daily trend of total inbound chats, AI auto-resolutions, and human agent handoffs
           </p>
         </div>
 
         {/* Legend & Period Controls */}
-        <div className="flex items-center gap-4">
-          <div className="hidden lg:flex items-center gap-3 text-xs font-semibold text-[#6B6B6B]">
+        <div className="flex flex-wrap items-center justify-between sm:justify-end gap-3 sm:gap-4">
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 text-[11px] sm:text-xs font-semibold text-[#6B6B6B]">
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-[#171717]" />
               <span>Total</span>
@@ -94,10 +94,10 @@ export const ConversationActivity: React.FC<ConversationActivityProps> = ({
           </div>
 
           {/* Period Selector Toggle */}
-          <div className="bg-[#FAF9F6] p-1 rounded-xl border border-[#E8E8E5] flex items-center gap-1">
+          <div className="bg-[#FAF9F6] p-1 rounded-xl border border-[#E8E8E5] flex items-center gap-1 shrink-0">
             <button
               onClick={() => onPeriodChange('7d')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 period === '7d'
                   ? 'bg-white text-[#FF8A2A] shadow-2xs'
                   : 'text-[#6B6B6B] hover:text-[#171717]'
@@ -107,7 +107,7 @@ export const ConversationActivity: React.FC<ConversationActivityProps> = ({
             </button>
             <button
               onClick={() => onPeriodChange('30d')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 period === '30d'
                   ? 'bg-white text-[#FF8A2A] shadow-2xs'
                   : 'text-[#6B6B6B] hover:text-[#171717]'
@@ -120,10 +120,10 @@ export const ConversationActivity: React.FC<ConversationActivityProps> = ({
       </div>
 
       {/* SVG Chart Container */}
-      <div className="relative w-full overflow-x-auto">
+      <div className="relative w-full overflow-x-auto pb-1">
         <svg
           viewBox={`0 0 ${width} ${height}`}
-          className="w-full h-auto min-w-[500px]"
+          className="w-full h-auto min-w-[480px] sm:min-w-0"
           onMouseLeave={() => setHoveredPoint(null)}
         >
           <defs>

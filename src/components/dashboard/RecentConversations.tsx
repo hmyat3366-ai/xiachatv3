@@ -58,20 +58,20 @@ export const RecentConversations: React.FC<RecentConversationsProps> = ({
   return (
     <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 space-y-4 shadow-2xs">
       {/* Header & CTA */}
-      <div className="flex items-center justify-between pb-4 border-b border-[#E8E8E5]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#E8E8E5]">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gray-100 text-[#171717] flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-gray-100 text-[#171717] flex items-center justify-center shrink-0">
             <MessageSquare className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-lg text-[#171717]">Recent Conversations</h3>
+            <h3 className="font-bold text-base sm:text-lg text-[#171717]">Recent Conversations</h3>
             <p className="text-xs text-[#6B6B6B]">Latest incoming customer messages across channels</p>
           </div>
         </div>
 
         <button
           onClick={() => onNavigate('/inbox')}
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#FF8A2A] hover:text-[#D96512] transition-colors cursor-pointer group"
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#FF8A2A] hover:text-[#D96512] transition-colors cursor-pointer group self-start sm:self-auto"
         >
           <span>View all conversations</span>
           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />

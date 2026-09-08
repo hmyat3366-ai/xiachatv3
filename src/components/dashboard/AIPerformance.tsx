@@ -36,41 +36,41 @@ export const AIPerformance: React.FC<AIPerformanceProps> = ({ data, onNavigate }
       </div>
 
       {/* Grid Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] space-y-1">
-          <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#6B6B6B] uppercase tracking-wider">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>AI Resolution Rate</span>
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] space-y-1">
+          <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-[#6B6B6B] uppercase tracking-wider">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span className="truncate">AI Resolution</span>
           </div>
-          <p className="text-2xl sm:text-3xl font-extrabold text-[#171717]">{resolutionRateStr}</p>
+          <p className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-[#171717]">{resolutionRateStr}</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] space-y-1">
-          <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#6B6B6B] uppercase tracking-wider">
-            <Bot className="w-3.5 h-3.5 text-[#FF8A2A]" />
-            <span>AI Conversations</span>
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] space-y-1">
+          <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-[#6B6B6B] uppercase tracking-wider">
+            <Bot className="w-3.5 h-3.5 text-[#FF8A2A] shrink-0" />
+            <span className="truncate">Conversations</span>
           </div>
-          <p className="text-2xl sm:text-3xl font-extrabold text-[#171717]">
+          <p className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-[#171717]">
             {(data?.totalAiConversations ?? 0).toLocaleString()}
           </p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] space-y-1">
-          <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#6B6B6B] uppercase tracking-wider">
-            <UserCheck className="w-3.5 h-3.5 text-amber-600" />
-            <span>Human Handoffs</span>
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] space-y-1">
+          <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-[#6B6B6B] uppercase tracking-wider">
+            <UserCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            <span className="truncate">Handoffs</span>
           </div>
-          <p className="text-2xl sm:text-3xl font-extrabold text-[#171717]">
+          <p className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-[#171717]">
             {data?.humanHandoffs ?? 0}
           </p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] space-y-1">
-          <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#6B6B6B] uppercase tracking-wider">
-            <Clock className="w-3.5 h-3.5 text-blue-600" />
-            <span>Avg Response Time</span>
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] space-y-1">
+          <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-[#6B6B6B] uppercase tracking-wider">
+            <Clock className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+            <span className="truncate">Avg Speed</span>
           </div>
-          <p className="text-2xl sm:text-3xl font-extrabold text-[#171717]">
+          <p className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-[#171717]">
             {data?.avgResponseTimeSeconds ?? '0s'}
           </p>
         </div>
@@ -94,13 +94,13 @@ export const AIPerformance: React.FC<AIPerformanceProps> = ({ data, onNavigate }
             title={`Human Agent Handoff (${100 - validRateNumber}%)`}
           />
         </div>
-        <div className="flex items-center justify-between text-[11px] text-[#6B6B6B]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-[#6B6B6B]">
           <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#FF8A2A]" />
+            <span className="w-2 h-2 rounded-full bg-[#FF8A2A] shrink-0" />
             AI Auto-Resolved without agent intervention
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-amber-400" />
+            <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
             Escalated to Team
           </span>
         </div>

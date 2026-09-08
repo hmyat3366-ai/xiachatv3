@@ -11,9 +11,9 @@ export const NeedsAttention: React.FC<NeedsAttentionProps> = ({ items, onNavigat
   return (
     <div className="bg-white rounded-3xl border border-[#E8E8E5] p-6 space-y-4 shadow-2xs">
       {/* Header & CTA */}
-      <div className="flex items-center justify-between pb-3 border-b border-[#E8E8E5]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E8E8E5]">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
             <AlertTriangle className="w-4 h-4" />
           </div>
           <div>
@@ -24,7 +24,7 @@ export const NeedsAttention: React.FC<NeedsAttentionProps> = ({ items, onNavigat
 
         <button
           onClick={() => onNavigate('/inbox')}
-          className="inline-flex items-center gap-1 text-xs font-bold text-[#FF8A2A] hover:text-[#D96512] transition-colors cursor-pointer group"
+          className="inline-flex items-center gap-1 text-xs font-bold text-[#FF8A2A] hover:text-[#D96512] transition-colors cursor-pointer group self-start sm:self-auto"
         >
           <span>Review Inbox</span>
           <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />

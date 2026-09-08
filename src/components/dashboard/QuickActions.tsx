@@ -30,7 +30,7 @@ export const QuickActions: React.FC<QuickActionsProps> = ({ onNavigate }) => {
   return (
     <div className="bg-white rounded-3xl border border-[#E8E8E5] p-5 space-y-3 shadow-2xs">
       <h4 className="text-xs font-bold text-[#6B6B6B] uppercase tracking-wider">Quick Actions</h4>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-3">
         {actions.map((action) => {
           const Icon = action.icon;
           return (

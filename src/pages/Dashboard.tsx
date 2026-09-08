@@ -178,7 +178,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentPath, onNavigate })
           {/* Dashboard Header Section */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#171717] tracking-tight">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-[#171717] tracking-tight">
                 {greeting}, {userName}
               </h1>
               <p className="text-xs sm:text-sm text-[#6B6B6B] mt-0.5">
@@ -187,10 +187,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentPath, onNavigate })
             </div>
 
             {/* Date Range Selector */}
-            <div className="bg-white p-1 rounded-2xl border border-[#E8E8E5] shadow-2xs flex items-center gap-1 shrink-0 self-start sm:self-auto">
+            <div className="w-full sm:w-auto bg-white p-1 rounded-2xl border border-[#E8E8E5] shadow-2xs grid grid-cols-3 sm:flex items-center gap-1 shrink-0">
               <button
                 onClick={() => setPeriod('today')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`text-center py-2 sm:py-1.5 px-2.5 sm:px-3.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   period === 'today'
                     ? 'bg-[#FF8A2A] text-white shadow-2xs'
                     : 'text-[#6B6B6B] hover:text-[#171717] hover:bg-[#FAF9F6]'
@@ -200,7 +200,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentPath, onNavigate })
               </button>
               <button
                 onClick={() => setPeriod('7d')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`text-center py-2 sm:py-1.5 px-2.5 sm:px-3.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   period === '7d'
                     ? 'bg-[#FF8A2A] text-white shadow-2xs'
                     : 'text-[#6B6B6B] hover:text-[#171717] hover:bg-[#FAF9F6]'
@@ -210,7 +210,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentPath, onNavigate })
               </button>
               <button
                 onClick={() => setPeriod('30d')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`text-center py-2 sm:py-1.5 px-2.5 sm:px-3.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   period === '30d'
                     ? 'bg-[#FF8A2A] text-white shadow-2xs'
                     : 'text-[#6B6B6B] hover:text-[#171717] hover:bg-[#FAF9F6]'
@@ -223,7 +223,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentPath, onNavigate })
 
           {/* 4 Key Metric Cards */}
           {data.metrics && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-4 gap-3.5 sm:gap-4">
               <MetricCard
                 title="Total Conversations"
                 value={data.metrics.totalConversations.value}

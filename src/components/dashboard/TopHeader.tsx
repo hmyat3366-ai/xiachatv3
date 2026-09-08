@@ -46,10 +46,10 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     <>
       <header className="bg-white border-b border-[#E8E8E5] px-4 sm:px-6 py-3 flex items-center justify-between shrink-0 z-20 sticky top-0">
         {/* Left: Mobile Menu Toggle & Workspace Switcher Indicator */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={onToggleMobileSidebar}
-            className="p-2 text-gray-500 hover:text-[#171717] hover:bg-[#FAF9F6] rounded-xl md:hidden cursor-pointer"
+            className="p-1.5 sm:p-2 text-gray-500 hover:text-[#171717] hover:bg-[#FAF9F6] rounded-xl md:hidden cursor-pointer"
             title="Open Menu"
           >
             <Menu className="w-5 h-5" />
@@ -57,17 +57,17 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
           <button
             onClick={onOpenWorkspaceModal}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[#E8E8E5] hover:border-gray-300 bg-[#FAF9F6] text-xs font-semibold text-[#171717] transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl border border-[#E8E8E5] hover:border-gray-300 bg-[#FAF9F6] text-xs font-semibold text-[#171717] transition-colors cursor-pointer"
           >
-            <Building2 className="w-3.5 h-3.5 text-[#FF8A2A]" />
-            <span className="truncate max-w-[120px] sm:max-w-[160px]">
+            <Building2 className="w-3.5 h-3.5 text-[#FF8A2A] shrink-0" />
+            <span className="truncate max-w-[105px] xs:max-w-[130px] sm:max-w-[180px]">
               {currentWorkspace?.name || 'Workspace'}
             </span>
           </button>
         </div>
 
         {/* Center: Search Input */}
-        <div className="flex-1 max-w-md mx-4 hidden sm:block">
+        <div className="flex-1 max-w-xs md:max-w-sm lg:max-w-md mx-3 lg:mx-6 hidden sm:block">
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
             <input
@@ -81,7 +81,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         </div>
 
         {/* Right Action Icons & User Avatar */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3">
           {/* Notifications Dropdown Toggle */}
           <div className="relative">
             <button
@@ -95,7 +95,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
             {/* Notifications Popover */}
             {showNotifications && (
-              <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl border border-[#E8E8E5] shadow-lg p-4 space-y-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="absolute -right-2 sm:right-0 mt-2 w-[calc(100vw-32px)] max-w-[340px] sm:w-80 bg-white rounded-2xl border border-[#E8E8E5] shadow-xl p-4 space-y-3 z-50 animate-in fade-in zoom-in-95 duration-150">
                 <div className="flex items-center justify-between pb-2 border-b border-[#E8E8E5]">
                   <h4 className="text-xs font-bold text-[#171717] uppercase tracking-wider">
                     Notifications
