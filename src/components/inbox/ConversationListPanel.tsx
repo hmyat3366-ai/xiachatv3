@@ -133,7 +133,7 @@ export const ConversationListPanel: React.FC<ConversationListPanelProps> = ({
     (filters.unread ? 1 : 0);
 
   return (
-    <div className="w-full lg:w-[340px] xl:w-[380px] shrink-0 border-r border-[#E8E8E5] bg-white flex flex-col h-full z-10 select-none">
+    <div className="w-full lg:w-[300px] xl:w-[320px] 2xl:w-[360px] shrink-0 border-r border-[#E8E8E5] bg-white flex flex-col h-full z-10 select-none">
       {/* ─────────────────────────────────────────────────────────────
           1. HEADER & SEARCH BAR
          ───────────────────────────────────────────────────────────── */}

@@ -89,7 +89,7 @@ export const CustomerDetailsPanel: React.FC<CustomerDetailsPanelProps> = ({
   ];
 
   return (
-    <div className="w-full lg:w-[320px] xl:w-[360px] shrink-0 border-l border-[#E8E8E5] bg-white flex flex-col h-full min-h-0 overflow-hidden select-none">
+    <div className="w-full lg:w-[290px] xl:w-[310px] 2xl:w-[340px] shrink-0 border-l border-[#E8E8E5] bg-white flex flex-col h-full min-h-0 overflow-hidden select-none">
       {/* ─────────────────────────────────────────────────────────────
           1. PANEL HEADER
          ───────────────────────────────────────────────────────────── */}

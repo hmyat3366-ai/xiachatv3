@@ -312,8 +312,8 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
                 <span className="font-extrabold text-[#8B5CF6] shrink-0 text-[11px] uppercase tracking-wider">
                   AI Autonomous Mode
                 </span>
-                <span className="text-slate-300 text-xs hidden xl:inline">•</span>
-                <span className="text-slate-500 font-medium truncate text-xs hidden xl:inline">
+                <span className="text-slate-300 text-xs hidden 2xl:inline">•</span>
+                <span className="text-slate-500 font-medium truncate text-xs hidden 2xl:inline">
                   Xia AI is auto-replying with Knowledge Base
                 </span>
               </div>
@@ -323,8 +323,8 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
                 <span className="font-extrabold text-[#2563EB] shrink-0 text-[11px] uppercase tracking-wider">
                   Human Control Mode
                 </span>
-                <span className="text-slate-300 text-xs hidden xl:inline">•</span>
-                <span className="text-slate-500 font-medium truncate text-xs hidden xl:inline">
+                <span className="text-slate-300 text-xs hidden 2xl:inline">•</span>
+                <span className="text-slate-500 font-medium truncate text-xs hidden 2xl:inline">
                   Handled by <strong className="text-slate-700 font-semibold">{conversation.assignee || 'Human Agent'}</strong>. AI auto-replies paused.
                 </span>
               </div>
@@ -334,8 +334,8 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
                 <span className="font-extrabold text-emerald-800 shrink-0 text-[11px] uppercase tracking-wider">
                   Conversation Resolved
                 </span>
-                <span className="text-slate-300 text-xs hidden xl:inline">•</span>
-                <span className="text-slate-500 font-medium truncate text-xs hidden xl:inline">
+                <span className="text-slate-300 text-xs hidden 2xl:inline">•</span>
+                <span className="text-slate-500 font-medium truncate text-xs hidden 2xl:inline">
                   Archived. Automatically reopens upon new customer message.
                 </span>
               </div>
@@ -413,7 +413,7 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
               </div>
               <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
                 <ConversationStatusBadge status={conversation.status} size="xs" />
-                <span className="text-[11px] text-slate-400 truncate hidden md:inline">
+                <span className="text-[11px] text-slate-400 truncate hidden 2xl:inline">
                   {conversation.customerEmail || conversation.customerPhone || 'Direct Channel Visitor'}
                 </span>
               </div>
@@ -422,35 +422,35 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
 
           {/* Right Action Controls Toolbar */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* Voice Call Button (Desktop) */}
+            {/* Voice Call Button (Ultrawide Desktop only) */}
             <button
               onClick={() => setIsVoiceCallActive(true)}
-              className="hidden md:flex p-2 rounded-xl border border-[#E8E8E5] bg-white hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 text-slate-600 transition-colors cursor-pointer shadow-2xs"
+              className="hidden 2xl:flex p-2 rounded-xl border border-[#E8E8E5] bg-white hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 text-slate-600 transition-colors cursor-pointer shadow-2xs"
               title="Start Voice Call"
             >
               <Phone className="w-4 h-4" />
             </button>
 
-            {/* Video Call Button (Desktop) */}
+            {/* Video Call Button (Ultrawide Desktop only) */}
             <button
               onClick={() => setIsVideoCallActive(true)}
-              className="hidden md:flex p-2 rounded-xl border border-[#E8E8E5] bg-white hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 text-slate-600 transition-colors cursor-pointer shadow-2xs"
+              className="hidden 2xl:flex p-2 rounded-xl border border-[#E8E8E5] bg-white hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 text-slate-600 transition-colors cursor-pointer shadow-2xs"
               title="Start Video Call"
             >
               <Video className="w-4 h-4" />
             </button>
 
-            <div className="h-5 w-px bg-slate-200 mx-0.5 hidden lg:block" />
+            <div className="h-5 w-px bg-slate-200 mx-0.5 hidden 2xl:block" />
 
-            {/* Assign Agent Dropdown */}
+            {/* Assign Agent Dropdown — Compact icon on laptop, full on 2xl */}
             <div className="relative">
               <button
                 onClick={() => setIsAssigneeDropdownOpen(!isAssigneeDropdownOpen)}
                 className="px-2 sm:px-2.5 py-1.5 rounded-xl border border-[#E8E8E5] bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 flex items-center gap-1 sm:gap-1.5 transition-colors cursor-pointer shadow-2xs"
-                title="Assign Agent"
+                title={`Assigned to: ${conversation.assignee || 'Unassigned'}`}
               >
                 <User className="w-3.5 h-3.5 text-slate-500" />
-                <span className="hidden md:inline max-w-[90px] truncate">{conversation.assignee || 'Unassigned'}</span>
+                <span className="hidden 2xl:inline max-w-[90px] truncate">{conversation.assignee || 'Unassigned'}</span>
                 <ChevronDown className="w-3 h-3 text-slate-400" />
               </button>
 
@@ -507,13 +507,13 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
 
               {isMoreMenuOpen && (
                 <div className="absolute right-0 top-full mt-1.5 w-48 bg-white border border-[#E8E8E5] rounded-xl shadow-xl p-1 z-40 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-100">
-                  {/* Call options on mobile */}
+                  {/* Call options for screens < 2xl */}
                   <button
                     onClick={() => {
                       setIsVoiceCallActive(true);
                       setIsMoreMenuOpen(false);
                     }}
-                    className="w-full text-left px-3 py-1.5 rounded-lg text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 cursor-pointer md:hidden"
+                    className="w-full text-left px-3 py-1.5 rounded-lg text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 cursor-pointer 2xl:hidden"
                   >
                     <Phone className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Start Voice Call</span>
@@ -523,7 +523,7 @@ export const ChatThreadPanel: React.FC<ChatThreadPanelProps> = ({
                       setIsVideoCallActive(true);
                       setIsMoreMenuOpen(false);
                     }}
-                    className="w-full text-left px-3 py-1.5 rounded-lg text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 cursor-pointer md:hidden"
+                    className="w-full text-left px-3 py-1.5 rounded-lg text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 cursor-pointer 2xl:hidden"
                   >
                     <Video className="w-3.5 h-3.5 text-blue-600" />
                     <span>Start Video Call</span>
