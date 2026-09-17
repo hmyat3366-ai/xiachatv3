@@ -445,13 +445,13 @@ export const postMessage = async (req: AuthRequest, res: Response) => {
     broadcastInboxEvent(workspace.id, 'new_message', { conversationId, message: newMessageObj });
 
     // Also broadcast to public widget SSE listeners for this conversation (zero latency delivery)
-    inboxEventEmitter.emit(`conversation:${conversationId}`, { type: 'new_message', payload: newMessageObj });
+    inboxEventEmitter.emit(`conversation:${conversationId}`, { type: 'message', data: newMessageObj, payload: newMessageObj });
 
     // If message is from human agent, update status to 'human' and clear needs_attention
     if (senderType === 'agent' && !isInternalNote) {
       db.prepare('UPDATE conversations SET status = ?, assignee = ?, needs_attention = 0, updated_at = ? WHERE id = ?').run('human', req.user.name, now, conversationId);
       broadcastInboxEvent(workspace.id, 'status_change', { conversationId, status: 'human', assignee: req.user.name, needsAttention: false });
-      inboxEventEmitter.emit(`conversation:${conversationId}`, { type: 'status_change', payload: { status: 'human', assignee: req.user.name } });
+      inboxEventEmitter.emit(`conversation:${conversationId}`, { type: 'status_change', status: 'human', assignee: req.user.name, payload: { status: 'human', assignee: req.user.name } });
     }
 
     // Persist to Supabase
@@ -519,6 +519,8 @@ export const takeoverConversation = async (req: AuthRequest, res: Response) => {
 
     inboxEventEmitter.emit(`conversation:${conversationId}`, {
       type: 'status_change',
+      status: 'HUMAN_HANDLING',
+      assignee: agentName,
       payload: { status: 'HUMAN_HANDLING', assignee: agentName },
     });
 
@@ -591,6 +593,8 @@ export const returnToAI = async (req: AuthRequest, res: Response) => {
 
     inboxEventEmitter.emit(`conversation:${conversationId}`, {
       type: 'status_change',
+      status: 'AI_HANDLING',
+      assignee: 'Xia AI',
       payload: { status: 'AI_HANDLING', assignee: 'Xia AI' },
     });
 
@@ -719,6 +723,8 @@ export const updateStatus = async (req: AuthRequest, res: Response) => {
 
     inboxEventEmitter.emit(`conversation:${conversationId}`, {
       type: 'status_change',
+      status,
+      resolvedAt,
       payload: { status, resolvedAt },
     });
 

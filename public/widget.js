@@ -1981,8 +1981,8 @@
       state.sseSource.addEventListener('message', function (e) {
         try {
           var payload = JSON.parse(e.data);
-          if (payload.type === 'message' && payload.data) {
-            var msg = payload.data;
+          var msg = payload.data || payload.payload || (payload.type === 'message' || payload.type === 'new_message' ? payload.message : null);
+          if ((payload.type === 'message' || payload.type === 'new_message') && msg) {
             var exists = state.messages.some(function (m) { return m.id === msg.id; });
             if (!exists) {
               state.messages.push(msg);
@@ -1992,9 +1992,12 @@
               }
             }
           } else if (payload.type === 'status_change') {
-            var isResolvedStatus = payload.status === 'RESOLVED' || payload.status === 'resolved' || payload.status === 'closed';
-            state.conversationStatus = payload.status === 'HUMAN_HANDLING' ? 'human' : (isResolvedStatus ? 'resolved' : 'ai');
-            if (payload.assignee) state.assignedAgentName = payload.assignee;
+            var statusData = payload.payload || payload;
+            var newStatus = statusData.status || payload.status;
+            var isResolvedStatus = newStatus === 'RESOLVED' || newStatus === 'resolved' || newStatus === 'closed';
+            state.conversationStatus = (newStatus === 'HUMAN_HANDLING' || newStatus === 'human') ? 'human' : (isResolvedStatus ? 'resolved' : 'ai');
+            var assignee = statusData.assignee || payload.assignee;
+            if (assignee) state.assignedAgentName = assignee;
             updateHeaderStatus();
             if (isResolvedStatus) {
               playChime('resolve');

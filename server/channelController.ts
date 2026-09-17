@@ -691,10 +691,29 @@ export const handlePublicWidgetMessage = async (req: Request, res: Response) => 
     const cleanSessionId = sessionId || `session_${crypto.randomBytes(4).toString('hex')}`;
     const cleanBrowserId = browserId || `browser_${crypto.randomBytes(4).toString('hex')}`;
 
-    let customer = db.prepare('SELECT * FROM customers WHERE workspace_id = ? AND (email = ? OR id = ?)').get(workspaceId, customerEmail || '', cleanVisitorId) as any;
+    let customer: any = null;
 
+    // A. By customer email in this workspace
+    if (customerEmail && typeof customerEmail === 'string' && customerEmail.trim()) {
+      customer = db.prepare('SELECT * FROM customers WHERE workspace_id = ? AND LOWER(email) = ?').get(workspaceId, customerEmail.trim().toLowerCase());
+    }
+
+    // B. By visitor record linked to customer in this workspace
+    if (!customer && cleanVisitorId) {
+      const visitorRec = db.prepare('SELECT customer_id FROM visitors WHERE id = ? AND workspace_id = ?').get(cleanVisitorId, workspaceId) as any;
+      if (visitorRec && visitorRec.customer_id) {
+        customer = db.prepare('SELECT * FROM customers WHERE id = ? AND workspace_id = ?').get(visitorRec.customer_id, workspaceId);
+      }
+    }
+
+    // C. By direct id match in this workspace (backward compatibility)
+    if (!customer && cleanVisitorId) {
+      customer = db.prepare('SELECT * FROM customers WHERE id = ? AND workspace_id = ?').get(cleanVisitorId, workspaceId);
+    }
+
+    // D. If not found, create new customer record with a guaranteed unique UUID
     if (!customer) {
-      const custId = cleanVisitorId;
+      const custId = crypto.randomUUID();
       const displayName = customerName || 'Website Visitor';
       db.prepare(`
         INSERT INTO customers (id, workspace_id, name, email, phone, company, location, avatar, status, tags, created_at, updated_at, last_active_at)
@@ -715,8 +734,8 @@ export const handlePublicWidgetMessage = async (req: Request, res: Response) => 
         `).run(cleanVisitorId, workspaceId, cleanSessionId, cleanBrowserId, customer.id, now, now, JSON.stringify(productContext || {}), now, now);
       } else {
         db.prepare(`
-          UPDATE visitors SET last_seen_at = ?, session_id = ?, customer_id = ?, updated_at = ? WHERE id = ?
-        `).run(now, cleanSessionId, customer.id, now, cleanVisitorId);
+          UPDATE visitors SET workspace_id = ?, last_seen_at = ?, session_id = ?, customer_id = ?, updated_at = ? WHERE id = ?
+        `).run(workspaceId, now, cleanSessionId, customer.id, now, cleanVisitorId);
       }
     } catch (e) {
       console.warn('[Widget] Visitor record warning:', e);
@@ -796,6 +815,8 @@ export const handlePublicWidgetMessage = async (req: Request, res: Response) => 
 
     // Broadcast customer message to Dashboard Inbox via SSE
     broadcastInboxEvent(workspaceId, 'new_message', { conversationId: convId, message: customerMsgObj });
+    // Also emit directly to widget SSE stream (listens on conversation:{id})
+    inboxEventEmitter.emit(`conversation:${convId}`, { type: 'message', data: customerMsgObj });
     await syncMessageToSupabase(customerMsgObj);
 
     // 4. Trigger AI Auto-Responder if channel enables AI and conversation not locked to human
@@ -915,6 +936,8 @@ export const handlePublicWidgetMessage = async (req: Request, res: Response) => 
           aiSummary: aiResult.aiSummary,
           recommendedAction: aiResult.recommendedAction,
         });
+        // Notify widget SSE of handoff
+        inboxEventEmitter.emit(`conversation:${convId}`, { type: 'status_change', status: 'HUMAN_HANDLING', assignee: assignedAgentName });
       } else {
         db.prepare(`
           UPDATE conversations
@@ -959,6 +982,8 @@ export const handlePublicWidgetMessage = async (req: Request, res: Response) => 
 
       // Broadcast AI Message to Dashboard Inbox
       broadcastInboxEvent(workspaceId, 'new_message', { conversationId: convId, message: aiMsgObj });
+      // Also emit directly to widget SSE stream
+      inboxEventEmitter.emit(`conversation:${convId}`, { type: 'message', data: aiMsgObj });
 
       // Sync to Supabase
       const updatedConv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(convId);
@@ -985,12 +1010,16 @@ export const getPublicWidgetConversation = async (req: Request, res: Response) =
     const { siteKey, conversationId } = req.params;
 
     let channel = (siteKey === 'auto-detect'
-      ? db.prepare("SELECT * FROM channels WHERE type = 'website' AND status = 'connected' LIMIT 1").get()
-      : db.prepare("SELECT * FROM channels WHERE id = ? AND type = 'website'").get(siteKey)
-    ) as DbChannel | undefined;
+      ? db.prepare("SELECT c.*, w.name as workspace_name FROM channels c JOIN workspaces w ON c.workspace_id = w.id WHERE c.type = 'website' AND c.status = 'connected' ORDER BY c.created_at ASC LIMIT 1").get()
+      : db.prepare("SELECT c.*, w.name as workspace_name FROM channels c JOIN workspaces w ON c.workspace_id = w.id WHERE c.id = ? AND c.type = 'website'").get(siteKey)
+    ) as (DbChannel & { workspace_name: string }) | undefined;
+
+    if (!channel && siteKey && siteKey !== 'auto-detect') {
+      channel = db.prepare("SELECT c.*, w.name as workspace_name FROM channels c JOIN workspaces w ON c.workspace_id = w.id WHERE (c.workspace_id = ? OR w.slug = ?) AND c.type = 'website'").get(siteKey, siteKey) as any;
+    }
 
     if (!channel) {
-      channel = db.prepare("SELECT * FROM channels WHERE type = 'website' LIMIT 1").get() as DbChannel | undefined;
+      channel = db.prepare("SELECT c.*, w.name as workspace_name FROM channels c JOIN workspaces w ON c.workspace_id = w.id WHERE c.type = 'website' LIMIT 1").get() as any;
     }
 
     if (!channel) {
@@ -1046,6 +1075,10 @@ export const identifyPublicWidgetVisitor = async (req: Request, res: Response) =
       : db.prepare("SELECT c.*, w.name as workspace_name FROM channels c JOIN workspaces w ON c.workspace_id = w.id WHERE c.id = ? AND c.type = 'website'").get(siteKey)
     ) as (DbChannel & { workspace_name: string }) | undefined;
 
+    if (!channel && siteKey && siteKey !== 'auto-detect') {
+      channel = db.prepare("SELECT c.*, w.name as workspace_name FROM channels c JOIN workspaces w ON c.workspace_id = w.id WHERE (c.workspace_id = ? OR w.slug = ?) AND c.type = 'website'").get(siteKey, siteKey) as any;
+    }
+
     if (!channel) {
       channel = db.prepare("SELECT c.*, w.name as workspace_name FROM channels c JOIN workspaces w ON c.workspace_id = w.id WHERE c.type = 'website' LIMIT 1").get() as any;
     }
@@ -1061,18 +1094,28 @@ export const identifyPublicWidgetVisitor = async (req: Request, res: Response) =
     let customer = db.prepare('SELECT * FROM customers WHERE workspace_id = ? AND email = ?').get(workspaceId, cleanEmail) as any;
 
     if (!customer) {
-      // If customer exists with id = cleanVisitorId, update it
-      const visitorCustomer = cleanVisitorId ? db.prepare('SELECT * FROM customers WHERE workspace_id = ? AND id = ?').get(workspaceId, cleanVisitorId) as any : null;
+      // Check if visitor has linked customer in this workspace
+      let visitorCustomer = null;
+      if (cleanVisitorId) {
+        const v = db.prepare('SELECT customer_id FROM visitors WHERE id = ? AND workspace_id = ?').get(cleanVisitorId, workspaceId) as any;
+        if (v && v.customer_id) {
+          visitorCustomer = db.prepare('SELECT * FROM customers WHERE workspace_id = ? AND id = ?').get(workspaceId, v.customer_id) as any;
+        }
+        if (!visitorCustomer) {
+          visitorCustomer = db.prepare('SELECT * FROM customers WHERE workspace_id = ? AND id = ?').get(workspaceId, cleanVisitorId) as any;
+        }
+      }
+
       if (visitorCustomer) {
         db.prepare(`
           UPDATE customers
           SET email = ?, name = COALESCE(?, name), phone = COALESCE(?, phone), updated_at = ?, last_active_at = ?
           WHERE id = ?
-        `).run(cleanEmail, name?.trim() || null, phone?.trim() || null, now, now, cleanVisitorId);
-        customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(cleanVisitorId) as any;
+        `).run(cleanEmail, name?.trim() || null, phone?.trim() || null, now, now, visitorCustomer.id);
+        customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(visitorCustomer.id) as any;
       } else {
-        // Create new customer record
-        const customerId = cleanVisitorId || crypto.randomUUID();
+        // Create new customer record with unique UUID
+        const customerId = crypto.randomUUID();
         const displayName = name?.trim() || 'Verified Customer';
         db.prepare(`
           INSERT INTO customers (id, workspace_id, name, email, phone, company, location, avatar, status, tags, created_at, updated_at, last_active_at)

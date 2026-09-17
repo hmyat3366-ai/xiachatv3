@@ -148,7 +148,7 @@ export const ConnectChannelModal: React.FC<ConnectChannelModalProps> = ({
   const embedOrigin = typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')
     ? window.location.origin
     : 'https://xiachatv3.vercel.app';
-  const embedCode = `<script src="${embedOrigin}/widget.js" data-site-key="${channels.find((c) => c.type === 'website')?.id || 'auto-detect'}" async></script>`;
+  const embedCode = `<script src="${embedOrigin}/widget.js" data-site-key="${channels.find((c) => c.type === 'website')?.id || 'auto-detect'}" data-api-base="${embedOrigin}" async></script>`;
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(embedCode);
