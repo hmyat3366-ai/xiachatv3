@@ -15,6 +15,7 @@ export interface WebsiteWidgetConfig {
   enableHandoff: boolean;
   showAgentAvailability: boolean;
   conversationStarters?: Array<{ label: string; prompt: string }> | string[];
+  websiteUrl?: string | null;
 }
 
 export interface Channel {

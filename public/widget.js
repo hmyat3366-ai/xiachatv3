@@ -1240,6 +1240,7 @@
           currentPage: currentPath,
           pageTitle: pageTitle,
           timeSpentSeconds: duration,
+          host: typeof window !== 'undefined' && window.location ? (window.location.origin || window.location.hostname) : undefined,
         }),
       }).catch(function () {});
     } catch (e) {}
@@ -1856,6 +1857,7 @@
       customerName: state.customerProfile.name || undefined,
       customerEmail: state.customerProfile.email || undefined,
       productContext: state.productContext || undefined,
+      hostUrl: typeof window !== 'undefined' && window.location ? (window.location.origin || window.location.hostname) : undefined,
     };
 
     fetch(apiBase + '/api/channels/public-widget/' + encodeURIComponent(state.siteKey) + '/message', {
@@ -2030,7 +2032,8 @@
 
   // Load Remote Widget Configuration
   function loadConfig() {
-    var url = apiBase + '/api/channels/public-widget/' + encodeURIComponent(state.siteKey) + '?industry=' + encodeURIComponent(state.industry);
+    var hostParam = typeof window !== 'undefined' && window.location ? '&host=' + encodeURIComponent(window.location.origin || window.location.hostname || '') : '';
+    var url = apiBase + '/api/channels/public-widget/' + encodeURIComponent(state.siteKey) + '?industry=' + encodeURIComponent(state.industry) + hostParam;
     return fetch(url)
       .then(function (res) {
         if (!res.ok) throw new Error('Failed to load widget config: ' + res.status);

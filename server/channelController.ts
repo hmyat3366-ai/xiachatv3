@@ -8,6 +8,23 @@ import { processInboundCustomerMessage } from './aiProviderService.js';
 import { syncCustomerToSupabase, syncConversationToSupabase, syncMessageToSupabase, uploadChatAttachment } from './supabase.js';
 import { createTextChunks } from './knowledgeController.js';
 
+// Helper to extract clean domain/hostname from URL or host string
+export function extractCleanHost(raw?: string): string | null {
+  if (!raw || typeof raw !== 'string') return null;
+  try {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    const url = trimmed.startsWith('http://') || trimmed.startsWith('https://')
+      ? new URL(trimmed)
+      : new URL(`http://${trimmed}`);
+    const host = url.hostname.toLowerCase();
+    return host || null;
+  } catch {
+    const cleaned = raw.replace(/^https?:\/\//i, '').split('/')[0].split('?')[0].trim().toLowerCase();
+    return cleaned || null;
+  }
+}
+
 // Auto-seed channels for workspace (Website Chat is connected by default, Social channels as not_connected)
 export function ensureSeedChannels(workspaceId: string) {
   const countStmt = db.prepare('SELECT COUNT(*) as count FROM channels WHERE workspace_id = ?');
@@ -26,7 +43,7 @@ export function ensureSeedChannels(workspaceId: string) {
         name: 'Website Live Chat',
         status: 'connected',
         provider: 'xia',
-        externalAccountId: 'xiachat.com',
+        externalAccountId: null,
         config: JSON.stringify({
           widgetName: 'Xia Support Chat',
           welcomeMessage: 'Hello! How can we help you today?',
@@ -35,6 +52,7 @@ export function ensureSeedChannels(workspaceId: string) {
           enableAI: true,
           enableHandoff: true,
           showAgentAvailability: true,
+          websiteUrl: null,
         }),
         defaultAgentId,
         lastActivityAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
@@ -116,21 +134,34 @@ export const getChannels = async (req: AuthRequest, res: Response) => {
       ORDER BY c.created_at ASC
     `).all(workspace.id) as Array<DbChannel & { default_agent_name?: string }>;
 
-    const channels = rawChannels.map((c) => ({
-      id: c.id,
-      workspaceId: c.workspace_id,
-      type: c.type, // 'website' | 'facebook' | 'instagram' | 'whatsapp'
-      name: c.name,
-      status: c.status, // 'connected' | 'connecting' | 'disconnected' | 'needs_attention' | 'not_connected'
-      provider: c.provider,
-      externalAccountId: c.external_account_id,
-      config: c.config ? JSON.parse(c.config) : null,
-      defaultAgentId: c.default_agent_id,
-      defaultAgentName: c.default_agent_name || 'Xia Support Assistant',
-      lastActivityAt: c.last_activity_at,
-      createdAt: c.created_at,
-      updatedAt: c.updated_at,
-    }));
+    const channels = rawChannels.map((c) => {
+      let parsedConfig = c.config ? JSON.parse(c.config) : null;
+      let externalAccountId = c.external_account_id;
+
+      if (c.type === 'website') {
+        if (parsedConfig?.websiteUrl) {
+          externalAccountId = parsedConfig.websiteUrl;
+        } else if (externalAccountId === 'xiachat.com') {
+          externalAccountId = null;
+        }
+      }
+
+      return {
+        id: c.id,
+        workspaceId: c.workspace_id,
+        type: c.type, // 'website' | 'facebook' | 'instagram' | 'whatsapp'
+        name: c.name,
+        status: c.status, // 'connected' | 'connecting' | 'disconnected' | 'needs_attention' | 'not_connected'
+        provider: c.provider,
+        externalAccountId,
+        config: parsedConfig,
+        defaultAgentId: c.default_agent_id,
+        defaultAgentName: c.default_agent_name || 'Xia Support Assistant',
+        lastActivityAt: c.last_activity_at,
+        createdAt: c.created_at,
+        updatedAt: c.updated_at,
+      };
+    });
 
     const stats = {
       total: channels.length,
@@ -169,6 +200,16 @@ export const getChannelById = async (req: AuthRequest, res: Response) => {
 
     const agents = db.prepare('SELECT id, name FROM ai_assistants WHERE workspace_id = ?').all(workspace.id) as Array<{ id: string; name: string }>;
 
+    let parsedConfig = c.config ? JSON.parse(c.config) : null;
+    let externalAccountId = c.external_account_id;
+    if (c.type === 'website') {
+      if (parsedConfig?.websiteUrl) {
+        externalAccountId = parsedConfig.websiteUrl;
+      } else if (externalAccountId === 'xiachat.com') {
+        externalAccountId = null;
+      }
+    }
+
     return res.status(200).json({
       channel: {
         id: c.id,
@@ -177,8 +218,8 @@ export const getChannelById = async (req: AuthRequest, res: Response) => {
         name: c.name,
         status: c.status,
         provider: c.provider,
-        externalAccountId: c.external_account_id,
-        config: c.config ? JSON.parse(c.config) : null,
+        externalAccountId,
+        config: parsedConfig,
         defaultAgentId: c.default_agent_id,
         defaultAgentName: c.default_agent_name || 'Xia Support Assistant',
         lastActivityAt: c.last_activity_at,
@@ -218,10 +259,17 @@ export const updateWebsiteChannelConfig = async (req: AuthRequest, res: Response
       enableHandoff,
       showAgentAvailability,
       conversationStarters,
+      websiteUrl,
     } = req.body;
 
     const channel = db.prepare("SELECT * FROM channels WHERE workspace_id = ? AND type = 'website'").get(workspace.id) as DbChannel | undefined;
     if (!channel) return res.status(404).json({ error: 'Website Chat channel not found.' });
+
+    const cleanWebsiteUrl = typeof websiteUrl === 'string' && websiteUrl.trim()
+      ? websiteUrl.trim()
+      : (channel.config ? JSON.parse(channel.config).websiteUrl : null);
+
+    const domainHost = cleanWebsiteUrl ? cleanWebsiteUrl.replace(/^https?:\/\//i, '').split('/')[0] : null;
 
     const now = new Date().toISOString();
     const updatedConfig = JSON.stringify({
@@ -237,13 +285,14 @@ export const updateWebsiteChannelConfig = async (req: AuthRequest, res: Response
       enableHandoff: enableHandoff !== false,
       showAgentAvailability: showAgentAvailability !== false,
       conversationStarters: conversationStarters || undefined,
+      websiteUrl: cleanWebsiteUrl || undefined,
     });
 
     db.prepare(`
       UPDATE channels
-      SET config = ?, default_agent_id = ?, updated_at = ?
+      SET config = ?, default_agent_id = ?, external_account_id = ?, updated_at = ?
       WHERE id = ? AND workspace_id = ?
-    `).run(updatedConfig, defaultAgentId || channel.default_agent_id, now, channel.id, workspace.id);
+    `).run(updatedConfig, defaultAgentId || channel.default_agent_id, domainHost || channel.external_account_id, now, channel.id, workspace.id);
 
     // Sync to workspace widget_settings
     try {
@@ -571,6 +620,28 @@ export const getPublicWidgetConfig = async (req: Request, res: Response) => {
     }
     const config = channel.config ? JSON.parse(channel.config) : {};
 
+    // Auto-detect connected website domain from incoming widget request
+    const incomingHost = (req.query.host as string) || (req.headers.origin as string) || (req.headers.referer as string);
+    const cleanHost = extractCleanHost(incomingHost);
+    if (cleanHost && channel.type === 'website') {
+      const isInternal = cleanHost.includes('localhost') || cleanHost.includes('127.0.0.1') || cleanHost.includes('vercel.app') || cleanHost.includes('onrender.com');
+      if (!isInternal && (!channel.external_account_id || channel.external_account_id === 'xiachat.com')) {
+        try {
+          if (!config.websiteUrl) {
+            config.websiteUrl = cleanHost;
+            db.prepare('UPDATE channels SET external_account_id = ?, config = ?, updated_at = ? WHERE id = ?')
+              .run(cleanHost, JSON.stringify(config), new Date().toISOString(), channel.id);
+          } else {
+            db.prepare('UPDATE channels SET external_account_id = ?, updated_at = ? WHERE id = ?')
+              .run(cleanHost, new Date().toISOString(), channel.id);
+          }
+          channel.external_account_id = cleanHost;
+        } catch (e) {
+          console.warn('Failed to auto-update channel connected website:', e);
+        }
+      }
+    }
+
     // Check workspace widget_settings table
     const widgetSettings = db.prepare('SELECT * FROM widget_settings WHERE workspace_id = ?').get(channel.workspace_id) as any;
 
@@ -681,6 +752,27 @@ export const handlePublicWidgetMessage = async (req: Request, res: Response) => 
 
     if (!channel || channel.status === 'disconnected') {
       return res.status(404).json({ error: 'Widget channel not found or inactive.' });
+    }
+
+    // Auto-detect connected website domain if not yet set
+    const incomingMsgHost = (req.body?.hostUrl as string) || (req.headers.origin as string) || (req.headers.referer as string);
+    const cleanMsgHost = extractCleanHost(incomingMsgHost);
+    if (cleanMsgHost && channel.type === 'website') {
+      const isInternal = cleanMsgHost.includes('localhost') || cleanMsgHost.includes('127.0.0.1') || cleanMsgHost.includes('vercel.app') || cleanMsgHost.includes('onrender.com');
+      if (!isInternal && (!channel.external_account_id || channel.external_account_id === 'xiachat.com')) {
+        try {
+          const cfg = channel.config ? JSON.parse(channel.config) : {};
+          if (!cfg.websiteUrl) {
+            cfg.websiteUrl = cleanMsgHost;
+            db.prepare('UPDATE channels SET external_account_id = ?, config = ?, updated_at = ? WHERE id = ?')
+              .run(cleanMsgHost, JSON.stringify(cfg), new Date().toISOString(), channel.id);
+          } else {
+            db.prepare('UPDATE channels SET external_account_id = ?, updated_at = ? WHERE id = ?')
+              .run(cleanMsgHost, new Date().toISOString(), channel.id);
+          }
+          channel.external_account_id = cleanMsgHost;
+        } catch {}
+      }
     }
 
     let workspaceId = channel.workspace_id;
@@ -1561,8 +1653,29 @@ export async function handlePublicWidgetHeartbeat(req: Request, res: Response) {
 
     let workspaceId = 'default';
     if (siteKey && siteKey !== 'auto-detect') {
-      const channel = db.prepare('SELECT workspace_id FROM channels WHERE widget_site_key = ? OR id = ?').get(siteKey, siteKey) as any;
-      if (channel && channel.workspace_id) workspaceId = channel.workspace_id;
+      const channel = db.prepare('SELECT * FROM channels WHERE widget_site_key = ? OR id = ?').get(siteKey, siteKey) as any;
+      if (channel && channel.workspace_id) {
+        workspaceId = channel.workspace_id;
+        // Auto-detect host from heartbeat if not yet set
+        const incomingHeartbeatHost = (req.body?.host as string) || (req.headers.origin as string) || (req.headers.referer as string);
+        const cleanHeartbeatHost = extractCleanHost(incomingHeartbeatHost);
+        if (cleanHeartbeatHost && channel.type === 'website') {
+          const isInternal = cleanHeartbeatHost.includes('localhost') || cleanHeartbeatHost.includes('127.0.0.1') || cleanHeartbeatHost.includes('vercel.app') || cleanHeartbeatHost.includes('onrender.com');
+          if (!isInternal && (!channel.external_account_id || channel.external_account_id === 'xiachat.com')) {
+            try {
+              const cfg = channel.config ? JSON.parse(channel.config) : {};
+              if (!cfg.websiteUrl) {
+                cfg.websiteUrl = cleanHeartbeatHost;
+                db.prepare('UPDATE channels SET external_account_id = ?, config = ?, updated_at = ? WHERE id = ?')
+                  .run(cleanHeartbeatHost, JSON.stringify(cfg), new Date().toISOString(), channel.id);
+              } else {
+                db.prepare('UPDATE channels SET external_account_id = ?, updated_at = ? WHERE id = ?')
+                  .run(cleanHeartbeatHost, new Date().toISOString(), channel.id);
+              }
+            } catch {}
+          }
+        }
+      }
     } else {
       const firstWs = db.prepare('SELECT id FROM workspaces ORDER BY created_at ASC LIMIT 1').get() as any;
       if (firstWs) workspaceId = firstWs.id;

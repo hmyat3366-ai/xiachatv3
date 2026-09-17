@@ -225,10 +225,45 @@ export const ChannelList: React.FC<ChannelListProps> = ({
                       <span>Assigned: {channel.defaultAgentName || 'Xia AI Assistant'}</span>
                     </span>
 
-                    {channel.externalAccountId && (
-                      <span className="px-2.5 py-1 rounded-xl bg-blue-50 border border-blue-200 text-[10px] font-mono text-blue-700">
-                        ID: {channel.externalAccountId}
-                      </span>
+                    {channel.type === 'website' ? (
+                      (() => {
+                        const rawUrl = channel.config?.websiteUrl || (channel.externalAccountId && channel.externalAccountId !== 'xiachat.com' ? channel.externalAccountId : '');
+                        const hasConnectedSite = Boolean(rawUrl && rawUrl.trim());
+                        const displayDomain = rawUrl ? rawUrl.replace(/^https?:\/\//i, '').replace(/\/.*$/, '') : '';
+                        const fullLink = rawUrl ? (rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`) : '';
+
+                        if (hasConnectedSite) {
+                          return (
+                            <a
+                              href={fullLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-[10px] font-semibold text-emerald-800 flex items-center gap-1.5 transition-colors group/link"
+                              title={`Connected website: ${fullLink}`}
+                            >
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                              <Globe className="w-3 h-3 text-emerald-600" />
+                              <span>Connected Site: <strong className="font-mono text-emerald-900 underline decoration-emerald-400/60">{displayDomain}</strong></span>
+                              <ExternalLink className="w-2.5 h-2.5 text-emerald-600 group-hover/link:translate-x-0.5 transition-transform" />
+                            </a>
+                          );
+                        }
+
+                        return (
+                          <span className="px-2.5 py-1 rounded-xl bg-amber-50/80 border border-amber-200 text-[10px] font-semibold text-amber-800 flex items-center gap-1.5">
+                            <Globe className="w-3 h-3 text-amber-600" />
+                            <span>Connected Site:</span>
+                            <span className="font-medium text-amber-700">Not configured yet (Auto-detects on install)</span>
+                          </span>
+                        );
+                      })()
+                    ) : (
+                      channel.externalAccountId && (
+                        <span className="px-2.5 py-1 rounded-xl bg-blue-50 border border-blue-200 text-[10px] font-mono text-blue-700">
+                          ID: {channel.externalAccountId}
+                        </span>
+                      )
                     )}
                   </div>
                 </div>

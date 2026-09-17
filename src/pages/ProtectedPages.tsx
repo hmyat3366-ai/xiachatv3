@@ -2043,17 +2043,21 @@ export const ChannelsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
       {viewMode === 'website_config' && websiteChannel && (
         <WebsiteWidgetConfigurator
           channelId={websiteChannel.id}
-          initialConfig={
-            websiteChannel.config || {
-              widgetName: 'Xia Support Chat',
-              welcomeMessage: 'Hello! How can we help you today?',
-              primaryColor: '#FF8A2A',
-              position: 'bottom-right',
-              enableAI: true,
-              enableHandoff: true,
-              showAgentAvailability: true,
-            }
-          }
+          initialConfig={{
+            widgetName: 'Xia Support Chat',
+            welcomeMessage: 'Hello! How can we help you today?',
+            primaryColor: '#FF8A2A',
+            position: 'bottom-right',
+            enableAI: true,
+            enableHandoff: true,
+            showAgentAvailability: true,
+            ...(websiteChannel.config || {}),
+            websiteUrl:
+              websiteChannel.config?.websiteUrl ||
+              (websiteChannel.externalAccountId && websiteChannel.externalAccountId !== 'xiachat.com'
+                ? websiteChannel.externalAccountId
+                : ''),
+          }}
           availableAgents={availableAgents}
           defaultAgentId={websiteChannel.defaultAgentId}
           onBack={() => setViewMode('list')}
@@ -2080,7 +2084,7 @@ export const ChannelsPage: React.FC<{ onNavigate: (path: string) => void }> = ({
         onClose={() => setIsConnectModalOpen(false)}
         onNavigate={onNavigate}
         onConnectWebsite={async (_wName, _wUrl, agId, config) => {
-          await handleSaveWebsiteConfig(config, agId);
+          await handleSaveWebsiteConfig({ ...config, websiteUrl: _wUrl }, agId);
           return true;
         }}
       />

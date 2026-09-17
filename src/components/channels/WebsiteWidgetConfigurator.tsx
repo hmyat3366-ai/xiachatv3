@@ -25,6 +25,7 @@ import {
   Database,
   CheckCircle2,
   AlertCircle,
+  ExternalLink,
 } from 'lucide-react';
 
 function getLuminance(hex: string): number {
@@ -100,6 +101,7 @@ export const WebsiteWidgetConfigurator: React.FC<WebsiteWidgetConfiguratorProps>
   const handleBackAction = onBack || onCancel || (() => {});
   const [widgetName, setWidgetName] = useState(initialConfig.widgetName || 'Xia Support Chat');
   const [welcomeMessage, setWelcomeMessage] = useState(initialConfig.welcomeMessage || 'Hello! How can we help you today?');
+  const [websiteUrl, setWebsiteUrl] = useState(initialConfig.websiteUrl || '');
   const [primaryColor, setPrimaryColor] = useState(initialConfig.primaryColor || '#6366F1');
   const [secondaryColor, setSecondaryColor] = useState(initialConfig.secondaryColor || '#C2691E');
   const [autoDetectColor, setAutoDetectColor] = useState(initialConfig.autoDetectColor !== false);
@@ -338,6 +340,7 @@ export const WebsiteWidgetConfigurator: React.FC<WebsiteWidgetConfiguratorProps>
         enableHandoff,
         showAgentAvailability,
         conversationStarters,
+        websiteUrl: websiteUrl.trim() || undefined,
       },
       selectedAgentId
     );
@@ -418,6 +421,37 @@ export const WebsiteWidgetConfigurator: React.FC<WebsiteWidgetConfiguratorProps>
             </div>
 
             <div className="space-y-4">
+              {/* Target / Connected Website Domain */}
+              <div className="space-y-1.5 p-3.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5]">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-[#171717] flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-[#FF8A2A]" />
+                    <span>Target Website Domain / URL</span>
+                  </label>
+                  {websiteUrl && (
+                    <a
+                      href={websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] font-semibold text-[#FF8A2A] hover:underline flex items-center gap-0.5"
+                    >
+                      <span>Visit site</span>
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={websiteUrl}
+                  onChange={(e) => setWebsiteUrl(e.target.value)}
+                  placeholder="e.g. https://mybrand.com or mybrand.com"
+                  className="w-full px-4 py-2.5 rounded-2xl bg-white border border-[#E8E8E5] text-xs text-[#171717] placeholder-gray-400 focus:outline-none focus:border-[#FF8A2A]"
+                />
+                <p className="text-[11px] text-[#6B6B6B]">
+                  The website where this live chat widget is embedded. Xia Chat also automatically detects and updates this address when live visitor traffic connects.
+                </p>
+              </div>
+
               <div className="space-y-1">
                 <label className="block text-xs font-bold text-[#171717]">Widget Title / Header Name</label>
                 <input

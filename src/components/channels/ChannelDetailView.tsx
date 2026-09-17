@@ -92,7 +92,20 @@ export const ChannelDetailView: React.FC<ChannelDetailViewProps> = ({
                 </span>
               </div>
               <p className="text-xs text-[#6B6B6B] mt-0.5">
-                Provider: {channel.provider.toUpperCase()} • Account: {channel.externalAccountId || 'Default Endpoint'}
+                Provider: {channel.provider.toUpperCase()} •{' '}
+                {channel.type === 'website' ? (
+                  <>
+                    Connected Website:{' '}
+                    <strong className="text-[#171717]">
+                      {channel.config?.websiteUrl ||
+                        (channel.externalAccountId && channel.externalAccountId !== 'xiachat.com'
+                          ? channel.externalAccountId
+                          : 'Not yet configured')}
+                    </strong>
+                  </>
+                ) : (
+                  <>Account: {channel.externalAccountId || 'Default Endpoint'}</>
+                )}
               </p>
             </div>
           </div>
