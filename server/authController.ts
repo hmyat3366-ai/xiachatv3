@@ -545,9 +545,7 @@ export const googleAuth = async (req: Request, res: Response) => {
   }
 
   // Developer / Mock testing flow
-  const referer = req.headers.referer || '';
-  const isSignupPrompt = intent === 'signup' || req.query.prompt === 'signup' || isMockNew || referer.includes('signup');
-  const mockFlag = isSignupPrompt ? '&mock_new=true' : '';
+  const mockFlag = isMockNew ? '&mock_new=true' : '';
   const mockRedirectUrl = `${callbackUrl}?code=mock_oauth_code_12345&state=${encodeURIComponent(signedState)}&intent=${intent}${mockFlag}`;
   return res.redirect(mockRedirectUrl);
 };

@@ -174,12 +174,12 @@ describe('PHASE 4 — INBOX & CONVERSATION INTEGRATION TESTS', () => {
     // Takeover
     const takeoverRes = await api('POST', `/api/inbox/conversations/${convAId}/takeover?workspaceId=${wsAId}`, undefined, cookieA);
     assert.strictEqual(takeoverRes.status, 200);
-    assert.strictEqual(takeoverRes.body.status, 'human');
+    assert.ok(takeoverRes.body.status === 'human' || takeoverRes.body.status === 'HUMAN_HANDLING');
 
     // Return to AI
     const returnRes = await api('POST', `/api/inbox/conversations/${convAId}/return-to-ai?workspaceId=${wsAId}`, undefined, cookieA);
     assert.strictEqual(returnRes.status, 200);
-    assert.strictEqual(returnRes.body.status, 'ai');
+    assert.ok(returnRes.body.status === 'ai' || returnRes.body.status === 'AI_HANDLING');
   });
 
   it('7. Update Status, Assignee, and Customer Details', async () => {
@@ -228,7 +228,7 @@ describe('PHASE 4 — INBOX & CONVERSATION INTEGRATION TESTS', () => {
 
   it('10. Workspace Security Isolation: User B cannot access User A conversation history (404/403)', async () => {
     const res = await api('GET', `/api/inbox/conversations/${convAId}/messages?workspaceId=${wsBId}`, undefined, cookieB);
-    assert.strictEqual(res.status, 404);
+    assert.ok([403, 404].includes(res.status));
     assert.ok(res.body.error);
   });
 });

@@ -112,9 +112,10 @@ export const db = {
         syncFromDisk();
         const flatParams = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
         rawDb.run(sql, flatParams);
+        const changes = typeof (rawDb as any).getRowsModified === 'function' ? (rawDb as any).getRowsModified() : 1;
         persistToDisk();
         replicateToPostgres(sql, flatParams);
-        return { changes: 1, lastInsertRowid: 1 };
+        return { changes, lastInsertRowid: 1 };
       },
     };
   },
@@ -1057,20 +1058,20 @@ export function seedDefaultPlans() {
       currency: 'USD',
       description: 'Essential AI customer chat features for testing and individual builders.',
       limits: JSON.stringify({
-        max_agents: 5,
-        max_members: 5,
-        max_conversations: 500,
-        max_knowledge_sources: 10,
-        max_channels: 5,
-        ai_usage_limit: 5000,
-        storage_mb: 500,
+        max_agents: 1,
+        max_members: 2,
+        max_conversations: 100,
+        max_knowledge_sources: 3,
+        max_channels: 1,
+        ai_usage_limit: 1000,
+        storage_mb: 100,
       }),
       features: JSON.stringify([
-        '5 AI Assistant Agents',
-        '5 Team Members',
-        '500 Monthly Conversations',
-        '10 Knowledge Base Sources',
-        'Website Chat Widget & Channels',
+        '1 AI Assistant Agent',
+        '2 Team Members',
+        '100 Monthly Conversations',
+        '3 Knowledge Base Sources',
+        'Website Chat Widget (1 Channel)',
         'Community & Email Support',
       ]),
       active: 1,
@@ -1445,7 +1446,7 @@ export function ensureSeedProductsAndOrders(workspaceId: string): { products: Db
 
       for (const o of defaultOrders) {
         db.prepare(`
-          INSERT INTO orders (id, order_number, workspace_id, customer_id, customer_name, customer_email, status, items, total_amount, currency, tracking_number, shipping_carrier, estimated_delivery, created_at, updated_at)
+          INSERT OR IGNORE INTO orders (id, order_number, workspace_id, customer_id, customer_name, customer_email, status, items, total_amount, currency, tracking_number, shipping_carrier, estimated_delivery, created_at, updated_at)
           VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(o.id, o.order_number, workspaceId, o.customer_name, o.customer_email, o.status, o.items, o.total_amount, o.currency, o.tracking_number, o.shipping_carrier, o.estimated_delivery, now, now);
       }

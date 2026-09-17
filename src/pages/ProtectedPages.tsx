@@ -1043,7 +1043,7 @@ import type { SettingsTab, SettingsOverviewData, NotificationPreferences, Worksp
 
 // 6. Workspace Administration Settings Page (/settings/workspace)
 export const WorkspaceSettingsPage: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => {
-  const { currentWorkspace, workspaces, selectWorkspace, createWorkspace } = useWorkspace();
+  const { currentWorkspace, workspaces, selectWorkspace, createWorkspace, deleteWorkspace } = useWorkspace();
 
   const [settings, setSettings] = React.useState<WorkspaceSettings | null>(null);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -1095,6 +1095,15 @@ export const WorkspaceSettingsPage: React.FC<{ onNavigate: (path: string) => voi
     }
   };
 
+  const handleDeleteWorkspace = async () => {
+    if (!currentWorkspace) return { success: false, error: 'No workspace selected.' };
+    const res = await deleteWorkspace(currentWorkspace.id);
+    if (res.success) {
+      onNavigate('/dashboard');
+    }
+    return res;
+  };
+
   return (
     <DashboardLayout
       currentPath="/settings"
@@ -1110,6 +1119,9 @@ export const WorkspaceSettingsPage: React.FC<{ onNavigate: (path: string) => voi
         settings={settings}
         onSave={handleSaveSettings}
         isSaving={isSaving}
+        onDeleteWorkspace={handleDeleteWorkspace}
+        canDelete={workspaces.length > 1}
+        totalWorkspacesCount={workspaces.length}
       />
     </DashboardLayout>
   );

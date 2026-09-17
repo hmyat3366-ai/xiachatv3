@@ -57,6 +57,8 @@ async function runAudit() {
     Authorization: `Bearer ${token}`,
   };
 
+  let adminSiteKey = 'auto-detect';
+
   // =========================================================================
   // MODULE 1: DASHBOARD OVERVIEW
   // =========================================================================
@@ -325,6 +327,7 @@ async function runAudit() {
 
       const websiteChan = chanData.channels.find((c: any) => c.type === 'website');
       if (websiteChan) {
+        adminSiteKey = websiteChan.id;
         record('Channels', 'Website Widget Status', 'PASS', `Status: ${websiteChan.status}, SiteKey: ${websiteChan.id}`);
         
         // Public widget config
@@ -466,13 +469,13 @@ async function runAudit() {
     // Step 1: Visitor opens demo coffee shop
     const simVisitorId = 'sim_visitor_' + Date.now();
     console.log('Step 1 & 2: Visitor visits storefront, widget loads config...');
-    const widgetConfigRes = await fetch(`${BASE_URL}/api/channels/public-widget/auto-detect`);
+    const widgetConfigRes = await fetch(`${BASE_URL}/api/channels/public-widget/${adminSiteKey}`);
     const widgetConfig = await widgetConfigRes.json();
     record('End-to-End Test', 'Step 1 & 2: Widget Loads', 'PASS', `Brand Color: ${widgetConfig.primaryColor}, Welcome: "${widgetConfig.welcomeMessage}"`);
 
     // Step 3: Customer asks "What coffee do you recommend?"
     console.log('Step 3: Customer asks "What coffee do you recommend?"...');
-    const step3Res = await fetch(`${BASE_URL}/api/channels/public-widget/auto-detect/message`, {
+    const step3Res = await fetch(`${BASE_URL}/api/channels/public-widget/${adminSiteKey}/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -487,7 +490,7 @@ async function runAudit() {
 
     // Step 5: Customer asks "I want human support"
     console.log('Step 5: Customer asks "I want human support"...');
-    const step5Res = await fetch(`${BASE_URL}/api/channels/public-widget/auto-detect/message`, {
+    const step5Res = await fetch(`${BASE_URL}/api/channels/public-widget/${adminSiteKey}/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

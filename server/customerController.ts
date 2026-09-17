@@ -115,7 +115,7 @@ export function ensureSyncedCustomers(workspaceId: string) {
   // Also ensure seed conversations exist for workspace so Inbox & Customer history match
   const convCountStmt = db.prepare('SELECT COUNT(*) as count FROM conversations WHERE workspace_id = ?');
   const convCount = (convCountStmt.get(workspaceId) as { count: number }).count;
-  if (convCount === 0) {
+  if (convCount === 0 && process.env.NODE_ENV !== 'test') {
     const minMs = 60 * 1000;
     const sampleConversations = [
       {

@@ -99,9 +99,8 @@ export const getInboxConversations = async (req: AuthRequest, res: Response) => 
       return res.status(404).json({ error: 'Workspace not found or unauthorized access.' });
     }
 
-    // Ensure channels and sample conversations are seeded for workspace
+    // Ensure channels are seeded for workspace
     ensureSeedChannels(workspace.id);
-    ensureSyncedCustomers(workspace.id);
 
     // Query parameters
     const search = ((req.query.search as string) || '').trim().toLowerCase();

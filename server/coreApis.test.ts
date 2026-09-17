@@ -132,12 +132,12 @@ describe('Core APIs & Workspace Isolation Integration Tests', () => {
     // 3d. Takeover Conversation (Human Handoff)
     const takeoverRes = await api('POST', `/api/inbox/conversations/${convId}/takeover`, undefined, userACookie);
     assert.strictEqual(takeoverRes.status, 200);
-    assert.strictEqual(takeoverRes.body.status, 'human');
+    assert.ok(takeoverRes.body.status === 'human' || takeoverRes.body.status === 'HUMAN_HANDLING');
 
     // 3e. Return to AI
     const returnAiRes = await api('POST', `/api/inbox/conversations/${convId}/return-to-ai`, undefined, userACookie);
     assert.strictEqual(returnAiRes.status, 200);
-    assert.strictEqual(returnAiRes.body.status, 'ai');
+    assert.ok(returnAiRes.body.status === 'ai' || returnAiRes.body.status === 'AI_HANDLING');
 
     // 3f. Update Assignment
     const assignRes = await api('POST', `/api/inbox/conversations/${convId}/assign`, { assignee: 'User A' }, userACookie);

@@ -9,6 +9,7 @@ interface WorkspaceContextType {
   isLoadingWorkspaces: boolean;
   selectWorkspace: (workspaceId: string) => void;
   createWorkspace: (name: string) => Promise<boolean>;
+  deleteWorkspace: (workspaceId: string) => Promise<{ success: boolean; error?: string }>;
   refreshWorkspaces: (preferredWorkspaceId?: string) => Promise<WorkspaceItem | null>;
   updateCurrentWorkspace: (updated: Partial<WorkspaceItem>) => void;
 }
@@ -176,6 +177,31 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [persistWorkspace]);
 
+  const deleteWorkspace = useCallback(async (workspaceId: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await apiFetch(`/api/settings/workspace?workspaceId=${workspaceId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setWorkspaces((prev) => {
+          const remaining = prev.filter((w) => w.id !== workspaceId);
+          if (currentWorkspace?.id === workspaceId) {
+            const nextWs = remaining.length > 0 ? remaining[0] : null;
+            setCurrentWorkspace(nextWs);
+            persistWorkspace(nextWs);
+          }
+          return remaining;
+        });
+        return { success: true };
+      }
+      return { success: false, error: data.error || 'Failed to delete workspace.' };
+    } catch (err: any) {
+      console.error('[WorkspaceContext] Error deleting workspace:', err);
+      return { success: false, error: err.message || 'Network error occurred while deleting workspace.' };
+    }
+  }, [currentWorkspace?.id, persistWorkspace]);
+
   // Initial load when user logs in or page loads authenticated
   useEffect(() => {
     if (isAuthenticated) {
@@ -196,6 +222,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         isLoadingWorkspaces,
         selectWorkspace,
         createWorkspace,
+        deleteWorkspace,
         refreshWorkspaces,
         updateCurrentWorkspace,
       }}

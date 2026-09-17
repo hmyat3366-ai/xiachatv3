@@ -32,4 +32,5 @@ dist-ssr
 data/
 .env
 .env.*
+!.env.example
 

@@ -132,6 +132,7 @@ import {
 import {
   getWorkspaceSettings,
   updateWorkspaceSettings,
+  deleteWorkspace,
 } from './workspaceSettingsController.js';
 import {
   getUserSettingsOverview,
@@ -161,7 +162,7 @@ import {
 import { authenticateToken } from './authMiddleware.js';
 
 const app = express();
-const PORT = Number(process.env.PORT) || 10000;
+const PORT = Number(process.env.PORT) || 5000;
 const FRONTEND_URL = process.env.FRONTEND_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:5173';
 
 // CORS configuration
@@ -359,6 +360,7 @@ app.post('/api/billing/inquiry', submitPlanInquiry);
 // Workspace Administration Settings Routes
 app.get('/api/settings/workspace', authenticateToken, getWorkspaceSettings);
 app.put('/api/settings/workspace', authenticateToken, updateWorkspaceSettings);
+app.delete('/api/settings/workspace', authenticateToken, deleteWorkspace);
 
 // User & Central Settings Routes
 app.get('/api/settings/me', authenticateToken, getUserSettingsOverview);
