@@ -89,6 +89,13 @@
     conversationStatus: 'ai',
     assignedAgentName: '',
     customerProfile: { name: '', email: '', phone: '' },
+    identifyState: {
+      name: '',
+      email: '',
+      isSubmitting: false,
+      error: '',
+      success: false,
+    },
     pollInterval: null,
     sseSource: null,
     pendingAttachment: null,
@@ -394,10 +401,21 @@
   var STORAGE_CONV_KEY = function () {
     return 'xia_conv_' + state.siteKey;
   };
+  var STORAGE_PROFILE_KEY = function () {
+    return 'xia_profile_' + state.siteKey;
+  };
 
   var savedConvId = '';
   try {
     savedConvId = localStorage.getItem(STORAGE_CONV_KEY()) || '';
+    var savedProfile = localStorage.getItem(STORAGE_PROFILE_KEY());
+    if (savedProfile) {
+      var parsedP = JSON.parse(savedProfile);
+      if (parsedP && parsedP.email) {
+        state.customerProfile.email = parsedP.email;
+        if (parsedP.name) state.customerProfile.name = parsedP.name;
+      }
+    }
   } catch (e) {}
 
   // Isolated Container & Shadow Root
@@ -1111,6 +1129,79 @@
         font-weight: 600;
       }
       .xia-branding a:hover { text-decoration: underline; }
+
+      /* Guest Identification Email Banner */
+      .xia-identify-banner {
+        background: ${bgCard};
+        border: 1px solid ${borderCol};
+        border-radius: 14px;
+        padding: 12px 14px;
+        margin: 8px 0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        animation: xiaMsgFade 0.2s ease;
+      }
+      .xia-identify-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: ${textMain};
+      }
+      .xia-identify-input {
+        background: ${bgBody};
+        color: ${textMain};
+        border: 1px solid ${borderCol};
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 12px;
+        outline: none;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        box-sizing: border-box;
+      }
+      .xia-identify-input:focus {
+        border-color: ${primaryHex};
+        box-shadow: 0 0 0 2px ${primaryHover};
+      }
+      .xia-identify-input::placeholder {
+        color: ${textSub};
+        opacity: 0.7;
+      }
+      .xia-identify-btn {
+        background: ${primaryHex};
+        color: ${contrastText};
+        border: none;
+        border-radius: 8px;
+        padding: 8px 14px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: opacity 0.15s ease, transform 0.1s ease;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .xia-identify-btn:hover {
+        opacity: 0.9;
+      }
+      .xia-identify-btn:active {
+        transform: scale(0.97);
+      }
+      .xia-identify-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .xia-identify-msg {
+        font-size: 11px;
+        line-height: 1.3;
+      }
+      .xia-identify-msg.error {
+        color: #ef4444;
+      }
+      .xia-identify-msg.success {
+        color: #10b981;
+      }
     `;
   }
 
@@ -1450,11 +1541,41 @@
         <div class="xia-identify-banner">
           <div class="xia-identify-title">Get conversation updates via email:</div>
           <div class="xia-identify-form" style="display:flex;flex-direction:column;gap:6px;">
-            <input type="text" class="xia-identify-input" id="xia-visitor-name-input" placeholder="Your name (optional)" style="width:100%;box-sizing:border-box;" />
+            <input
+              type="text"
+              class="xia-identify-input"
+              id="xia-visitor-name-input"
+              placeholder="Your name (optional)"
+              value="${escapeHTML(state.identifyState.name)}"
+              style="width:100%;box-sizing:border-box;"
+            />
             <div style="display:flex;gap:6px;width:100%;">
-              <input type="email" class="xia-identify-input" id="xia-visitor-email-input" placeholder="name@example.com" style="flex:1;" />
-              <button type="button" class="xia-identify-btn" id="xia-save-email-btn">Save</button>
+              <input
+                type="email"
+                class="xia-identify-input"
+                id="xia-visitor-email-input"
+                placeholder="name@example.com"
+                value="${escapeHTML(state.identifyState.email)}"
+                style="flex:1;"
+              />
+              <button
+                type="button"
+                class="xia-identify-btn"
+                id="xia-save-email-btn"
+                ${state.identifyState.isSubmitting ? 'disabled' : ''}
+              >
+                ${state.identifyState.isSubmitting ? 'Saving...' : 'Save'}
+              </button>
             </div>
+            ${state.identifyState.error ? `<div class="xia-identify-msg error">${escapeHTML(state.identifyState.error)}</div>` : ''}
+          </div>
+        </div>
+      `;
+    } else if (state.identifyState.success && state.customerProfile.email) {
+      html += `
+        <div class="xia-identify-banner" style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.3);">
+          <div style="color: #10b981; font-size: 11.5px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+            <span>✓</span> <span>Conversation updates will be sent to <strong>${escapeHTML(state.customerProfile.email)}</strong></span>
           </div>
         </div>
       `;
@@ -1487,8 +1608,24 @@
       }
     }
 
+    // Preserve focused input before replacing innerHTML to prevent losing typed text or focus during 3s polling
+    var activeId = (shadow && shadow.activeElement) ? shadow.activeElement.id : null;
+    var cursorStart = (shadow && shadow.activeElement && typeof shadow.activeElement.selectionStart === 'number') ? shadow.activeElement.selectionStart : null;
+    var cursorEnd = (shadow && shadow.activeElement && typeof shadow.activeElement.selectionEnd === 'number') ? shadow.activeElement.selectionEnd : null;
+
     body.innerHTML = html;
     body.scrollTop = body.scrollHeight;
+
+    // Restore focus and cursor position
+    if (activeId && (activeId === 'xia-visitor-name-input' || activeId === 'xia-visitor-email-input')) {
+      var activeEl = shadow.querySelector('#' + activeId);
+      if (activeEl) {
+        activeEl.focus();
+        if (cursorStart !== null && cursorEnd !== null) {
+          try { activeEl.setSelectionRange(cursorStart, cursorEnd); } catch (e) {}
+        }
+      }
+    }
   }
 
   // Update status dot and agent label in header
@@ -1693,7 +1830,72 @@
       };
     }
 
+    var handleSaveEmail = function () {
+      var nameEl = shadow ? shadow.querySelector('#xia-visitor-name-input') : null;
+      var emailEl = shadow ? shadow.querySelector('#xia-visitor-email-input') : null;
+      var email = emailEl ? emailEl.value.trim() : (state.identifyState.email || '').trim();
+      var name = nameEl ? nameEl.value.trim() : (state.identifyState.name || '').trim();
+
+      state.identifyState.name = name;
+      state.identifyState.email = email;
+
+      if (!email) {
+        state.identifyState.error = 'Please enter your email address.';
+        renderMessages();
+        var eField = shadow.querySelector('#xia-visitor-email-input');
+        if (eField) eField.focus();
+        return;
+      }
+
+      var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        state.identifyState.error = 'Please enter a valid email address (e.g. name@example.com).';
+        renderMessages();
+        var eField2 = shadow.querySelector('#xia-visitor-email-input');
+        if (eField2) eField2.focus();
+        return;
+      }
+
+      state.identifyState.isSubmitting = true;
+      state.identifyState.error = '';
+      renderMessages();
+
+      XiaChat.identify({ name: name || undefined, email: email })
+        .then(function () {
+          state.identifyState.isSubmitting = false;
+          state.identifyState.success = true;
+          renderMessages();
+        })
+        .catch(function (err) {
+          state.identifyState.isSubmitting = false;
+          state.identifyState.error = err.message || 'Failed to save email. Please try again.';
+          renderMessages();
+        });
+    };
+
     if (body) {
+      body.oninput = function (e) {
+        if (e.target.id === 'xia-visitor-name-input') {
+          state.identifyState.name = e.target.value;
+        } else if (e.target.id === 'xia-visitor-email-input') {
+          state.identifyState.email = e.target.value;
+          if (state.identifyState.error) {
+            state.identifyState.error = '';
+            var errEl = shadow.querySelector('.xia-identify-msg.error');
+            if (errEl) errEl.remove();
+          }
+        }
+      };
+
+      body.onkeydown = function (e) {
+        if (e.key === 'Enter') {
+          if (e.target.id === 'xia-visitor-name-input' || e.target.id === 'xia-visitor-email-input') {
+            e.preventDefault();
+            handleSaveEmail();
+          }
+        }
+      };
+
       body.onclick = function (e) {
         var zoomWrap = e.target.closest('[data-zoom-url]');
         if (zoomWrap && lightbox) {
@@ -1756,14 +1958,9 @@
 
         var saveEmailBtn = e.target.closest('#xia-save-email-btn');
         if (saveEmailBtn) {
-          var nameInput = shadow.querySelector('#xia-visitor-name-input');
-          var emailInput = shadow.querySelector('#xia-visitor-email-input');
-          if (emailInput && emailInput.value && emailInput.value.includes('@')) {
-            XiaChat.identify({
-              name: nameInput ? nameInput.value.trim() : undefined,
-              email: emailInput.value.trim(),
-            });
-          }
+          e.preventDefault();
+          handleSaveEmail();
+          return;
         }
       };
     }
@@ -1919,9 +2116,9 @@
   function identifyVisitor(customerData) {
     if (!customerData || !customerData.email) return Promise.reject(new Error('Email is required'));
 
-    state.customerProfile.email = customerData.email.trim();
-    if (customerData.name) state.customerProfile.name = customerData.name.trim();
-    if (customerData.phone) state.customerProfile.phone = customerData.phone.trim();
+    var emailToSave = customerData.email.trim();
+    var nameToSave = customerData.name ? customerData.name.trim() : '';
+    var phoneToSave = customerData.phone ? customerData.phone.trim() : '';
 
     return fetch(apiBase + '/api/channels/public-widget/' + encodeURIComponent(state.siteKey) + '/identify', {
       method: 'POST',
@@ -1931,19 +2128,26 @@
       },
       body: JSON.stringify({
         visitorId: visitorIdentity.visitorId,
-        email: state.customerProfile.email,
-        name: state.customerProfile.name,
-        phone: state.customerProfile.phone,
+        email: emailToSave,
+        name: nameToSave || undefined,
+        phone: phoneToSave || undefined,
         conversationId: savedConvId || undefined,
       }),
     })
-      .then(function (res) { return res.json(); })
+      .then(function (res) {
+        if (!res.ok) {
+          return res.json().then(function (d) { throw new Error(d.error || 'Failed to link email'); });
+        }
+        return res.json();
+      })
       .then(function (data) {
+        state.customerProfile.email = emailToSave;
+        if (nameToSave) state.customerProfile.name = nameToSave;
+        try {
+          localStorage.setItem(STORAGE_PROFILE_KEY(), JSON.stringify(state.customerProfile));
+        } catch (e) {}
         renderMessages();
         return data;
-      })
-      .catch(function (err) {
-        console.warn('[Xia Chat] Visitor identify warning:', err);
       });
   }
 
