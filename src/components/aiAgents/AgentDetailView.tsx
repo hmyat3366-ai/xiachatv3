@@ -193,9 +193,9 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
           id: (Date.now() + 1).toString(),
           sender: 'agent',
           content: data.reply || "I'm ready to assist with that.",
-          knowledgeSourceUsed: data.knowledgeSourceUsed || 'Company Knowledge Base',
-          confidenceScore: data.confidenceScore || 0.96,
-          responseTimeMs: data.responseTimeMs || 145,
+          knowledgeSourceUsed: data.knowledgeSourceUsed || data.metadata?.knowledgeSourceUsed || 'Company Knowledge Base',
+          confidenceScore: data.confidenceScore ?? data.metadata?.confidenceScore ?? 0.96,
+          responseTimeMs: data.responseTimeMs ?? data.metadata?.responseTimeMs ?? 145,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         };
         setTestMessages((prev) => [...prev, agentMsg]);

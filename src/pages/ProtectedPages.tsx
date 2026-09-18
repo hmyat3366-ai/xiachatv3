@@ -15,6 +15,7 @@ import { AddKnowledgeWizard } from '../components/knowledge/AddKnowledgeWizard';
 import { KnowledgeDetailView } from '../components/knowledge/KnowledgeDetailView';
 import { SemanticSearchDebugTool } from '../components/knowledge/SemanticSearchDebugTool';
 import { DeleteKnowledgeModal } from '../components/knowledge/DeleteKnowledgeModal';
+import { DocumentChatModal } from '../components/knowledge/DocumentChatModal';
 import type { KnowledgeSource, KnowledgeChunkItem, FaqPair } from '../types/knowledge';
 
 // 2. Knowledge Base SaaS Module Page
@@ -35,6 +36,7 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
 
   // Modal & RAG Debug tool states
   const [sourceToDelete, setSourceToDelete] = React.useState<KnowledgeSource | null>(null);
+  const [activeChatSource, setActiveChatSource] = React.useState<KnowledgeSource | null>(null);
   const [isDeleting, setIsDeleting] = React.useState<boolean>(false);
   const [isRAGDebugOpen, setIsRAGDebugOpen] = React.useState<boolean>(false);
 
@@ -225,6 +227,7 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
           sources={sources}
           stats={stats}
           onSelectSource={handleSelectSource}
+          onUseWithAI={(source) => setActiveChatSource(source)}
           onAddKnowledgeClick={() => setViewMode('new')}
           onOpenRAGDebugClick={() => setIsRAGDebugOpen(true)}
           onReprocessSource={handleReprocess}
@@ -249,6 +252,7 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
           source={selectedSource}
           chunks={chunks}
           onBack={() => setViewMode('list')}
+          onUseWithAI={(source) => setActiveChatSource(source)}
           onReprocess={() => handleReprocess(selectedSource.id)}
           onDeleteClick={() => setSourceToDelete(selectedSource)}
           onSaveEdit={async (updatedContent) => {
@@ -280,6 +284,16 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
         onClose={() => setSourceToDelete(null)}
         onConfirm={handleDeleteConfirm}
         isDeleting={isDeleting}
+      />
+
+      {/* Interactive Document AI Chat Modal */}
+      <DocumentChatModal
+        isOpen={Boolean(activeChatSource)}
+        source={activeChatSource}
+        workspaceId={currentWorkspace?.id}
+        onClose={() => setActiveChatSource(null)}
+        onNavigate={onNavigate}
+        onConnectedToAgent={() => fetchSources(currentWorkspace?.id)}
       />
     </DashboardLayout>
   );

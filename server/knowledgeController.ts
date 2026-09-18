@@ -4,9 +4,10 @@ import http from 'http';
 import https from 'https';
 import { URL } from 'url';
 import { createRequire } from 'module';
-import { db, DbKnowledgeSource, DbKnowledgeChunk, DbWorkspace } from './db.js';
+import { db, DbKnowledgeSource, DbKnowledgeChunk, DbWorkspace, ensureSeedAgents, DbAiAssistant } from './db.js';
 import { AuthRequest } from './authMiddleware.js';
 import { getWorkspaceForUser } from './planLimitMiddleware.js';
+import { generateAiAgentResponse } from './aiProviderService.js';
 
 const require = createRequire(import.meta.url);
 const { PDFParse } = require('pdf-parse');
@@ -65,6 +66,7 @@ function isSafeUrl(urlStr: string): { safe: boolean; reason?: string; parsedUrl?
 }
 
 // Text Chunking Engine Helper
+// Text Chunking Engine Helper with Sliding Window & Semantic Splitting
 export function createTextChunks(sourceId: string, workspaceId: string, sourceName: string, sourceType: string, text: string) {
   // Delete old chunks for this source first to prevent orphaned records
   db.prepare('DELETE FROM knowledge_chunks WHERE source_id = ?').run(sourceId);
@@ -72,21 +74,43 @@ export function createTextChunks(sourceId: string, workspaceId: string, sourceNa
   const cleanText = text.trim();
   if (!cleanText) return 0;
 
-  // Split into logical paragraphs / sections (~250-400 words per chunk)
-  const paragraphs = cleanText.split(/\n\s*\n/).filter((p) => p.trim());
+  // Split into sections (~200-400 words per chunk)
+  let rawSections = cleanText.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean);
+
+  // If text does not contain double newlines (typical in many raw PDF text extracts), split by single newlines
+  if (rawSections.length <= 1 && cleanText.length > 500) {
+    rawSections = cleanText.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+  }
+
   const chunks: string[] = [];
   let currentChunk = '';
 
-  for (const para of paragraphs) {
-    if ((currentChunk + '\n\n' + para).length > 1200) {
-      if (currentChunk.trim()) chunks.push(currentChunk.trim());
-      currentChunk = para;
+  for (const section of rawSections) {
+    if (section.length > 1000) {
+      const sentences = section.split(/(?<=[.?!。၊။\n])\s+/).filter(Boolean);
+      for (const sent of sentences) {
+        if ((currentChunk + '\n' + sent).length > 900) {
+          if (currentChunk.trim()) chunks.push(currentChunk.trim());
+          currentChunk = sent;
+        } else {
+          currentChunk = currentChunk ? currentChunk + '\n' + sent : sent;
+        }
+      }
     } else {
-      currentChunk = currentChunk ? currentChunk + '\n\n' + para : para;
+      if ((currentChunk + '\n\n' + section).length > 900) {
+        if (currentChunk.trim()) chunks.push(currentChunk.trim());
+        currentChunk = section;
+      } else {
+        currentChunk = currentChunk ? currentChunk + '\n\n' + section : section;
+      }
     }
   }
   if (currentChunk.trim()) {
     chunks.push(currentChunk.trim());
+  }
+
+  if (chunks.length === 0 && cleanText) {
+    chunks.push(cleanText.slice(0, 900));
   }
 
   const insertChunk = db.prepare(`
@@ -743,7 +767,7 @@ export function performRagSearch(workspaceId: string, query: string, limit = 5, 
     }
   }
 
-  return filteredChunks
+  const rankedResults = filteredChunks
     .map((chunk) => {
       const textLower = chunk.text.toLowerCase();
       let matchCount = 0;
@@ -797,6 +821,25 @@ export function performRagSearch(workspaceId: string, query: string, limit = 5, 
     .filter((c): c is NonNullable<typeof c> => c !== null)
     .sort((a, b) => b.similarityScore - a.similarityScore)
     .slice(0, limit);
+
+  // If chatting with specific document(s) (e.g. single document chat or targeted source)
+  // and zero matches found (e.g. Burmese query on English PDF, overview query, or greeting),
+  // return the top introductory chunks of that document so the AI can answer accurately
+  const isTargetedDocument = allowedSources && allowedSources.length >= 1 && !allowedSources.includes('all');
+  if (rankedResults.length === 0 && isTargetedDocument && filteredChunks.length > 0) {
+    return filteredChunks.slice(0, limit).map((chunk, idx) => ({
+      id: chunk.id,
+      sourceId: chunk.source_id,
+      sourceName: chunk.source_name,
+      sourceType: chunk.source_type,
+      text: chunk.text,
+      chunkIndex: chunk.chunk_index,
+      similarityScore: Math.max(50, 85 - idx * 5),
+      matchCount: 1,
+    }));
+  }
+
+  return rankedResults;
 }
 
 // POST /api/knowledge-base/search (RAG Debug & Retrieval Test Tool)
@@ -819,5 +862,89 @@ export const searchKnowledgeRAG = async (req: AuthRequest, res: Response) => {
   } catch (err) {
     console.error('Error executing RAG search:', err);
     return res.status(500).json({ error: 'Failed to execute RAG search.' });
+  }
+};
+
+// POST /api/knowledge-base/:id/ask (Ask question directly to a specific selected knowledge source)
+export const askKnowledgeSource = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
+
+    const sourceId = req.params.id as string;
+    const { question } = req.body;
+    if (!question || typeof question !== 'string' || !question.trim()) {
+      return res.status(400).json({ error: 'Question is required.' });
+    }
+
+    const requestedWsId = req.query.workspaceId as string | undefined;
+    const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
+    if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
+
+    const source = db.prepare('SELECT * FROM knowledge_sources WHERE id = ? AND workspace_id = ?').get(sourceId, workspace.id) as DbKnowledgeSource | undefined;
+    if (!source) return res.status(404).json({ error: 'Knowledge source not found.' });
+
+    // Query RAG specifically for this source
+    const aiResponse = await generateAiAgentResponse({
+      workspaceId: workspace.id,
+      agentName: `${source.name} Assistant`,
+      systemInstructions: `You are answering questions specifically about the document: "${source.name}". Provide detailed, accurate, and comprehensive information strictly from this document.`,
+      userMessage: question.trim(),
+      knowledgeSources: [source.id],
+    });
+
+    return res.status(200).json({
+      reply: aiResponse.reply,
+      sourceId: source.id,
+      sourceName: source.name,
+      confidenceScore: aiResponse.confidenceScore,
+      modelUsed: aiResponse.modelUsed,
+      sourcesUsed: aiResponse.knowledgeSourcesUsed,
+    });
+  } catch (err) {
+    console.error('Error asking document AI:', err);
+    return res.status(500).json({ error: 'Failed to answer question about this document.' });
+  }
+};
+
+// POST /api/knowledge-base/:id/use (Connect source to workspace AI assistant with 1 click)
+export const useKnowledgeSourceWithAgent = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
+
+    const sourceId = req.params.id as string;
+    const requestedWsId = req.query.workspaceId as string | undefined;
+    const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
+    if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
+
+    const source = db.prepare('SELECT * FROM knowledge_sources WHERE id = ? AND workspace_id = ?').get(sourceId, workspace.id) as DbKnowledgeSource | undefined;
+    if (!source) return res.status(404).json({ error: 'Knowledge source not found.' });
+
+    // Find workspace AI assistants
+    ensureSeedAgents(workspace.id);
+    const agents = db.prepare('SELECT * FROM ai_assistants WHERE workspace_id = ?').all(workspace.id) as DbAiAssistant[];
+    const now = new Date().toISOString();
+
+    for (const agent of agents) {
+      let currentSources: string[] = [];
+      try {
+        if (agent.knowledge_source_ids) {
+          currentSources = JSON.parse(agent.knowledge_source_ids);
+        }
+      } catch {}
+
+      if (!currentSources.includes(sourceId)) {
+        currentSources.push(sourceId);
+      }
+      db.prepare('UPDATE ai_assistants SET knowledge_source_ids = ?, updated_at = ? WHERE id = ?').run(
+        JSON.stringify(currentSources),
+        now,
+        agent.id
+      );
+    }
+
+    return res.status(200).json({ success: true, message: `"${source.name}" is now connected to your AI Assistant.` });
+  } catch (err) {
+    console.error('Error connecting source to agent:', err);
+    return res.status(500).json({ error: 'Failed to connect source to agent.' });
   }
 };

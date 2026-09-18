@@ -10,12 +10,14 @@ import {
   Layers,
   Check,
   Loader2,
+  Sparkles,
 } from 'lucide-react';
 
 interface KnowledgeDetailViewProps {
   source: KnowledgeSource;
   chunks: KnowledgeChunkItem[];
   onBack: () => void;
+  onUseWithAI?: (source: KnowledgeSource) => void;
   onReprocess: () => Promise<void>;
   onDeleteClick: () => void;
   onSaveEdit: (updatedContent: any) => Promise<void>;
@@ -25,6 +27,7 @@ export const KnowledgeDetailView: React.FC<KnowledgeDetailViewProps> = ({
   source,
   chunks,
   onBack,
+  onUseWithAI,
   onReprocess,
   onDeleteClick,
   onSaveEdit,
@@ -86,7 +89,17 @@ export const KnowledgeDetailView: React.FC<KnowledgeDetailViewProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-end sm:self-auto">
+        <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+          {onUseWithAI && (
+            <button
+              onClick={() => onUseWithAI(source)}
+              className="px-3.5 py-2 rounded-xl bg-[#FFF0E5] hover:bg-[#FF8A2A] text-[#D96512] hover:text-white border border-[#FFD8BA] hover:border-transparent text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-2xs hover:shadow-md transition-all group"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-[#FF8A2A] group-hover:text-white transition-colors animate-pulse" />
+              <span>Use / Chat with AI</span>
+            </button>
+          )}
+
           <button
             onClick={handleReprocessClick}
             disabled={isReprocessing}

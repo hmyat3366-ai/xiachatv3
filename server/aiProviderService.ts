@@ -191,28 +191,58 @@ export async function generateAiAgentResponse(req: AIProviderRequest): Promise<A
         .filter(Boolean);
 
       const userWords = promptLower.replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter((w) => w.length >= 2);
-      let bestPara = paragraphs[0] || '';
-      let bestScore = -1;
 
-      for (const p of paragraphs) {
-        const pLower = p.toLowerCase();
-        let score = 0;
-        if (pLower.includes(promptLower.trim())) score += 10;
-        for (const w of userWords) {
-          if (pLower.includes(w)) score++;
-        }
-        if (score > bestScore) {
-          bestScore = score;
-          bestPara = p;
+      // Check if user is asking for general overview / all details / skills / projects / experience / portfolio
+      const isOverviewQuery =
+        promptLower.includes('အကြောင်း') ||
+        promptLower.includes('အကျဉ်းချုပ်') ||
+        promptLower.includes('ဘာတွေ') ||
+        promptLower.includes('အားလုံး') ||
+        promptLower.includes('အကောင်း') ||
+        promptLower.includes('portfolio') ||
+        promptLower.includes('cv') ||
+        promptLower.includes('resume') ||
+        promptLower.includes('skills') ||
+        promptLower.includes('project') ||
+        promptLower.includes('experience') ||
+        promptLower.includes('summary') ||
+        promptLower.includes('tell me') ||
+        promptLower.includes('overview') ||
+        promptLower.includes('what is') ||
+        promptLower.includes('who is') ||
+        promptLower.includes('လုပ်နိုင်လဲ');
+
+      let responseBody = '';
+
+      if (isOverviewQuery || paragraphs.length <= 3) {
+        // Return comprehensive synthesis of all retrieved sections
+        responseBody = paragraphs.join('\n\n');
+      } else {
+        // Rank paragraphs by score
+        const ranked = paragraphs.map((p) => {
+          const pLower = p.toLowerCase();
+          let score = 0;
+          if (pLower.includes(promptLower.trim())) score += 10;
+          for (const w of userWords) {
+            if (pLower.includes(w)) score++;
+          }
+          return { text: p, score };
+        }).sort((a, b) => b.score - a.score);
+
+        const matchedOnes = ranked.filter((r) => r.score > 0);
+        if (matchedOnes.length > 0) {
+          responseBody = matchedOnes.slice(0, 3).map((r) => r.text).join('\n\n');
+        } else {
+          responseBody = paragraphs.slice(0, 3).join('\n\n');
         }
       }
 
       if (language === 'Burmese') {
-        replyText = `ကျွန်ုပ်တို့၏ သိမ်းဆည်းထားသော အချက်အလက်များအရ:\n\n${bestPara}`;
+        replyText = `တင်ထားသော စာရွက်စာတမ်း (Knowledge Base) အရ အောက်ပါ အချက်အလက်များကို ဖော်ပြထားပါသည်:\n\n${responseBody}`;
       } else if (language !== 'English') {
-        replyText = bestPara;
+        replyText = responseBody;
       } else {
-        replyText = `Based on our verified knowledge base:\n\n${bestPara}`;
+        replyText = `Based on the uploaded document:\n\n${responseBody}`;
       }
     } else if (promptLower.includes('human') || promptLower.includes('agent') || promptLower.includes('person') || promptLower.includes('လူကြီးမင်း') || promptLower.includes('အကူအညီ')) {
       replyText = language === 'Burmese'

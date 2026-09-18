@@ -27,6 +27,7 @@ interface KnowledgeListProps {
   sources: KnowledgeSource[];
   stats: { total: number; ready: number; processing: number; totalChunks: number };
   onSelectSource: (sourceId: string) => void;
+  onUseWithAI?: (source: KnowledgeSource) => void;
   onAddKnowledgeClick: () => void;
   onOpenRAGDebugClick: () => void;
   onReprocessSource: (sourceId: string) => Promise<void>;
@@ -83,6 +84,7 @@ export const KnowledgeList: React.FC<KnowledgeListProps> = ({
   sources,
   stats,
   onSelectSource,
+  onUseWithAI,
   onAddKnowledgeClick,
   onOpenRAGDebugClick,
   onReprocessSource,
@@ -299,7 +301,21 @@ export const KnowledgeList: React.FC<KnowledgeListProps> = ({
                       </button>
 
                       {activeMenuId === source.id && (
-                        <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-[#E8E8E5] rounded-2xl shadow-xl p-1.5 z-30 space-y-0.5">
+                        <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-[#E8E8E5] rounded-2xl shadow-xl p-1.5 z-30 space-y-0.5">
+                          {onUseWithAI && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onUseWithAI(source);
+                                setActiveMenuId(null);
+                              }}
+                              className="w-full text-left px-2.5 py-2 rounded-xl text-xs font-bold text-[#D96512] hover:bg-[#FFF0E5] flex items-center gap-2 cursor-pointer transition-colors"
+                            >
+                              <Sparkles className="w-3.5 h-3.5 text-[#FF8A2A]" />
+                              <span>Use / Chat with AI</span>
+                            </button>
+                          )}
+
                           <button
                             onClick={(e) => {
                               handleReprocess(source.id, e);
@@ -348,6 +364,22 @@ export const KnowledgeList: React.FC<KnowledgeListProps> = ({
                         ? source.content.slice(0, 120)
                         : `${(source.content || []).length} Q&A Pairs indexed.`}
                     </p>
+                  )}
+
+                  {/* 1-Click Interactive AI Chat & Use Button */}
+                  {onUseWithAI && (
+                    <div className="mb-3 pt-1" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => onUseWithAI(source)}
+                        className="w-full py-2.5 px-3 rounded-2xl bg-[#FFF0E5] hover:bg-[#FF8A2A] text-[#D96512] hover:text-white border border-[#FFD8BA] hover:border-transparent text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs hover:shadow-md group/btn"
+                        title="ဤဖိုင်ကို အသုံးပြုရန် သို့မဟုတ် စကားပြောမေးမြန်းရန် နှိပ်ပါ"
+                      >
+                        <Sparkles className="w-4 h-4 text-[#FF8A2A] group-hover/btn:text-white transition-colors animate-pulse" />
+                        <span>Use with AI / Chat (AI ဖြင့် သုံးမည်)</span>
+                        <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-1 transition-transform" />
+                      </button>
+                    </div>
                   )}
                 </div>
 

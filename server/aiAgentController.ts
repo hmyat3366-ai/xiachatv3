@@ -435,6 +435,9 @@ export const testAiAgentPlayground = async (req: AuthRequest, res: Response) => 
 
     return res.status(200).json({
       reply: aiResponse.reply,
+      knowledgeSourceUsed: aiResponse.knowledgeSourcesUsed.join(', ') || 'Internal Knowledge Base',
+      confidenceScore: aiResponse.confidenceScore,
+      responseTimeMs: aiResponse.latencyMs,
       metadata: {
         agentId: agent.id,
         agentName: agent.name,

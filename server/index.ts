@@ -75,6 +75,8 @@ import {
   deleteKnowledgeSource,
   reprocessKnowledgeSource,
   searchKnowledgeRAG,
+  askKnowledgeSource,
+  useKnowledgeSourceWithAgent,
 } from './knowledgeController.js';
 import {
   getCustomers,
@@ -291,6 +293,8 @@ app.put('/api/knowledge-base/:id', authenticateToken, updateKnowledgeSource);
 app.delete('/api/knowledge-base/:id', authenticateToken, deleteKnowledgeSource);
 app.post('/api/knowledge-base/:id/reprocess', authenticateToken, reprocessKnowledgeSource);
 app.post('/api/knowledge-base/search', authenticateToken, searchKnowledgeRAG);
+app.post('/api/knowledge-base/:id/ask', authenticateToken, askKnowledgeSource);
+app.post('/api/knowledge-base/:id/use', authenticateToken, useKnowledgeSourceWithAgent);
 
 // Customers Routes
 app.get('/api/customers', authenticateToken, getCustomers);
