@@ -132,11 +132,17 @@ export const AddKnowledgeWizard: React.FC<AddKnowledgeWizardProps> = ({
       return;
     }
     try {
-      const nameToUse = docName.trim() || uploadedFile.name;
-      const fileExt = uploadedFile.name.split('.').pop() || 'txt';
+      const fileExt = uploadedFile.name.split('.').pop() || 'pdf';
+      let nameToUse = docName.trim() || uploadedFile.name;
+      // If user provided a name without an extension, preserve original extension
+      if (!nameToUse.toLowerCase().endsWith(`.${fileExt.toLowerCase()}`)) {
+        nameToUse = `${nameToUse}.${fileExt}`;
+      }
 
       let fileDataText = '';
-      if (uploadedFile.type.startsWith('text/') || ['txt', 'csv', 'md', 'json'].includes(fileExt.toLowerCase())) {
+      const isBinaryDoc = ['pdf', 'docx', 'doc'].includes(fileExt.toLowerCase());
+      // Only read as text for pure plain text files; never read binary PDF/DOCX as raw text
+      if (!isBinaryDoc && (uploadedFile.type.startsWith('text/') || ['txt', 'csv', 'md', 'json'].includes(fileExt.toLowerCase()))) {
         try {
           fileDataText = await uploadedFile.text();
         } catch {

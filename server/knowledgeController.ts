@@ -65,7 +65,49 @@ function isSafeUrl(urlStr: string): { safe: boolean; reason?: string; parsedUrl?
   }
 }
 
-// Text Chunking Engine Helper
+// Helper to strip unparsed binary PDF operators and extract readable text/links
+export function cleanRawPdfArtifacts(text: string): string {
+  if (!text) return '';
+  if (!text.includes('%PDF-') && !text.includes('endobj') && !text.includes(' 0 obj') && !text.includes('ReportLab')) {
+    return text;
+  }
+
+  // Extract embedded text operators: (some text) Tj
+  const textMatches: string[] = [];
+  const tjRegex = /\(([^)]+)\)\s*(?:Tj|'|")/g;
+  let match;
+  while ((match = tjRegex.exec(text)) !== null) {
+    const val = match[1].replace(/\\([()\\])/g, '$1').trim();
+    if (val.length > 1 && !val.startsWith('/') && !val.startsWith('http')) {
+      textMatches.push(val);
+    }
+  }
+
+  // Extract links: /URI (http...)
+  const uriRegex = /\/URI\s*\(([^)]+)\)/g;
+  let uriMatch;
+  while ((uriMatch = uriRegex.exec(text)) !== null) {
+    textMatches.push(`Link: ${uriMatch[1]}`);
+  }
+
+  if (textMatches.length > 0) {
+    return textMatches.join('\n');
+  }
+
+  // Strip raw PDF syntax tags
+  const cleaned = text
+    .replace(/%PDF-[\d.]+/gi, '')
+    .replace(/%[^\n\r]+/g, '')
+    .replace(/\d+\s+\d+\s+obj[\s\S]*?endobj/gi, '')
+    .replace(/<<[\s\S]*?>>/g, '')
+    .replace(/xref[\s\S]*?trailer/gi, '')
+    .replace(/startxref[\s\S]*?%%EOF/gi, '')
+    .replace(/stream[\s\S]*?endstream/gi, '')
+    .trim();
+
+  return cleaned;
+}
+
 // Text Chunking Engine Helper with Sliding Window & Semantic Splitting
 export function createTextChunks(sourceId: string, workspaceId: string, sourceName: string, sourceType: string, text: string) {
   // Delete old chunks for this source first to prevent orphaned records
@@ -237,6 +279,43 @@ export const getKnowledgeSources = async (req: AuthRequest, res: Response) => {
       WHERE workspace_id = ?
       ORDER BY updated_at DESC
     `).all(workspace.id) as DbKnowledgeSource[];
+
+    // Auto-repair any raw/corrupted PDF sources that contain raw %PDF- markers
+    for (const s of rawSources) {
+      if (s.content && typeof s.content === 'string' && (s.content.startsWith('%PDF-') || s.content.includes('ReportLab Generated PDF') || s.content.includes('/BaseFont /Helvetica'))) {
+        try {
+          const parser = new PDFParse({ data: Buffer.from(s.content, 'binary') });
+          const res = await parser.getText();
+          await parser.destroy().catch(() => {});
+          if (res?.text && res.text.trim().length > 10) {
+            const cleanText = res.text.trim();
+            db.prepare('UPDATE knowledge_sources SET content = ?, updated_at = ? WHERE id = ?').run(cleanText, new Date().toISOString(), s.id);
+            s.content = cleanText;
+            const newChunkCount = createTextChunks(s.id, workspace.id, s.name, s.type, cleanText);
+            db.prepare('UPDATE knowledge_sources SET chunk_count = ? WHERE id = ?').run(newChunkCount, s.id);
+            s.chunk_count = newChunkCount;
+          } else {
+            const sanitized = cleanRawPdfArtifacts(s.content);
+            if (sanitized && sanitized.length > 10) {
+              db.prepare('UPDATE knowledge_sources SET content = ? WHERE id = ?').run(sanitized, s.id);
+              s.content = sanitized;
+              const newChunkCount = createTextChunks(s.id, workspace.id, s.name, s.type, sanitized);
+              db.prepare('UPDATE knowledge_sources SET chunk_count = ? WHERE id = ?').run(newChunkCount, s.id);
+              s.chunk_count = newChunkCount;
+            }
+          }
+        } catch {
+          const sanitized = cleanRawPdfArtifacts(s.content);
+          if (sanitized && sanitized.length > 10) {
+            db.prepare('UPDATE knowledge_sources SET content = ? WHERE id = ?').run(sanitized, s.id);
+            s.content = sanitized;
+            const newChunkCount = createTextChunks(s.id, workspace.id, s.name, s.type, sanitized);
+            db.prepare('UPDATE knowledge_sources SET chunk_count = ? WHERE id = ?').run(newChunkCount, s.id);
+            s.chunk_count = newChunkCount;
+          }
+        }
+      }
+    }
 
     let sources = rawSources.map((s) => ({
       id: s.id,
@@ -525,45 +604,85 @@ export const uploadDocumentKnowledge = async (req: AuthRequest, res: Response) =
 
     const now = new Date().toISOString();
     const sourceId = crypto.randomUUID();
-    const ext = fileName.split('.').pop()?.toUpperCase() || 'DOC';
-    const typeLabel = ext === 'PDF' ? 'PDF' : 'Document';
+
+    const cleanBase64 = fileBase64 && typeof fileBase64 === 'string'
+      ? (fileBase64.includes(';base64,') ? fileBase64.split(';base64,').pop()! : fileBase64)
+      : '';
+    const fileBuffer = cleanBase64 ? Buffer.from(cleanBase64, 'base64') : Buffer.alloc(0);
+    const bytes = fileBuffer.length;
+    let fileSizeStr = bytes > 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+
+    const rawExt = (fileName.split('.').pop() || '').toUpperCase();
+    const typeExt = (fileType || '').toUpperCase();
+    const isPdf =
+      (fileBuffer.length >= 5 && fileBuffer.slice(0, 5).toString() === '%PDF-') ||
+      rawExt === 'PDF' ||
+      typeExt === 'PDF' ||
+      fileName.toLowerCase().endsWith('.pdf') ||
+      (fileDataText && typeof fileDataText === 'string' && fileDataText.includes('%PDF-'));
+
+    const isDocx = rawExt === 'DOCX' || typeExt === 'DOCX' || fileName.toLowerCase().endsWith('.docx');
+    const typeLabel = isPdf ? 'PDF' : isDocx ? 'DOCX' : 'Document';
 
     let contentText = '';
-    let fileSizeStr = '240 KB';
 
-    // 1. If base64 file data is passed, decode and parse based on extension
-    if (fileBase64 && typeof fileBase64 === 'string') {
-      try {
-        const cleanBase64 = fileBase64.includes(';base64,') ? fileBase64.split(';base64,').pop()! : fileBase64;
-        const fileBuffer = Buffer.from(cleanBase64, 'base64');
-        const bytes = fileBuffer.length;
-        fileSizeStr = bytes > 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
-
-        if (ext === 'PDF') {
+    if (isPdf) {
+      if (fileBuffer.length > 0) {
+        try {
           const parser = new PDFParse({ data: fileBuffer });
           const pdfResult = await parser.getText();
+          await parser.destroy().catch(() => {});
           contentText = (pdfResult?.text || '').trim();
-        } else if (ext === 'DOCX') {
-          const docxResult = await mammoth.extractRawText({ buffer: fileBuffer });
-          contentText = (docxResult?.value || '').trim();
-        } else {
-          // Plain text formats: TXT, MD, CSV, JSON
-          contentText = fileBuffer.toString('utf-8').trim();
-        }
-      } catch (parseErr: any) {
-        console.warn('[Knowledge Base] Error extracting text from binary document:', parseErr);
-        if (fileDataText && typeof fileDataText === 'string' && fileDataText.trim()) {
-          contentText = fileDataText.trim();
-        } else {
-          return res.status(400).json({ error: `Failed to extract readable text from "${fileName}". Please ensure the file is not corrupted or password-protected.` });
+        } catch (parseErr: any) {
+          console.warn('[Knowledge Base] PDF parse error from buffer:', parseErr);
         }
       }
-    } else if (fileDataText && typeof fileDataText === 'string' && fileDataText.trim()) {
-      contentText = fileDataText.trim();
+
+      // Fallback: If buffer was not provided or failed, check if fileDataText was sent as binary string
+      if (!contentText && fileDataText && typeof fileDataText === 'string' && fileDataText.trim()) {
+        try {
+          const parser = new PDFParse({ data: Buffer.from(fileDataText, 'binary') });
+          const pdfResult = await parser.getText();
+          await parser.destroy().catch(() => {});
+          contentText = (pdfResult?.text || '').trim();
+        } catch (err) {
+          console.warn('[Knowledge Base] PDF parse error from binary string:', err);
+        }
+      }
+
+      // Clean away any raw PDF operators/markers
+      if (contentText.includes('%PDF-') || contentText.includes('ReportLab') || contentText.includes('endobj')) {
+        contentText = cleanRawPdfArtifacts(contentText);
+      }
+
+      // Prevent saving raw unparsed binary PDF
+      if (!contentText || contentText.startsWith('%PDF-') || contentText.length < 10) {
+        return res.status(400).json({
+          error: `No readable text could be extracted from PDF "${fileName}". Please ensure the PDF contains selectable text (not scanned images only) or paste the text directly.`,
+        });
+      }
+    } else if (isDocx) {
+      if (fileBuffer.length > 0) {
+        try {
+          const docxResult = await mammoth.extractRawText({ buffer: fileBuffer });
+          contentText = (docxResult?.value || '').trim();
+        } catch (err) {
+          console.warn('[Knowledge Base] DOCX parse error:', err);
+        }
+      }
+    } else {
+      // Plain text formats: TXT, MD, CSV, JSON
+      if (fileBuffer.length > 0) {
+        contentText = fileBuffer.toString('utf-8').trim();
+      } else if (fileDataText && typeof fileDataText === 'string') {
+        contentText = fileDataText.trim();
+      }
     }
 
-    if (!contentText) {
-      return res.status(400).json({ error: `No readable text could be extracted from "${fileName}". Please check that the document contains readable text and is not empty or scanned image only.` });
+    if (!contentText || contentText.startsWith('%PDF-')) {
+      return res.status(400).json({
+        error: `No readable text could be extracted from "${fileName}". Please check that the document contains readable text and is not empty or scanned image only.`,
+      });
     }
 
     db.prepare(`
@@ -683,6 +802,25 @@ export const reprocessKnowledgeSource = async (req: AuthRequest, res: Response) 
 
     const now = new Date().toISOString();
     let textToChunk = source.content || '';
+
+    // If source content is unparsed raw PDF code, attempt binary re-parsing with PDFParse
+    if (source.type === 'PDF' || textToChunk.includes('%PDF-') || textToChunk.includes('ReportLab Generated PDF') || textToChunk.includes('/BaseFont /Helvetica')) {
+      try {
+        const parser = new PDFParse({ data: Buffer.from(textToChunk, 'binary') });
+        const pdfResult = await parser.getText();
+        await parser.destroy().catch(() => {});
+        if (pdfResult?.text && pdfResult.text.trim().length > 10) {
+          textToChunk = pdfResult.text.trim();
+          db.prepare('UPDATE knowledge_sources SET content = ? WHERE id = ?').run(textToChunk, source.id);
+        } else {
+          textToChunk = cleanRawPdfArtifacts(textToChunk);
+          db.prepare('UPDATE knowledge_sources SET content = ? WHERE id = ?').run(textToChunk, source.id);
+        }
+      } catch {
+        textToChunk = cleanRawPdfArtifacts(textToChunk);
+        db.prepare('UPDATE knowledge_sources SET content = ? WHERE id = ?').run(textToChunk, source.id);
+      }
+    }
 
     if (source.type === 'FAQ' && source.content) {
       try {

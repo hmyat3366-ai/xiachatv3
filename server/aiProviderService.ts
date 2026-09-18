@@ -11,7 +11,7 @@
  * - Fallback handling when AI provider fails or keys are unconfigured
  */
 
-import { performRagSearch } from './knowledgeController.js';
+import { performRagSearch, cleanRawPdfArtifacts } from './knowledgeController.js';
 import { db, DbProduct, DbOrder } from './db.js';
 
 export interface AIProviderRequest {
@@ -188,7 +188,8 @@ export async function generateAiAgentResponse(req: AIProviderRequest): Promise<A
       const paragraphs = ragSnippet
         .split('\n\n')
         .map((p) => p.replace(/^\[Source:[^\]]+\]\s*/, '').trim())
-        .filter(Boolean);
+        .map((p) => cleanRawPdfArtifacts(p).trim())
+        .filter((p) => p.length > 5 && !p.startsWith('%PDF-'));
 
       const userWords = promptLower.replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter((w) => w.length >= 2);
 

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently -k -p \"[{name}]\" -n \"SERVER,VITE\" -c \"cyan,magenta\" \"npm run server\" \"vite\"",
     "dev:frontend": "vite",
-    "server": "tsx server/index.ts",
+    "server": "tsx watch server/index.ts",
     "start": "tsx server/index.ts",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
