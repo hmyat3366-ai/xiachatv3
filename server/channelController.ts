@@ -539,10 +539,13 @@ Each choice must have:
 Output format: Return ONLY a valid JSON array of exactly 4 objects with keys "label" and "prompt". No markdown fences, no explanatory text.`;
 
         const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent`,
           {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey,
+            },
             signal: controller.signal,
             body: JSON.stringify({
               contents: [{ role: 'user', parts: [{ text: promptMessage }] }],

@@ -134,29 +134,42 @@ export async function generateAiAgentResponse(req: AIProviderRequest): Promise<A
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
         if (process.env.GEMINI_API_KEY) {
-          const res = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              signal: controller.signal,
-              body: JSON.stringify({
-                contents: [
-                  { role: 'user', parts: [{ text: `${fullSystemPrompt}\n\nCustomer: ${req.userMessage}` }] },
-                ],
-              }),
+          const candidateModels = ['gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-flash-latest'];
+          for (const modelToTry of candidateModels) {
+            try {
+              const res = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${modelToTry}:generateContent`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'x-goog-api-key': process.env.GEMINI_API_KEY,
+                  },
+                  signal: controller.signal,
+                  body: JSON.stringify({
+                    contents: [
+                      { role: 'user', parts: [{ text: `${fullSystemPrompt}\n\nCustomer: ${req.userMessage}` }] },
+                    ],
+                  }),
+                }
+              );
+
+              if (res.ok) {
+                const data = (await res.json()) as any;
+                replyText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                if (replyText) {
+                  modelUsed = modelToTry;
+                  break;
+                }
+              }
+            } catch {
+              // Try next candidate model
             }
-          );
+          }
 
           clearTimeout(timeoutId);
-
-          if (res.ok) {
-            const data = (await res.json()) as any;
-            replyText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            if (replyText) {
-              modelUsed = 'gemini-2.5-flash';
-              break;
-            }
+          if (replyText) {
+            break;
           }
         }
       } catch (err: any) {
@@ -492,10 +505,13 @@ export async function streamAiAgentTokens(
   if (apiKey && apiKey !== 'mock_key') {
     try {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:streamGenerateContent?alt=sse`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
           body: JSON.stringify({
             contents: [
               { role: 'user', parts: [{ text: `${fullSystemPrompt}\n\nCustomer: ${req.userMessage}` }] },
