@@ -934,7 +934,15 @@ export const handlePublicWidgetMessage = async (req: Request, res: Response) => 
       const agentName = agent ? agent.name : 'Xia Assistant';
       const systemInstructions = agent ? (agent.custom_instructions || agent.instructions || '') : 'Be helpful, accurate, and concise.';
       const tone = agent ? agent.tone : 'Friendly';
-      const knowledgeSources = agent && agent.knowledge_source_ids ? JSON.parse(agent.knowledge_source_ids) : [];
+      let knowledgeSources: string[] = ['all'];
+      try {
+        if (agent && agent.knowledge_source_ids) {
+          knowledgeSources = JSON.parse(agent.knowledge_source_ids);
+        }
+      } catch {}
+      if (!knowledgeSources || knowledgeSources.length === 0) {
+        knowledgeSources = ['all'];
+      }
 
       // Process Inbound Message with Intent Detection, 4-tier Sentiment & Order/Product context
       const aiResult = await processInboundCustomerMessage({

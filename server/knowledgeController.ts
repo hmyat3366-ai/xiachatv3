@@ -98,8 +98,13 @@ export function createTextChunks(sourceId: string, workspaceId: string, sourceNa
 
   db.transaction(() => {
     chunks.forEach((chunkText, idx) => {
-      // Simulate/generate simple token embedding vector array for similarity scoring
-      const tokens = chunkText.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).slice(0, 30);
+      // Generate clean tokens preserving all Unicode alphabets (Burmese, English, Chinese, etc.)
+      const tokens = chunkText
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 30);
       const embeddingJson = JSON.stringify(tokens);
       const metadataJson = JSON.stringify({ sourceName, sourceType, length: chunkText.length });
 
@@ -696,30 +701,87 @@ export function performRagSearch(workspaceId: string, query: string, limit = 5, 
     source_type: string;
   }>;
 
+  if (!allChunks || allChunks.length === 0) {
+    return [];
+  }
+
   let filteredChunks = allChunks;
-  if (allowedSources && allowedSources.length > 0) {
+  if (allowedSources && allowedSources.length > 0 && !allowedSources.includes('all')) {
     const allowedLower = allowedSources.map((s) => s.toLowerCase());
-    filteredChunks = allChunks.filter((chunk) =>
+    const matched = allChunks.filter((chunk) =>
       allowedLower.includes(chunk.source_id.toLowerCase()) ||
       allowedLower.includes(chunk.source_type.toLowerCase()) ||
       allowedLower.includes(chunk.source_name.toLowerCase())
     );
+    // If user's selected allowed sources matched real chunks, use them.
+    // If allowedSources only contained legacy dummy tags (e.g. ['faq', 'returns', 'shipping']) and matched 0 real chunks,
+    // gracefully fall back to allChunks so newly uploaded documents are not hidden.
+    if (matched.length > 0) {
+      filteredChunks = matched;
+    }
   }
 
-  const queryTokens = query.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(Boolean);
+  const cleanQuery = query.toLowerCase().trim();
+  if (!cleanQuery) return [];
+
+  // Unicode-aware word tokenization (preserves Burmese, English, Chinese, etc.)
+  const queryTokens = cleanQuery
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+
+  // In non-spaced scripts (e.g. Burmese, Chinese, Japanese) where queryTokens might be 1 single token,
+  // also extract 2-char and 3-char n-grams for substring matching
+  const subTokens: string[] = [];
+  if (queryTokens.length <= 2 && cleanQuery.length >= 3) {
+    const maxLen = Math.min(cleanQuery.length, 30);
+    for (let i = 0; i <= maxLen - 2; i++) {
+      subTokens.push(cleanQuery.slice(i, i + 2));
+      if (i <= maxLen - 3) {
+        subTokens.push(cleanQuery.slice(i, i + 3));
+      }
+    }
+  }
 
   return filteredChunks
     .map((chunk) => {
       const textLower = chunk.text.toLowerCase();
       let matchCount = 0;
+      let directMatch = false;
 
-      queryTokens.forEach((token) => {
-        if (textLower.includes(token)) matchCount += 1;
-      });
+      // Direct full query or phrase match in document
+      if (cleanQuery.length >= 3 && textLower.includes(cleanQuery)) {
+        directMatch = true;
+        matchCount += 6;
+      }
 
-      const score = queryTokens.length > 0
-        ? (matchCount > 0 ? Math.min(0.99, (matchCount / queryTokens.length) * 0.45 + 0.54) : 0)
-        : 0.75;
+      // Token matches
+      for (const token of queryTokens) {
+        if (textLower.includes(token)) {
+          matchCount += token.length > 3 ? 2 : 1;
+        }
+      }
+
+      // Sub-token / n-gram matches (especially helpful for Burmese/Asian scripts)
+      if (subTokens.length > 0) {
+        let subMatches = 0;
+        for (const st of subTokens) {
+          if (textLower.includes(st)) subMatches += 1;
+        }
+        if (subMatches > 0) {
+          matchCount += Math.min(5, subMatches);
+        }
+      }
+
+      // Irrelevant chunks must be filtered out
+      if (matchCount === 0 && !directMatch) {
+        return null;
+      }
+
+      const totalTokens = Math.max(1, queryTokens.length);
+      const score = directMatch
+        ? 0.96
+        : Math.min(0.95, (matchCount / (totalTokens * 2)) * 0.4 + 0.55);
 
       return {
         id: chunk.id,
@@ -732,7 +794,7 @@ export function performRagSearch(workspaceId: string, query: string, limit = 5, 
         matchCount,
       };
     })
-    .filter((c) => (queryTokens.length > 0 ? c.matchCount > 0 : true))
+    .filter((c): c is NonNullable<typeof c> => c !== null)
     .sort((a, b) => b.similarityScore - a.similarityScore)
     .slice(0, limit);
 }

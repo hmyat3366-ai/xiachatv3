@@ -63,6 +63,13 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // Knowledge Sources State
+  const [availableKnowledgeSources, setAvailableKnowledgeSources] = useState<any[]>([]);
+  const [selectedKnowledgeSources, setSelectedKnowledgeSources] = useState<string[]>(
+    agent.knowledgeSources && agent.knowledgeSources.length > 0 ? agent.knowledgeSources : ['all']
+  );
+  const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(false);
+
   // Test Playground State
   const [testMessages, setTestMessages] = useState<TestChatMessage[]>([
     {
@@ -84,7 +91,57 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
     setAutoReplyEnabled(agent.autoReplyEnabled ?? true);
     setHumanHandoffEnabled(agent.humanHandoffEnabled ?? true);
     setHandoffMessage(agent.handoffMessage || 'Connecting you to our team...');
+    setSelectedKnowledgeSources(
+      agent.knowledgeSources && agent.knowledgeSources.length > 0 ? agent.knowledgeSources : ['all']
+    );
   }, [agent]);
+
+  useEffect(() => {
+    const fetchKnowledge = async () => {
+      try {
+        setIsLoadingKnowledge(true);
+        const wsQuery = agent.workspaceId ? `?workspaceId=${agent.workspaceId}` : '';
+        const res = await apiFetch(`/api/knowledge-base${wsQuery}`);
+        if (res.ok) {
+          const data = await res.json();
+          setAvailableKnowledgeSources(data.sources || []);
+        }
+      } catch (err) {
+        console.error('Failed to load knowledge sources:', err);
+      } finally {
+        setIsLoadingKnowledge(false);
+      }
+    };
+    fetchKnowledge();
+  }, [agent.workspaceId]);
+
+  const isAllSelected = selectedKnowledgeSources.includes('all');
+
+  const handleToggleAll = () => {
+    if (isAllSelected) {
+      setSelectedKnowledgeSources([]);
+    } else {
+      setSelectedKnowledgeSources(['all']);
+    }
+  };
+
+  const handleToggleSource = (id: string) => {
+    if (isAllSelected) {
+      const allIds = availableKnowledgeSources.map((s) => s.id);
+      setSelectedKnowledgeSources(allIds.filter((sourceId) => sourceId !== id));
+    } else {
+      if (selectedKnowledgeSources.includes(id)) {
+        setSelectedKnowledgeSources((prev) => prev.filter((sourceId) => sourceId !== id));
+      } else {
+        const next = [...selectedKnowledgeSources, id];
+        if (availableKnowledgeSources.length > 0 && next.length === availableKnowledgeSources.length) {
+          setSelectedKnowledgeSources(['all']);
+        } else {
+          setSelectedKnowledgeSources(next);
+        }
+      }
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -98,6 +155,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
         autoReplyEnabled,
         humanHandoffEnabled,
         handoffMessage,
+        knowledgeSources: selectedKnowledgeSources,
       });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
@@ -456,45 +514,114 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-base font-black text-[#171717]">Connected Knowledge Sources</h3>
-                <p className="text-xs text-[#6B6B6B]">Select which documents and FAQs this agent can reference.</p>
+                <p className="text-xs text-[#6B6B6B]">Select which documents, FAQs, and files this AI assistant can query.</p>
               </div>
 
               <button
                 onClick={() => onNavigate('/knowledge-base')}
                 className="text-xs font-bold text-[#FF8A2A] hover:underline flex items-center gap-1 cursor-pointer"
               >
-                <span>Manage Knowledge Base</span>
+                <span>Open Knowledge Base</span>
                 <ExternalLink className="w-3 h-3" />
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {[
-                { id: 'faq', name: 'Product FAQ & Policies', type: 'FAQ', chunks: 14 },
-                { id: 'returns', name: 'Returns & Shipping Documentation', type: 'PDF', chunks: 28 },
-                { id: 'pricing', name: 'Pricing & Enterprise Tiers', type: 'Text', chunks: 8 },
-                { id: 'website', name: 'Official Website Knowledge', type: 'URL', chunks: 42 },
-              ].map((k) => (
-                <div
-                  key={k.id}
-                  className="p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-white border border-[#E8E8E5] flex items-center justify-center text-[#FF8A2A]">
-                      <FileText className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-[#171717]">{k.name}</p>
-                      <p className="text-[10px] text-gray-400 font-mono">{k.chunks} vector chunks indexed</p>
-                    </div>
-                  </div>
-
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
-                    Connected
-                  </span>
+            {/* All Sources Master Toggle */}
+            <div
+              onClick={handleToggleAll}
+              className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
+                isAllSelected
+                  ? 'bg-[#FFF0E5]/80 border-[#FF8A2A] shadow-2xs'
+                  : 'bg-[#FAF9F6] border-[#E8E8E5] hover:bg-white'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white border border-[#E8E8E5] flex items-center justify-center text-[#FF8A2A]">
+                  <Sparkles className="w-4 h-4" />
                 </div>
-              ))}
+                <div>
+                  <p className="text-xs font-black text-[#171717]">All Workspace Knowledge (Recommended)</p>
+                  <p className="text-[11px] text-[#6B6B6B]">
+                    Assistant automatically references all current and future documents uploaded to your Knowledge Base.
+                  </p>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={isAllSelected}
+                onChange={() => {}}
+                className="accent-[#FF8A2A] w-4 h-4 cursor-pointer"
+              />
             </div>
+
+            {isLoadingKnowledge ? (
+              <div className="py-12 flex flex-col items-center justify-center gap-2 text-gray-400">
+                <Loader2 className="w-6 h-6 animate-spin text-[#FF8A2A]" />
+                <p className="text-xs">Loading workspace knowledge sources...</p>
+              </div>
+            ) : availableKnowledgeSources.length === 0 ? (
+              <div className="p-8 rounded-3xl bg-[#FAF9F6] border border-dashed border-[#E8E8E5] text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-white border border-[#E8E8E5] flex items-center justify-center mx-auto text-[#FF8A2A]">
+                  <BookOpen className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-[#171717]">No Knowledge Sources Uploaded Yet</h4>
+                  <p className="text-xs text-[#6B6B6B] max-w-sm mx-auto mt-1">
+                    Upload your company PDFs, policies, service catalogs, or FAQs to train this AI agent.
+                  </p>
+                </div>
+                <button
+                  onClick={() => onNavigate('/knowledge-base')}
+                  className="px-4 py-2 rounded-xl bg-[#FF8A2A] text-white text-xs font-black hover:bg-[#E07218] transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Upload Documents to Knowledge Base</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {availableKnowledgeSources.map((k) => {
+                  const isChecked = isAllSelected || selectedKnowledgeSources.includes(k.id);
+                  return (
+                    <div
+                      key={k.id}
+                      onClick={() => handleToggleSource(k.id)}
+                      className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
+                        isChecked
+                          ? 'bg-[#FFF0E5]/50 border-[#FF8A2A]/60 shadow-2xs'
+                          : 'bg-[#FAF9F6] border-[#E8E8E5] hover:bg-white opacity-70'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 pr-2">
+                        <div className="w-9 h-9 shrink-0 rounded-xl bg-white border border-[#E8E8E5] flex items-center justify-center text-[#FF8A2A]">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div className="truncate">
+                          <p className="text-xs font-bold text-[#171717] truncate">{k.name}</p>
+                          <p className="text-[10px] text-gray-500 font-mono">
+                            {k.type ? k.type.toUpperCase() : 'DOCUMENT'} • {k.chunk_count || 0} chunks
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {isChecked && (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                            Connected
+                          </span>
+                        )}
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {}}
+                          className="accent-[#FF8A2A] w-4 h-4 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

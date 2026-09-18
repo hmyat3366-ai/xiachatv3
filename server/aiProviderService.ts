@@ -12,7 +12,7 @@
  */
 
 import { performRagSearch } from './knowledgeController.js';
-import { db, ensureSeedProductsAndOrders, DbProduct, DbOrder } from './db.js';
+import { db, DbProduct, DbOrder } from './db.js';
 
 export interface AIProviderRequest {
   workspaceId: string;
@@ -72,14 +72,14 @@ export function detectLanguage(text: string): string {
 
 export async function generateAiAgentResponse(req: AIProviderRequest): Promise<AIProviderResponse> {
   const startTime = Date.now();
-  const selectedModel = req.model || 'gemini-3.8-flash';
+  const selectedModel = req.model || 'gemini-2.5-flash';
   const language = detectLanguage(req.userMessage);
 
   // 1. RAG Knowledge Search
   let ragSnippet = '';
   let sourcesUsed: string[] = [];
   try {
-    const ragResults = performRagSearch(req.workspaceId, req.userMessage, 3);
+    const ragResults = performRagSearch(req.workspaceId, req.userMessage, 4, req.knowledgeSources);
     if (ragResults && ragResults.length > 0) {
       ragSnippet = ragResults.map((r) => `[Source: ${r.sourceName}]\n${r.text}`).join('\n\n');
       sourcesUsed = Array.from(new Set(ragResults.map((r) => r.sourceName)));
@@ -88,10 +88,9 @@ export async function generateAiAgentResponse(req: AIProviderRequest): Promise<A
     console.error('[AI Provider] RAG search error:', sanitizeLog(String(err)));
   }
 
-  // 2. Fetch Product Catalog for Context Awareness
+  // 2. Fetch Product Catalog for Context Awareness (only if products exist)
   let productsSnippet = '';
   try {
-    ensureSeedProductsAndOrders(req.workspaceId);
     const dbProducts = db.prepare('SELECT name, category, price, description FROM products WHERE workspace_id = ? AND in_stock = 1 LIMIT 5').all(req.workspaceId) as DbProduct[];
     if (dbProducts && dbProducts.length > 0) {
       productsSnippet = dbProducts.map((p) => `- ${p.name} ($${p.price.toFixed(2)}): ${p.description}`).join('\n');
@@ -109,14 +108,14 @@ export async function generateAiAgentResponse(req: AIProviderRequest): Promise<A
     `Tone: ${req.tone || 'Friendly, professional, warm, concise'}.`,
     language !== 'English' ? `CRITICAL: The customer is speaking ${language}. You MUST reply directly in ${language}.` : '',
     req.systemInstructions ? `Instructions: ${req.systemInstructions}` : '',
-    productsSnippet ? `Available Product Catalog:\n${productsSnippet}` : '',
     ragSnippet ? `Verified Knowledge Base:\n${ragSnippet}` : '',
+    productsSnippet ? `Available Product Catalog:\n${productsSnippet}` : '',
     `Rules:
-1. Answer naturally and concisely.
-2. Recommend products from the catalog when appropriate, mentioning tasting notes/prices.
-3. NEVER hallucinate details not found in the verified knowledge base or product catalog.
-4. If a question cannot be resolved accurately, politely offer to connect the customer with human support.
-5. If the customer asks for order status without providing an order number, ask them for their Order ID (e.g. #ORD-84920).`,
+1. Answer naturally, accurately, and concisely.
+2. If verified knowledge base information is provided, PRIORITIZE it above all else. Answer the customer directly using that information.
+3. If product catalog information is provided, reference it accurately when relevant.
+4. NEVER hallucinate details not found in the verified knowledge base or catalog.
+5. If a question cannot be resolved accurately, politely offer to connect the customer with human support.`,
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -134,7 +133,7 @@ export async function generateAiAgentResponse(req: AIProviderRequest): Promise<A
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
         if (process.env.GEMINI_API_KEY) {
-          const candidateModels = ['gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-flash-latest'];
+          const candidateModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
           for (const modelToTry of candidateModels) {
             try {
               const res = await fetch(
@@ -191,13 +190,14 @@ export async function generateAiAgentResponse(req: AIProviderRequest): Promise<A
         .map((p) => p.replace(/^\[Source:[^\]]+\]\s*/, '').trim())
         .filter(Boolean);
 
-      const userWords = promptLower.split(/[^a-z0-9]+/).filter((w) => w.length > 2);
+      const userWords = promptLower.replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter((w) => w.length >= 2);
       let bestPara = paragraphs[0] || '';
       let bestScore = -1;
 
       for (const p of paragraphs) {
         const pLower = p.toLowerCase();
         let score = 0;
+        if (pLower.includes(promptLower.trim())) score += 10;
         for (const w of userWords) {
           if (pLower.includes(w)) score++;
         }
@@ -207,27 +207,25 @@ export async function generateAiAgentResponse(req: AIProviderRequest): Promise<A
         }
       }
 
-      replyText = `Based on our knowledge base: ${bestPara}`;
-    } else if (promptLower.includes('coffee') || promptLower.includes('recommend') || promptLower.includes('menu') || promptLower.includes('product')) {
-      replyText = `I highly recommend our Signature Velvet Reserve Espresso ($18.50) with notes of dark chocolate, wild blackberry, and toasted hazelnut, or our Ethiopian Floral Mist ($19.00) pour-over blend with jasmine and peach nectar!`;
-      sourcesUsed = ['Brew & Bean Product Catalog'];
-    } else if (promptLower.includes('order') || promptLower.includes('track') || promptLower.includes('where is')) {
-      replyText = `All orders ship within 48 hours of roasting. To check where your order is, please provide your 6-digit Order ID (e.g. #ORD-84920) or your purchase email address.`;
-      sourcesUsed = ['Order Tracking Policy'];
-    } else if (promptLower.includes('price') || promptLower.includes('pricing') || promptLower.includes('cost')) {
-      replyText = `Our specialty 12oz whole-bean bags range from $16.50 to $24.00. We also offer subscriptions with a 15% discount and free standard shipping on orders over $35.`;
-      sourcesUsed = ['Pricing & Subscription Guide'];
-    } else if (promptLower.includes('return') || promptLower.includes('refund')) {
-      replyText = `Our return policy allows items to be returned within 30 days of purchase in original condition with receipt.`;
-      sourcesUsed = ['Return Policy Guide'];
-    } else if (promptLower.includes('shipping') || promptLower.includes('delivery')) {
-      replyText = `We offer standard shipping (3-5 business days) and express shipping (1-2 business days). Tracking info is emailed immediately on dispatch.`;
-      sourcesUsed = ['Shipping & Delivery FAQ'];
-    } else if (promptLower.includes('human') || promptLower.includes('agent') || promptLower.includes('person')) {
-      replyText = `I will connect you with a member of our human support team right away. Please hold on a moment.`;
+      if (language === 'Burmese') {
+        replyText = `ကျွန်ုပ်တို့၏ သိမ်းဆည်းထားသော အချက်အလက်များအရ:\n\n${bestPara}`;
+      } else if (language !== 'English') {
+        replyText = bestPara;
+      } else {
+        replyText = `Based on our verified knowledge base:\n\n${bestPara}`;
+      }
+    } else if (promptLower.includes('human') || promptLower.includes('agent') || promptLower.includes('person') || promptLower.includes('လူကြီးမင်း') || promptLower.includes('အကူအညီ')) {
+      replyText = language === 'Burmese'
+        ? `လူကြီးမင်းအား ကျွန်ုပ်တို့၏ Customer Support အဖွဲ့ဝင်တစ်ဦးနှင့် ချက်ချင်း ချိတ်ဆက်ပေးပါမည်။ ခေတ္တစောင့်ဆိုင်းပေးပါ။`
+        : `I will connect you with a member of our human support team right away. Please hold on a moment.`;
       sourcesUsed = ['Human Handoff Trigger Rule'];
+    } else if (productsSnippet && (promptLower.includes('product') || promptLower.includes('recommend') || promptLower.includes('menu'))) {
+      replyText = `Here are some items from our catalog:\n\n${productsSnippet}`;
+      sourcesUsed = ['Product Catalog'];
     } else {
-      replyText = `Hello! I am ${req.agentName}. ${req.systemInstructions ? req.systemInstructions.slice(0, 100) : 'How can I assist you with your order, product recommendations, or questions today?'}`;
+      replyText = language === 'Burmese'
+        ? `မင်္ဂလာပါ! ကျွန်ုပ်သည် ${req.agentName} ဖြစ်ပါသည်။ ${req.systemInstructions ? req.systemInstructions.slice(0, 100) : 'လူကြီးမင်း သိရှိလိုသည်များကို မေးမြန်းနိုင်ပါသည်။ မည်သို့ ကူညီပေးရပါမည်နည်း။'}`
+        : `Hello! I am ${req.agentName}. ${req.systemInstructions ? req.systemInstructions.slice(0, 100) : 'How can I assist you today?'}`;
     }
 
     modelUsed = `${selectedModel} (Local Knowledge Engine)`;
@@ -377,7 +375,6 @@ export async function processInboundCustomerMessage(params: {
 
   // 4. Special Handling: Direct Order Lookup from Database
   if (intent === 'Order Tracking') {
-    ensureSeedProductsAndOrders(params.workspaceId);
     const orderMatch = params.userMessage.match(/#?ORD-?\d+/i);
     let matchedOrder: DbOrder | undefined = undefined;
 
@@ -404,7 +401,7 @@ export async function processInboundCustomerMessage(params: {
         `• **Items:** ${itemsDesc}\n` +
         `• **Carrier:** ${matchedOrder.shipping_carrier || 'Specialty Courier'} (Tracking: \`${matchedOrder.tracking_number || 'XC-928104'}\`)\n` +
         `• **Estimated Delivery:** ${matchedOrder.estimated_delivery || 'Arriving within 48 hours'}\n\n` +
-        `Let me know if you need to modify your delivery or have any questions about your beans!`;
+        `Let me know if you need to modify your delivery or have any questions about your order!`;
 
       return {
         reply: orderReply,
@@ -505,7 +502,7 @@ export async function streamAiAgentTokens(
   if (apiKey && apiKey !== 'mock_key') {
     try {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:streamGenerateContent?alt=sse`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse`,
         {
           method: 'POST',
           headers: {

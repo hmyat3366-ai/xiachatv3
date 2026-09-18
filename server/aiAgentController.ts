@@ -66,7 +66,7 @@ export const getAiAgents = async (req: AuthRequest, res: Response) => {
     `).all(workspace.id) as DbAiAssistant[];
 
     const agents = rawAgents.map((a) => {
-      const knowledgeSources = a.knowledge_source_ids ? JSON.parse(a.knowledge_source_ids) : ['faq', 'returns', 'shipping'];
+      const knowledgeSources = a.knowledge_source_ids ? JSON.parse(a.knowledge_source_ids) : ['all'];
       const channels = a.channel_ids ? JSON.parse(a.channel_ids) : ['web', 'facebook', 'whatsapp'];
 
       return {
@@ -139,7 +139,7 @@ export const getAiAgentById = async (req: AuthRequest, res: Response) => {
       humanHandoffEnabled: Boolean(agent.human_handoff_enabled ?? 1),
       handoffConditions: agent.handoff_conditions ? JSON.parse(agent.handoff_conditions) : ['customer_asks', 'low_confidence'],
       handoffMessage: agent.handoff_message || "I'll connect you with a member of our team who can help.",
-      knowledgeSources: agent.knowledge_source_ids ? JSON.parse(agent.knowledge_source_ids) : ['faq', 'returns'],
+      knowledgeSources: agent.knowledge_source_ids ? JSON.parse(agent.knowledge_source_ids) : ['all'],
       channels: agent.channel_ids ? JSON.parse(agent.channel_ids) : ['web', 'facebook'],
       customRules: agent.custom_rules ? JSON.parse(agent.custom_rules) : [],
       conversationsHandled: agent.conversations_handled || 1248,
@@ -172,7 +172,7 @@ export const createAiAgent = async (req: AuthRequest, res: Response) => {
       humanHandoffEnabled = true,
       handoffConditions = ['customer_asks', 'low_confidence'],
       handoffMessage = "I'll connect you with a member of our team who can help.",
-      knowledgeSources = ['faq', 'returns', 'shipping'],
+      knowledgeSources = ['all'],
       channels = ['web', 'facebook', 'whatsapp'],
       customRules = ['Do not invent information'],
     } = req.body;
@@ -415,6 +415,13 @@ export const testAiAgentPlayground = async (req: AuthRequest, res: Response) => 
     const agent = db.prepare('SELECT * FROM ai_assistants WHERE id = ? AND workspace_id = ?').get(agentId, workspace.id) as DbAiAssistant | undefined;
     if (!agent) return res.status(404).json({ error: 'AI Agent not found.' });
 
+    let parsedKnowledgeSources: string[] = ['all'];
+    try {
+      if (agent.knowledge_source_ids) {
+        parsedKnowledgeSources = JSON.parse(agent.knowledge_source_ids);
+      }
+    } catch {}
+
     // Execute server-side LLM provider execution service with timeout, retries, and RAG context
     const aiResponse = await generateAiAgentResponse({
       workspaceId: workspace.id,
@@ -423,7 +430,7 @@ export const testAiAgentPlayground = async (req: AuthRequest, res: Response) => 
       tone: agent.tone || 'Friendly',
       model: 'gemini-2.5-flash',
       userMessage: message.trim(),
-      knowledgeSources: agent.knowledge_source_ids ? JSON.parse(agent.knowledge_source_ids) : [],
+      knowledgeSources: parsedKnowledgeSources.length > 0 ? parsedKnowledgeSources : ['all'],
     });
 
     return res.status(200).json({

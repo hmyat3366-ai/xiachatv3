@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { apiFetch } from '../../utils/api';
 import type { AIAgentTone, ResponseStyle } from '../../types/aiAgent';
 import {
   ArrowLeft,
@@ -17,6 +18,7 @@ import {
   MessageSquare,
   ShieldCheck,
   UserCheck,
+  FileText,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -41,12 +43,27 @@ export const CreateAgentWizard: React.FC<CreateAgentWizardProps> = ({
   );
 
   // Knowledge Sources Selection
-  const [selectedKnowledge, setSelectedKnowledge] = useState<string[]>([
-    'faq',
-    'returns',
-    'shipping',
-    'company',
-  ]);
+  const [availableKnowledgeSources, setAvailableKnowledgeSources] = useState<any[]>([]);
+  const [selectedKnowledge, setSelectedKnowledge] = useState<string[]>(['all']);
+  const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(false);
+
+  useEffect(() => {
+    const loadKnowledge = async () => {
+      try {
+        setIsLoadingKnowledge(true);
+        const res = await apiFetch('/api/knowledge-base');
+        if (res.ok) {
+          const data = await res.json();
+          setAvailableKnowledgeSources(data.sources || []);
+        }
+      } catch (err) {
+        console.error('Failed to load knowledge sources for wizard:', err);
+      } finally {
+        setIsLoadingKnowledge(false);
+      }
+    };
+    loadKnowledge();
+  }, []);
 
   // Behavior
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(true);
@@ -81,10 +98,32 @@ export const CreateAgentWizard: React.FC<CreateAgentWizardProps> = ({
   // Validation Error state
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const isAllKnowledge = selectedKnowledge.includes('all');
+
+  const handleToggleAllKnowledge = () => {
+    if (isAllKnowledge) {
+      setSelectedKnowledge([]);
+    } else {
+      setSelectedKnowledge(['all']);
+    }
+  };
+
   const handleToggleKnowledge = (id: string) => {
-    setSelectedKnowledge((prev) =>
-      prev.includes(id) ? prev.filter((k) => k !== id) : [...prev, id]
-    );
+    if (isAllKnowledge) {
+      const allIds = availableKnowledgeSources.map((s) => s.id);
+      setSelectedKnowledge(allIds.filter((sId) => sId !== id));
+    } else {
+      if (selectedKnowledge.includes(id)) {
+        setSelectedKnowledge((prev) => prev.filter((item) => item !== id));
+      } else {
+        const next = [...selectedKnowledge, id];
+        if (availableKnowledgeSources.length > 0 && next.length === availableKnowledgeSources.length) {
+          setSelectedKnowledge(['all']);
+        } else {
+          setSelectedKnowledge(next);
+        }
+      }
+    }
   };
 
   const handleToggleCondition = (id: string) => {
@@ -266,43 +305,78 @@ export const CreateAgentWizard: React.FC<CreateAgentWizardProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {[
-              { id: 'faq', name: 'Product FAQ & Policies', type: 'FAQ Collection', count: '14 chunks' },
-              { id: 'returns', name: 'Return & Refund Policy', type: 'Policy Doc', count: '8 chunks' },
-              { id: 'shipping', name: 'Shipping & Delivery Rates', type: 'Document', count: '12 chunks' },
-              { id: 'company', name: 'Company & Licensing Info', type: 'Website URL', count: '42 chunks' },
-            ].map((source) => {
-              const isChecked = selectedKnowledge.includes(source.id);
-              return (
-                <div
-                  key={source.id}
-                  onClick={() => handleToggleKnowledge(source.id)}
-                  className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                    isChecked
-                      ? 'bg-[#FFF0E5]/70 border-[#FF8A2A] shadow-2xs'
-                      : 'bg-[#FAF9F6] border-[#E8E8E5] hover:bg-white'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-white border border-[#E8E8E5] flex items-center justify-center text-[#FF8A2A]">
-                      <BookOpen className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-[#171717]">{source.name}</p>
-                      <p className="text-[10px] text-[#6B6B6B]">{source.type} • {source.count}</p>
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    onChange={() => {}}
-                    className="accent-[#FF8A2A] w-4 h-4 cursor-pointer"
-                  />
-                </div>
-              );
-            })}
+          {/* All Knowledge Master Option */}
+          <div
+            onClick={handleToggleAllKnowledge}
+            className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
+              isAllKnowledge
+                ? 'bg-[#FFF0E5]/80 border-[#FF8A2A] shadow-2xs'
+                : 'bg-[#FAF9F6] border-[#E8E8E5] hover:bg-white'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-white border border-[#E8E8E5] flex items-center justify-center text-[#FF8A2A]">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-black text-[#171717]">All Workspace Knowledge (Recommended)</p>
+                <p className="text-[10px] text-[#6B6B6B]">Auto-connect all current and future documents uploaded to Knowledge Base</p>
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={isAllKnowledge}
+              onChange={() => {}}
+              className="accent-[#FF8A2A] w-4 h-4 cursor-pointer"
+            />
           </div>
+
+          {isLoadingKnowledge ? (
+            <div className="py-8 flex items-center justify-center gap-2 text-gray-400 text-xs">
+              <Loader2 className="w-5 h-5 animate-spin text-[#FF8A2A]" />
+              <span>Loading workspace knowledge sources...</span>
+            </div>
+          ) : availableKnowledgeSources.length === 0 ? (
+            <div className="p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E8E5] text-xs text-[#6B6B6B]">
+              <p className="font-bold text-[#171717]">No documents uploaded yet in this workspace.</p>
+              <p className="mt-0.5 text-[11px]">With "All Workspace Knowledge" selected, any documents you upload later will automatically be referenced by this assistant.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {availableKnowledgeSources.map((source) => {
+                const isChecked = isAllKnowledge || selectedKnowledge.includes(source.id);
+                return (
+                  <div
+                    key={source.id}
+                    onClick={() => handleToggleKnowledge(source.id)}
+                    className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
+                      isChecked
+                        ? 'bg-[#FFF0E5]/70 border-[#FF8A2A] shadow-2xs'
+                        : 'bg-[#FAF9F6] border-[#E8E8E5] hover:bg-white opacity-70'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0 pr-2">
+                      <div className="w-8 h-8 shrink-0 rounded-xl bg-white border border-[#E8E8E5] flex items-center justify-center text-[#FF8A2A]">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="truncate">
+                        <p className="text-xs font-bold text-[#171717] truncate">{source.name}</p>
+                        <p className="text-[10px] text-[#6B6B6B]">
+                          {source.type ? source.type.toUpperCase() : 'DOCUMENT'} • {source.chunk_count || 0} chunks
+                        </p>
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => {}}
+                      className="accent-[#FF8A2A] w-4 h-4 cursor-pointer shrink-0"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* SECTION 4 — AUTOMATION & HUMAN HANDOFF */}
