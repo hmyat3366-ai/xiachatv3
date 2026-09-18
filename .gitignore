@@ -33,4 +33,5 @@ data/
 .env
 .env.*
 !.env.example
+*.mp4
 

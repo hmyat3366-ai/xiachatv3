@@ -133,13 +133,14 @@ describe('PHASE 8 — KNOWLEDGE BASE & RAG INTEGRATION TESTS', () => {
     assert.ok(cookieB);
   });
 
-  it('2. List Knowledge Sources (Auto-seeds default sources)', async () => {
+  it('2. List Knowledge Sources (Workspace starts fresh and empty)', async () => {
     const res = await api('GET', `/api/knowledge-base?workspaceId=${wsAId}`, undefined, cookieA);
     assert.strictEqual(res.status, 200);
     assert.ok(Array.isArray(res.body.sources));
-    assert.ok(res.body.sources.length >= 3);
-    assert.ok(typeof res.body.stats.totalChunks === 'number');
+    assert.strictEqual(res.body.sources.length, 0, 'New workspace must start fresh with 0 sources');
+    assert.strictEqual(res.body.stats.total, 0);
   });
+
 
   it('3. Create Text Knowledge Source & Verify Vector Chunks (POST /api/knowledge-base/text)', async () => {
     const res = await api(
@@ -197,6 +198,23 @@ describe('PHASE 8 — KNOWLEDGE BASE & RAG INTEGRATION TESTS', () => {
     );
     assert.strictEqual(validRes.status, 201);
   });
+
+  it('5b. Upload Document Knowledge Source with text extraction (POST /api/knowledge-base/upload-document)', async () => {
+    const docRes = await api(
+      'POST',
+      `/api/knowledge-base/upload-document?workspaceId=${wsAId}`,
+      {
+        fileName: 'Project_Portfolio.txt',
+        fileType: 'TXT',
+        fileDataText: 'iSoak Portfolio Projects include full stack web applications and customer service AI assistants.',
+      },
+      cookieA
+    );
+    assert.strictEqual(docRes.status, 201);
+    assert.ok(docRes.body.id);
+    assert.ok(docRes.body.chunkCount >= 1);
+  });
+
 
   it('6. Prevent Duplicate Source Name Creation (409 Conflict)', async () => {
     const dupRes = await api(
@@ -271,7 +289,18 @@ describe('PHASE 8 — KNOWLEDGE BASE & RAG INTEGRATION TESTS', () => {
     // Workspace B is on Free plan (max 3 knowledge sources default limits)
     const listRes = await api('GET', `/api/knowledge-base?workspaceId=${wsBId}`, undefined, cookieB);
     assert.strictEqual(listRes.status, 200);
-    assert.strictEqual(listRes.body.sources.length, 3);
+    assert.strictEqual(listRes.body.sources.length, 0, 'New workspace B must start fresh with 0 sources');
+
+    // Create 3 sources on Free plan (limit is 3)
+    for (let i = 1; i <= 3; i++) {
+      const addRes = await api(
+        'POST',
+        `/api/knowledge-base/text?workspaceId=${wsBId}`,
+        { name: `Free Plan Source ${i}`, content: `Content for source number ${i}` },
+        cookieB
+      );
+      assert.strictEqual(addRes.status, 201);
+    }
 
     // Attempting to create 4th knowledge source on Free plan -> 403 PLAN_LIMIT_REACHED
     const createRes = await api(
@@ -283,6 +312,7 @@ describe('PHASE 8 — KNOWLEDGE BASE & RAG INTEGRATION TESTS', () => {
     assert.strictEqual(createRes.status, 403);
     assert.strictEqual(createRes.body.code, 'PLAN_LIMIT_REACHED');
   });
+
 
   it('13. Workspace Security Isolation for Knowledge Sources & RAG Search', async () => {
     const crossGet = await api('GET', `/api/knowledge-base/${faqSourceId}?workspaceId=${wsBId}`, undefined, cookieB);

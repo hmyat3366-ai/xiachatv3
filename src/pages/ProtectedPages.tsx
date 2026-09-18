@@ -106,6 +106,9 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
       if (res.ok) {
         await fetchSources(currentWorkspace?.id);
         setViewMode('list');
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to save text.');
       }
     } finally {
       setIsSaving(false);
@@ -124,6 +127,9 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
       if (res.ok) {
         await fetchSources(currentWorkspace?.id);
         setViewMode('list');
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to save FAQs.');
       }
     } finally {
       setIsSaving(false);
@@ -143,7 +149,7 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
         await fetchSources(currentWorkspace?.id);
         setViewMode('list');
       } else {
-        const errData = await res.json();
+        const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || 'Failed to import URL.');
       }
     } finally {
@@ -151,23 +157,27 @@ export const KnowledgeBasePage: React.FC<{ onNavigate: (path: string) => void }>
     }
   };
 
-  const handleSaveDocument = async (fileName: string, fileType: string, fileDataText?: string) => {
+  const handleSaveDocument = async (fileName: string, fileType: string, fileDataText?: string, fileBase64?: string) => {
     try {
       setIsSaving(true);
       const url = `/api/knowledge-base/upload-document${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;
       const res = await apiFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName, fileType, fileDataText }),
+        body: JSON.stringify({ fileName, fileType, fileDataText, fileBase64 }),
       });
       if (res.ok) {
         await fetchSources(currentWorkspace?.id);
         setViewMode('list');
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to upload document.');
       }
     } finally {
       setIsSaving(false);
     }
   };
+
 
   const handleReprocess = async (sourceId: string) => {
     const url = `/api/knowledge-base/${sourceId}/reprocess${currentWorkspace?.id ? `?workspaceId=${currentWorkspace.id}` : ''}`;

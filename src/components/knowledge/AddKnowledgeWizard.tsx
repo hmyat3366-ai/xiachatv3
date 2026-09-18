@@ -22,7 +22,7 @@ interface AddKnowledgeWizardProps {
   onSaveText: (name: string, content: string) => Promise<void>;
   onSaveFaq: (name: string, faqs: FaqPair[]) => Promise<void>;
   onSaveUrl: (url: string, name?: string) => Promise<void>;
-  onSaveDocument: (fileName: string, fileType: string, fileDataText?: string) => Promise<void>;
+  onSaveDocument: (fileName: string, fileType: string, fileDataText?: string, fileBase64?: string) => Promise<void>;
   isSaving: boolean;
 }
 
@@ -43,8 +43,7 @@ export const AddKnowledgeWizard: React.FC<AddKnowledgeWizardProps> = ({
   // FAQ State
   const [faqName, setFaqName] = useState('');
   const [faqPairs, setFaqPairs] = useState<FaqPair[]>([
-    { question: 'What is your return & refund policy?', answer: 'Customers can return unused items in original packaging within 30 days for a full refund.' },
-    { question: 'How do I track my order delivery?', answer: 'Order tracking links are emailed upon dispatch. You can also ask Xia Assistant with your order number.' },
+    { question: '', answer: '' },
   ]);
 
   // URL State
@@ -86,8 +85,8 @@ export const AddKnowledgeWizard: React.FC<AddKnowledgeWizardProps> = ({
     }
     try {
       await onSaveText(textName.trim(), textContent.trim());
-    } catch {
-      setErrorMessage('Failed to save text knowledge.');
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Failed to save text knowledge.');
     }
   };
 
@@ -105,8 +104,8 @@ export const AddKnowledgeWizard: React.FC<AddKnowledgeWizardProps> = ({
     }
     try {
       await onSaveFaq(faqName.trim(), validFaqs);
-    } catch {
-      setErrorMessage('Failed to save FAQ knowledge.');
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Failed to save FAQ knowledge.');
     }
   };
 
@@ -120,8 +119,8 @@ export const AddKnowledgeWizard: React.FC<AddKnowledgeWizardProps> = ({
     try {
       const generatedName = urlName.trim() || new URL(urlInput).hostname;
       await onSaveUrl(urlInput.trim(), generatedName);
-    } catch {
-      setErrorMessage('Please enter a valid web URL (e.g. https://company.com/help).');
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Please enter a valid web URL (e.g. https://company.com/help).');
     }
   };
 
@@ -135,11 +134,30 @@ export const AddKnowledgeWizard: React.FC<AddKnowledgeWizardProps> = ({
     try {
       const nameToUse = docName.trim() || uploadedFile.name;
       const fileExt = uploadedFile.name.split('.').pop() || 'txt';
-      await onSaveDocument(nameToUse, fileExt, `Document content extracted from ${uploadedFile.name}`);
-    } catch {
-      setErrorMessage('Failed to upload and vectorize document.');
+
+      let fileDataText = '';
+      if (uploadedFile.type.startsWith('text/') || ['txt', 'csv', 'md', 'json'].includes(fileExt.toLowerCase())) {
+        try {
+          fileDataText = await uploadedFile.text();
+        } catch {
+          // ignore error, will read via base64
+        }
+      }
+
+      // Read as base64 for full server-side parsing (PDF, DOCX, etc.)
+      const fileBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(uploadedFile);
+      });
+
+      await onSaveDocument(nameToUse, fileExt, fileDataText, fileBase64);
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Failed to upload and vectorize document.');
     }
   };
+
 
   return (
     <div className="space-y-6">

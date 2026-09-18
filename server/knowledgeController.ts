@@ -3,9 +3,14 @@ import crypto from 'crypto';
 import http from 'http';
 import https from 'https';
 import { URL } from 'url';
+import { createRequire } from 'module';
 import { db, DbKnowledgeSource, DbKnowledgeChunk, DbWorkspace } from './db.js';
 import { AuthRequest } from './authMiddleware.js';
 import { getWorkspaceForUser } from './planLimitMiddleware.js';
+
+const require = createRequire(import.meta.url);
+const { PDFParse } = require('pdf-parse');
+const mammoth = require('mammoth');
 
 // SSRF Security Check Helper
 function isSafeUrl(urlStr: string): { safe: boolean; reason?: string; parsedUrl?: URL } {
@@ -114,8 +119,8 @@ export function createTextChunks(sourceId: string, workspaceId: string, sourceNa
   return chunks.length;
 }
 
-// Auto-seed default Knowledge Sources for workspace if empty
-function ensureSeedKnowledge(workspaceId: string) {
+// Auto-seed default Knowledge Sources for workspace if empty (used explicitly for test suites or demo seeds)
+export function ensureSeedKnowledge(workspaceId: string) {
   const countStmt = db.prepare('SELECT COUNT(*) as count FROM knowledge_sources WHERE workspace_id = ?');
   const result = countStmt.get(workspaceId) as { count: number };
 
@@ -189,7 +194,11 @@ export const getKnowledgeSources = async (req: AuthRequest, res: Response) => {
     const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
     if (!workspace) return res.status(200).json({ sources: [], workspace: null, stats: { total: 0, ready: 0, processing: 0, totalChunks: 0 } });
 
-    ensureSeedKnowledge(workspace.id);
+    // Only seed if explicitly requested by test suite or admin demo (?seed=true)
+    if (req.query.seed === 'true') {
+      ensureSeedKnowledge(workspace.id);
+    }
+
 
     const typeFilter = req.query.type as string | undefined;
     const search = ((req.query.search as string) || '').trim().toLowerCase();
@@ -470,7 +479,7 @@ export const uploadDocumentKnowledge = async (req: AuthRequest, res: Response) =
   try {
     if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
 
-    const { fileName, fileType, fileDataText } = req.body;
+    const { fileName, fileType, fileDataText, fileBase64 } = req.body;
     if (!fileName || typeof fileName !== 'string') {
       return res.status(400).json({ error: 'File name is required.' });
     }
@@ -479,14 +488,54 @@ export const uploadDocumentKnowledge = async (req: AuthRequest, res: Response) =
     const workspace = getWorkspaceForUser(req.user.id, requestedWsId);
     if (!workspace) return res.status(404).json({ error: 'Workspace not found.' });
 
+    // Check duplicate source name in this workspace
+    const existing = db.prepare('SELECT id FROM knowledge_sources WHERE workspace_id = ? AND LOWER(name) = LOWER(?)').get(workspace.id, fileName.trim());
+    if (existing) {
+      return res.status(409).json({ error: `A knowledge source named "${fileName.trim()}" already exists in this workspace.` });
+    }
+
     const now = new Date().toISOString();
     const sourceId = crypto.randomUUID();
     const ext = fileName.split('.').pop()?.toUpperCase() || 'DOC';
     const typeLabel = ext === 'PDF' ? 'PDF' : 'Document';
 
-    const contentText = fileDataText && fileDataText.trim()
-      ? fileDataText.trim()
-      : `Extracted text from document ${fileName}.\n\nContains operational procedures, terms of service, and support instructions for Xia Chat AI.`;
+    let contentText = '';
+    let fileSizeStr = '240 KB';
+
+    // 1. If base64 file data is passed, decode and parse based on extension
+    if (fileBase64 && typeof fileBase64 === 'string') {
+      try {
+        const cleanBase64 = fileBase64.includes(';base64,') ? fileBase64.split(';base64,').pop()! : fileBase64;
+        const fileBuffer = Buffer.from(cleanBase64, 'base64');
+        const bytes = fileBuffer.length;
+        fileSizeStr = bytes > 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
+
+        if (ext === 'PDF') {
+          const parser = new PDFParse({ data: fileBuffer });
+          const pdfResult = await parser.getText();
+          contentText = (pdfResult?.text || '').trim();
+        } else if (ext === 'DOCX') {
+          const docxResult = await mammoth.extractRawText({ buffer: fileBuffer });
+          contentText = (docxResult?.value || '').trim();
+        } else {
+          // Plain text formats: TXT, MD, CSV, JSON
+          contentText = fileBuffer.toString('utf-8').trim();
+        }
+      } catch (parseErr: any) {
+        console.warn('[Knowledge Base] Error extracting text from binary document:', parseErr);
+        if (fileDataText && typeof fileDataText === 'string' && fileDataText.trim()) {
+          contentText = fileDataText.trim();
+        } else {
+          return res.status(400).json({ error: `Failed to extract readable text from "${fileName}". Please ensure the file is not corrupted or password-protected.` });
+        }
+      }
+    } else if (fileDataText && typeof fileDataText === 'string' && fileDataText.trim()) {
+      contentText = fileDataText.trim();
+    }
+
+    if (!contentText) {
+      return res.status(400).json({ error: `No readable text could be extracted from "${fileName}". Please check that the document contains readable text and is not empty or scanned image only.` });
+    }
 
     db.prepare(`
       INSERT INTO knowledge_sources (
@@ -499,7 +548,7 @@ export const uploadDocumentKnowledge = async (req: AuthRequest, res: Response) =
       fileName.trim(),
       typeLabel,
       contentText,
-      JSON.stringify({ filename: fileName, size: '240 KB', ext }),
+      JSON.stringify({ filename: fileName, size: fileSizeStr, ext }),
       req.user.name,
       now,
       now
@@ -508,12 +557,13 @@ export const uploadDocumentKnowledge = async (req: AuthRequest, res: Response) =
     const count = createTextChunks(sourceId, workspace.id, fileName.trim(), typeLabel, contentText);
     db.prepare('UPDATE knowledge_sources SET chunk_count = ? WHERE id = ?').run(count, sourceId);
 
-    return res.status(201).json({ success: true, id: sourceId, chunkCount: count });
-  } catch (err) {
+    return res.status(201).json({ success: true, id: sourceId, chunkCount: count, textLength: contentText.length });
+  } catch (err: any) {
     console.error('Error uploading document knowledge:', err);
-    return res.status(500).json({ error: 'Failed to upload document.' });
+    return res.status(500).json({ error: err?.message || 'Failed to upload document.' });
   }
 };
+
 
 // PUT /api/knowledge-base/:id
 export const updateKnowledgeSource = async (req: AuthRequest, res: Response) => {
@@ -667,7 +717,9 @@ export function performRagSearch(workspaceId: string, query: string, limit = 5, 
         if (textLower.includes(token)) matchCount += 1;
       });
 
-      const score = queryTokens.length > 0 ? Math.min(0.99, (matchCount / queryTokens.length) * 0.45 + 0.54) : 0.75;
+      const score = queryTokens.length > 0
+        ? (matchCount > 0 ? Math.min(0.99, (matchCount / queryTokens.length) * 0.45 + 0.54) : 0)
+        : 0.75;
 
       return {
         id: chunk.id,
@@ -677,8 +729,10 @@ export function performRagSearch(workspaceId: string, query: string, limit = 5, 
         text: chunk.text,
         chunkIndex: chunk.chunk_index,
         similarityScore: Math.round(score * 100),
+        matchCount,
       };
     })
+    .filter((c) => (queryTokens.length > 0 ? c.matchCount > 0 : true))
     .sort((a, b) => b.similarityScore - a.similarityScore)
     .slice(0, limit);
 }
